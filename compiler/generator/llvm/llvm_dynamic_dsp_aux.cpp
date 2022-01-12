@@ -402,7 +402,7 @@ static llvm_dsp_factory* readDSPFactoryFromBitcodeAux(MEMORY_BUFFER buffer, cons
 // Object code <==> file (taken from toy.cpp)
 bool llvm_dynamic_dsp_factory_aux::writeDSPFactoryToObjectcodeFileAux(const string& object_code_path)
 {
-    auto TargetTriple = sys::getDefaultTargetTriple();
+    auto TargetTriple = sys::getProcessTriple();
     fModule->setTargetTriple(TargetTriple);
     string Error;
     auto Target = TargetRegistry::lookupTarget(TargetTriple, Error);

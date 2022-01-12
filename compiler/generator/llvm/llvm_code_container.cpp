@@ -83,7 +83,7 @@ void LLVMCodeContainer::init(const string& name, int numInputs, int numOutputs, 
     FMF.setUnsafeAlgebra();
 #endif
     fBuilder->setFastMathFlags(FMF);
-    fModule->setTargetTriple(sys::getDefaultTargetTriple());
+    fModule->setTargetTriple(sys::getProcessTriple());
 }
 
 LLVMCodeContainer::~LLVMCodeContainer()
