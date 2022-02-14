@@ -491,6 +491,17 @@ class TorchInstVisitor : public TextInstVisitor {
         EndLine(' ');
     }
 
+    // virtual void visit(RetInst* inst)
+    // {
+    //     *fOut << "return ";
+    //     if (inst->fResult) {
+    //         inst->fResult->accept(this);
+    //     } else {
+    //         *fOut << "output0";
+    //     }
+    //     EndLine();
+    // }
+
     virtual void visitAux(RetInst* inst, bool gen_empty)
     {
         if (inst->fResult) {
@@ -531,7 +542,7 @@ class TorchInstVisitor : public TextInstVisitor {
         if (inst->fNumChannels == 0) return;
     
         for (int i = 0; i < inst->fNumChannels; ++i) {
-            *fOut << inst->fBufferName1 << i << " = " << inst->fBufferName2 << "[:, " << (i+1) << "]";
+            *fOut << inst->fBufferName1 << i << " = " << inst->fBufferName2 << "[:, " << i << "]";
             tab(fTab, *fOut);
         }
     }
@@ -574,12 +585,11 @@ class TorchInstVisitor : public TextInstVisitor {
         } else {
             *fOut << "[";
             Int32NumInst* field_index = dynamic_cast<Int32NumInst*>(indexed->fIndex);
-            // Torch arrays start at 1
             if (field_index) {
-                *fOut << (field_index->fNum + 1) << "]";
+                *fOut << field_index->fNum << "]";
             } else {
                 indexed->fIndex->accept(this);
-                *fOut << "+1]";
+                *fOut << "]";
             }
         }
     }
