@@ -47,6 +47,8 @@ class TorchCodeContainer : public virtual CodeContainer {
 
     void generateCompute(int n);
 
+    BlockInst* inlineSubcontainersFunCalls(BlockInst* block);
+
    public:
     TorchCodeContainer()
     {}
