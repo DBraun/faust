@@ -285,7 +285,9 @@ void TorchCodeContainer::generateCompute(int n)
     */
     generatePostComputeBlock(gGlobal->gTorchVisitor);
 
-    back(1, *fOut);
+    *fOut << "return output0";  // todo: more general solution?
+
+    tab(n, *fOut);
 }
 
 void TorchCodeContainer::produceMetadata(int tabs)

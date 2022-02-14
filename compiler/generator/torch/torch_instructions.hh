@@ -254,7 +254,7 @@ class TorchInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["expf"]       = "exp";
         gPolyMathLibTable["exp2f"]      = "exp2";
         gPolyMathLibTable["exp10f"]     = "exp10f";
-        gPolyMathLibTable["floorf"]     = "floor";
+        gPolyMathLibTable["floorf"]     = "math.floor";
         gPolyMathLibTable["fmodf"]      = "mod";
         gPolyMathLibTable["logf"]       = "log";
         gPolyMathLibTable["log2f"]      = "log2";
@@ -263,9 +263,9 @@ class TorchInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["remainderf"] = "remainder";
         gPolyMathLibTable["rintf"]      = "rint";
         gPolyMathLibTable["roundf"]     = "round";
-        gPolyMathLibTable["sinf"]       = "sin";
+        gPolyMathLibTable["sinf"]       = "math.sin";
         gPolyMathLibTable["sqrtf"]      = "sqrt";
-        gPolyMathLibTable["tanf"]       = "tan";
+        gPolyMathLibTable["tanf"]       = "math.tan";
                              
         // Hyperbolic
         gPolyMathLibTable["acoshf"]     = "acosh";
@@ -293,7 +293,7 @@ class TorchInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["exp"]       = "exp";
         gPolyMathLibTable["exp2"]      = "exp2";
         gPolyMathLibTable["exp10"]     = "exp10";
-        gPolyMathLibTable["floor"]     = "floor";
+        gPolyMathLibTable["floor"]     = "math.floor";
         gPolyMathLibTable["fmod"]      = "mod";
         gPolyMathLibTable["log"]       = "log";
         gPolyMathLibTable["log2"]      = "log2";
@@ -302,9 +302,9 @@ class TorchInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["remainder"] = "remainder";
         gPolyMathLibTable["rint"]      = "rint";
         gPolyMathLibTable["round"]     = "round";
-        gPolyMathLibTable["sin"]       = "sin";
+        gPolyMathLibTable["sin"]       = "math.sin";
         gPolyMathLibTable["sqrt"]      = "sqrt";
-        gPolyMathLibTable["tan"]       = "tan";
+        gPolyMathLibTable["tan"]       = "math.tan";
     
         // Hyperbolic
         gPolyMathLibTable["acosh"]     = "acosh";
@@ -419,9 +419,13 @@ class TorchInstVisitor : public TextInstVisitor {
         throw faustexception("ERROR : 'soundfile' primitive not yet supported for Torch\n");
     }
     
-    virtual void visit(Int32NumInst* inst) { *fOut << "torch.tensor([" << inst->fNum << "], dtype=torch.int32, device=device)"; }
+    // virtual void visit(Int32NumInst* inst) { *fOut << "torch.tensor([" << inst->fNum << "], dtype=torch.int32, device=device)"; }
     
-    virtual void visit(Int64NumInst* inst) { *fOut << "torch.tensor([" << inst->fNum << "], dtype=torch.int64, device=device)"; }
+    // virtual void visit(Int64NumInst* inst) { *fOut << "torch.tensor([" << inst->fNum << "], dtype=torch.int64, device=device)"; }
+
+    virtual void visit(Int32NumInst* inst) { *fOut << inst->fNum; }
+    
+    virtual void visit(Int64NumInst* inst) { *fOut << inst->fNum; }
     
     virtual void visit(Int32ArrayNumInst* inst)
     {

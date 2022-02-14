@@ -18,6 +18,7 @@
 <<includeIntrinsic>>
 <<includeclass>>
 
+
 SAMPLERATE = 44100
 
 
@@ -26,6 +27,8 @@ def test():
     # Init DSP
     my_dsp = mydsp()
     my_dsp.classInit(SAMPLERATE)
+    my_dsp.instanceConstants(SAMPLERATE)
+    my_dsp.instanceResetUserInterface()
 
     print("getNumInputs: ", my_dsp.getNumInputs())
     print("getNumOutputs: ", my_dsp.getNumOutputs())
@@ -53,8 +56,8 @@ def test():
 
     duration = 1.
 
-    inputs = torch.zeros(int(my_dsp.getNumInputs().item()), int(SAMPLERATE*duration), dtype=dtype, device=device)
-    outputs = torch.zeros(int(my_dsp.getNumOutputs().item()), int(SAMPLERATE*duration), dtype=dtype, device=device)
+    inputs = torch.zeros(my_dsp.getNumInputs(), int(SAMPLERATE*duration), dtype=dtype, device=device)
+    outputs = torch.zeros(my_dsp.getNumOutputs(), int(SAMPLERATE*duration), dtype=dtype, device=device)
     count = outputs.shape[1]
     print('count: ', count)
     output = my_dsp(inputs, outputs, count)
