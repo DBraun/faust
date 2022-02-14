@@ -614,13 +614,17 @@ class TorchInstVisitor : public TextInstVisitor {
     virtual void visit(::CastInst* inst)
     {
         if (isIntType(inst->fType->getType())) {
-            *fOut << "math.floor(";
-            *fOut << fTypeManager->generateType(inst->fType) << ", ";
+            // todo: better casting?
+            // fTypeManager->generateType(inst->fType) might be torch.int32
+            // *fOut << fTypeManager->generateType(inst->fType) << "(math.floor(";
+            *fOut << "int(math.floor(";
+            inst->fInst->accept(this);
+            *fOut << "))";
         } else {
             *fOut << fTypeManager->generateType(inst->fType) << "(";
+            inst->fInst->accept(this);
+            *fOut << ")";
         }
-        inst->fInst->accept(this);
-        *fOut << ")";
     }
 
     // TODO : does not work, put this code in a function
@@ -674,27 +678,7 @@ class TorchInstVisitor : public TextInstVisitor {
         }
         tab(fTab, *fOut);
     }
-  
-    // virtual void visit(ForLoopInst* inst)
-    // {
-    //     // Don't generate empty loops...
-    //     if (inst->fCode->size() == 0) return;
 
-    //     *fOut << "for ";
-    //     fFinishLine = false;
-    //     inst->fInit->accept(this);
-    //     *fOut << ":";
-    //     inst->fEnd->accept(this);
-    //     *fOut << "; ";
-    //     inst->fIncrement->accept(this);
-    //     fFinishLine = true;
-    //     fTab++;
-    //     tab(fTab, *fOut);
-    //     inst->fCode->accept(this);
-    //     fTab--;
-    //     back(1, *fOut);
-    //     tab(fTab, *fOut);
-    // }
     virtual void visit(ForLoopInst* inst)
     {
         // Don't generate empty loops...

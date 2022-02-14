@@ -285,7 +285,7 @@ void TorchCodeContainer::generateCompute(int n)
     */
     generatePostComputeBlock(gGlobal->gTorchVisitor);
 
-    *fOut << "return output0";  // todo: more general solution?
+    *fOut << "return torch.stack([output0])";  // todo: more general solution when there are multiple outputs?
 
     tab(n, *fOut);
 }

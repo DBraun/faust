@@ -63,6 +63,7 @@ def test():
     output = my_dsp(inputs, outputs, count)
 
     # todo: assert the shape of the output with getNumOutputs()
+    assert(output.shape[0] == outputs.shape[0])
     
     # todo: display the outputs
 
