@@ -1,6 +1,6 @@
 # ************************************************************************
 # FAUST Architecture File
-# Copyright (C) 2021 GRAME, Centre National de Creation Musicale
+# Copyright (C) 2022 GRAME, Centre National de Creation Musicale
 # ---------------------------------------------------------------------
 
 # This is sample code. This file is provided as an example of minimal
@@ -29,6 +29,12 @@ def test():
 
     print("getNumInputs: ", my_dsp.getNumInputs())
     print("getNumOutputs: ", my_dsp.getNumOutputs())
+
+    import json
+
+    json_str = my_dsp.getJSON()
+    json_obj = json.loads(json_str)
+    print('json_obj: ', json_obj)
     
     # # Create a MapUI controller
     # map_ui = MapUI(my_dsp)
@@ -45,14 +51,20 @@ def test():
     # map_ui.setParamValue("/Oscillator/freq", 500.0)
     # map_ui.setParamValue("/Oscillator/volume", -10.0)
 
-    inputs = torch.zeros(my_dsp.getNumInputs(), dtype=dtype)  # FAUSTFLOAT?
-    output = my_dsp(inputs)
+    duration = 1.
+
+    inputs = torch.zeros(int(my_dsp.getNumInputs().item()), int(SAMPLERATE*duration), dtype=dtype, device=device)
+    outputs = torch.zeros(int(my_dsp.getNumOutputs().item()), int(SAMPLERATE*duration), dtype=dtype, device=device)
+    count = outputs.shape[1]
+    print('count: ', count)
+    output = my_dsp(inputs, outputs, count)
 
     # todo: assert the shape of the output with getNumOutputs()
     
     # todo: display the outputs
 
 def main():
+    test()
     pass
 
 if __name__ == '__main__':

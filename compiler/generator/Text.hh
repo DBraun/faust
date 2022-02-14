@@ -221,7 +221,7 @@ inline string flattenJSON(const string& src)
                 dst += "\\\"";
                 break;
             case '\\':
-                dst += "\\";
+                dst += "/";
                 break;
             case '\'':
                 dst += "\\'";

@@ -450,22 +450,22 @@ class TorchStringTypeManager : public StringTypeManager {
         fTypeDirectTable[Typed::kDouble_vec] = ""; // todo:
 
         fTypeDirectTable[Typed::kQuad]     = "";
-        fTypeDirectTable[Typed::kQuad_ptr] = fPtrRef + "";
+        fTypeDirectTable[Typed::kQuad_ptr] = "";
         
         fTypeDirectTable[Typed::kFixedPoint]     = "fixpoint_t";
-        fTypeDirectTable[Typed::kFixedPoint_ptr] = fPtrRef + "fixpoint_t";
-        fTypeDirectTable[Typed::kFixedPoint_ptr] = fPtrRef + fPtrRef + "fixpoint_t";
+        fTypeDirectTable[Typed::kFixedPoint_ptr] = "fixpoint_t";
+        fTypeDirectTable[Typed::kFixedPoint_ptr] = "fixpoint_t";
         fTypeDirectTable[Typed::kFixedPoint_vec] = "vector<fixpoint_t>";
 
         fTypeDirectTable[Typed::kBool]     = "torch.bool";
-        fTypeDirectTable[Typed::kBool_ptr] = fPtrRef + "torch.bool";
+        fTypeDirectTable[Typed::kBool_ptr] = "torch.bool";
         fTypeDirectTable[Typed::kBool_vec] = "torch.tensor[torch.bool]";  // todo:
 
         fTypeDirectTable[Typed::kVoid]     = "void";
-        fTypeDirectTable[Typed::kVoid_ptr] = fPtrRef + "void";
+        fTypeDirectTable[Typed::kVoid_ptr] = "void";
         
         fTypeDirectTable[Typed::kSound]     = "Soundfile";
-        fTypeDirectTable[Typed::kSound_ptr] = fPtrRef + "Soundfile";
+        fTypeDirectTable[Typed::kSound_ptr] = "Soundfile";
 
         // DSP has to be empty here
         fTypeDirectTable[Typed::kObj]     = "";  // struct_name

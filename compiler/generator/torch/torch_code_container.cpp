@@ -116,7 +116,11 @@ void TorchCodeContainer::produceClass()
     tab(n, *fOut);
     *fOut << "import torch";
     tab(n, *fOut);
+    *fOut << "FAUSTFLOAT = float";
+    tab(n, *fOut);
     *fOut << "dtype = " << ifloat();  // torch.float32
+    tab(n, *fOut);
+    *fOut << "device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')";
     tab(n, *fOut);
         
     // Merge sub containers
@@ -149,6 +153,7 @@ void TorchCodeContainer::produceClass()
     tab(n + 1, *fOut);
     *fOut << "def __init__(self):";
     tab(n + 2, *fOut);
+    *fOut << "super(" << fKlassName << ", self).__init__()";
     TorchInitFieldsVisitor initializer(fOut, n + 2);
     generateDeclarations(&initializer);
     // Generate global variables initialisation
@@ -176,37 +181,38 @@ void TorchCodeContainer::produceClass()
     *fOut << "def classInit(self, sample_rate: int):";
     {
         tab(n + 2, *fOut);
+        *fOut << "pass";
+        tab(n + 2, *fOut);
         gGlobal->gTorchVisitor->Tab(n + 2);
         inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gTorchVisitor);
     }
     back(1, *fOut);
-    
-    tab(n, *fOut);
-    tab(n+1, *fOut);
+
+    tab(n + 1, *fOut);
     *fOut << "def instanceResetUserInterface(self):";
     {
         tab(n + 2, *fOut);
-        *fOut << "pass" << endl;
+        *fOut << "pass";
+        tab(n + 2, *fOut);
         generateResetUserInterface(gGlobal->gTorchVisitor);
     }
-    back(2, *fOut);
-    
-    tab(n, *fOut);
-    tab(n+1, *fOut);
+    back(1, *fOut);
+
+    tab(n + 1, *fOut);
     *fOut << "def instanceClear(self):";
     {
         tab(n + 2, *fOut);
         generateClear(gGlobal->gTorchVisitor);
     }
-    back(2, *fOut);
+    back(1, *fOut);
 
-    tab(n+1, *fOut);
+    tab(n + 1, *fOut);
     *fOut << "def instanceConstants(self, sample_rate: int):";
     {
         tab(n + 2, *fOut);
         inlineSubcontainersFunCalls(fInitInstructions)->accept(gGlobal->gTorchVisitor);
     }
-    back(2, *fOut);
+    tab(n+1, *fOut);
    
     //tab(n, *fOut);
     //tab(n + 1, *fOut);
@@ -229,7 +235,6 @@ void TorchCodeContainer::produceClass()
     //tab(n, *fOut);
     
     // JSON generation
-    tab(n, *fOut);
     tab(n+1, *fOut);
     *fOut << "def getJSON(self):";
     {
@@ -240,22 +245,19 @@ void TorchCodeContainer::produceClass()
             json = generateJSON<double>();
         }
         tab(n + 2, *fOut);
-        *fOut << "return \"" << flattenJSON(json) << "\"" << endl;
-        tab(n, *fOut);
+        *fOut << "return \"\"\"" << flattenJSON(json) << "\"\"\"" << endl;
+        tab(n + 1, *fOut);
     }
-    back(1, *fOut);
 
     // User interface
-    tab(n, *fOut);
     tab(n + 1, *fOut);
     *fOut << "def buildUserInterface(self, ui_interface):";
     tab(n + 2, *fOut);
     gGlobal->gTorchVisitor->Tab(n + 2);
     generateUserInterface(gGlobal->gTorchVisitor);
-    back(2, *fOut);
-    tab(n, *fOut);
     
-    // Compute
+    //// Compute
+    tab(n + 1, *fOut);
     generateCompute(n+1);
 }
 
@@ -266,7 +268,7 @@ void TorchCodeContainer::generateCompute(int n)
     // fFullCount is the number of samples
     // xfloat() is FAUSTFLOAT
     // *fOut << "def forward(self, " << fFullCount << subst(": int, inputs::Matrix{$0}, outputs::Matrix{$0}):", xfloat());
-    *fOut << "def forward(self, x: torch.Tensor):";
+    *fOut << "def forward(self, inputs: torch.Tensor, outputs: torch.Tensor, count: int):";
     tab(n + 1, *fOut);
     gGlobal->gTorchVisitor->Tab(n + 1);
 
@@ -351,7 +353,7 @@ void TorchVectorCodeContainer::generateCompute(int n)
     // Generates declaration
     tab(n + 1, *fOut);
     // *fOut << "def forward(self, " << fFullCount << subst("::Int32, inputs::Matrix{$0}, outputs::Matrix{$0}) where {T}", xfloat());
-    *fOut << "def forward(self, x: torch.Tensor):";
+    *fOut << "def forward(self, inputs: torch.Tensor, outputs: torch.Tensor, count: int):";
     tab(n + 2, *fOut);
     gGlobal->gTorchVisitor->Tab(n + 2);
 

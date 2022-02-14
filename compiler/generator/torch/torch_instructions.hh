@@ -65,9 +65,9 @@ struct TorchInitFieldsVisitor : public DispatchVisitor {
         ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(typed);
         faustassert(array_type);
         if (isIntPtrType(typed->getType())) {
-            *fOut << "torch.zeros(" << array_type->fSize << ", dtype=torch.int32)";
+            *fOut << "torch.zeros(" << array_type->fSize << ", dtype=torch.int32, device=device)";
         } else {
-            *fOut << "torch.zeros(" << array_type->fSize << ", dtype=torch.int32)";
+            *fOut << "torch.zeros(" << array_type->fSize << ", dtype=torch.int32, device=device)";
         }
     }
     
@@ -81,7 +81,7 @@ struct TorchInitFieldsVisitor : public DispatchVisitor {
             *fOut << sep << inst->fNumTable[i];
             sep = ',';
         }
-        *fOut << "], dtype=torch.int32)";
+        *fOut << "], dtype=torch.int32, device=device)";
     }
     
     virtual void visit(FloatArrayNumInst* inst)
@@ -92,7 +92,7 @@ struct TorchInitFieldsVisitor : public DispatchVisitor {
             *fOut << sep << checkFloat(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << "], dtype=torch.float32)";
+        *fOut << "], dtype=torch.float32, device=device)";
     }
     
     virtual void visit(DoubleArrayNumInst* inst)
@@ -103,7 +103,7 @@ struct TorchInitFieldsVisitor : public DispatchVisitor {
             *fOut << sep << checkDouble(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << "], dtype=torch.float64)";
+        *fOut << "], dtype=torch.float64, device=device)";
     }
     
 };
@@ -387,7 +387,7 @@ class TorchInstVisitor : public TextInstVisitor {
                 break;
         }
         // todo: fix this
-        *fOut << name << "ui_interface, " << quote(inst->fLabel) << ", :" << inst->fZone << ", "
+        *fOut << name << "ui_interface, " << quote(inst->fLabel) << ", \"" << inst->fZone << "\", "
               << cast2FAUSTFLOAT(checkReal(inst->fInit)) << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMin)) << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMax)) << ", "
@@ -419,9 +419,9 @@ class TorchInstVisitor : public TextInstVisitor {
         throw faustexception("ERROR : 'soundfile' primitive not yet supported for Torch\n");
     }
     
-    virtual void visit(Int32NumInst* inst) { *fOut << "torch.tensor([" << inst->fNum << "], dtype=torch.int32)"; }
+    virtual void visit(Int32NumInst* inst) { *fOut << "torch.tensor([" << inst->fNum << "], dtype=torch.int32, device=device)"; }
     
-    virtual void visit(Int64NumInst* inst) { *fOut << "torch.tensor([" << inst->fNum << "], dtype=torch.int64)"; }
+    virtual void visit(Int64NumInst* inst) { *fOut << "torch.tensor([" << inst->fNum << "], dtype=torch.int64, device=device)"; }
     
     virtual void visit(Int32ArrayNumInst* inst)
     {
@@ -431,7 +431,7 @@ class TorchInstVisitor : public TextInstVisitor {
             *fOut << sep << inst->fNumTable[i];
             sep = ',';
         }
-        *fOut << "], dtype=torch.int32)";
+        *fOut << "], dtype=torch.int32, device=device)";
     }
     
     virtual void visit(FloatArrayNumInst* inst)
@@ -442,7 +442,7 @@ class TorchInstVisitor : public TextInstVisitor {
             *fOut << sep << checkFloat(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << "], dtype=torch.float32)";
+        *fOut << "], dtype=torch.float32, device=device)";
     }
     
     virtual void visit(DoubleArrayNumInst* inst)
@@ -453,7 +453,7 @@ class TorchInstVisitor : public TextInstVisitor {
             *fOut << sep << checkDouble(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << "], dtype=torch.float64)";
+        *fOut << "], dtype=torch.float64, device=device)";
     }
     
     virtual void visit(BinopInst* inst)
@@ -696,9 +696,9 @@ class TorchInstVisitor : public TextInstVisitor {
         fFinishLine = true;
         fTab++;
         tab(fTab, *fOut);
-        inst->fIncrement->accept(this);
-        tab(fTab, *fOut);
         inst->fCode->accept(this);
+        tab(fTab, *fOut);
+        inst->fIncrement->accept(this);
         fTab--;
         back(1, *fOut);
         tab(fTab, *fOut);
@@ -731,14 +731,18 @@ class TorchInstVisitor : public TextInstVisitor {
             faustassert(lower_bound);
             Int32NumInst* upper_bound = dynamic_cast<Int32NumInst*>(inst->fUpperBound);
 
-            *fOut << "range(" << lower_bound->fNum << ", " << upper_bound->fNum-1 << ", ";
-            if (upper_bound->fNum > lower_bound->fNum) {
-                *fOut << "1";
+            if (upper_bound) {
+                *fOut << "range(" << lower_bound->fNum << ", " << upper_bound->fNum-1;
+
+                if (upper_bound->fNum <= lower_bound->fNum) {
+                    *fOut << ", -1";
+                }
             } else {
+                *fOut << "range(" << lower_bound->fNum << ", ";
                 inst->fUpperBound->accept(this);
-                *fOut << "-1";
             }
-            *fOut << ")";
+
+            *fOut << "):";
         }
 
         fTab++;
