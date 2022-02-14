@@ -57,6 +57,7 @@ struct DispatchVisitor;
 class WASTInstVisitor;
 class WASMInstVisitor;
 class JuliaInstVisitor;
+class TorchInstVisitor;
 struct TableSizeVisitor;
 struct DeclareStructTypeInst;
 
@@ -521,6 +522,11 @@ struct global {
 
 #ifdef SOUL_BUILD
     TableSizeVisitor* gTableSizeVisitor;
+#endif
+
+#ifdef TORCH_BUILD
+    // One single global visitor Torch backend, so that sub-containers and the global container use the same heap
+    TorchInstVisitor* gTorchVisitor;
 #endif
 
     bool gHelpSwitch;

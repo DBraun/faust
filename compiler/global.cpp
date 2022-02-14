@@ -87,6 +87,14 @@
 #include "dlang_code_container.hh"
 #endif
 
+#ifdef JULIA_BUILD
+#include "julia_code_container.hh"
+#endif
+
+#ifdef TORCH_BUILD
+#include "torch_code_container.hh"
+#endif
+
 // Parser
 extern FILE*       yyin;
 extern const char* yyfilename;
@@ -442,6 +450,10 @@ global::global() : TABBER(1), gLoopDetector(1024, 400), gStackOverflowDetector(M
     gTableSizeVisitor = nullptr;  // Will be (possibly) allocated in SOUL backend
 #endif
 
+#ifdef TORCH_BUILD
+    gTorchVisitor = nullptr;  // Will be (possibly) allocated in Torch backend
+#endif
+
     gHelpSwitch       = false;
     gVersionSwitch    = false;
     gLibDirSwitch     = false;
@@ -749,7 +761,8 @@ bool global::hasForeignFunction(const string& name, const string& inc_file)
                                  || (gOutputLang == "dlang")
                                  || (gOutputLang == "csharp")
                                  || (gOutputLang == "rust")
-                                 || (gOutputLang == "julia"));
+                                 || (gOutputLang == "julia")
+                                 || (gOutputLang == "torch"));
     
     return (has_internal_math_ff && (gMathForeignFunctions.find(name) != gMathForeignFunctions.end())) || is_linkable;
 }
@@ -803,11 +816,14 @@ global::~global()
 #ifdef JAVA_BUILD
     JAVAInstVisitor::cleanup();
 #endif
-#ifdef JULIS_BUILD
+#ifdef JULIA_BUILD
     JuliaInstVisitor::cleanup();
 #endif
 #ifdef RUST_BUILD
     RustInstVisitor::cleanup();
+#endif
+#ifdef TORCH_BUILD
+    TorchInstVisitor::cleanup();
 #endif
 }
 

@@ -119,6 +119,10 @@
 #include "soul_code_container.hh"
 #endif
 
+#ifdef TORCH_BUILD
+#include "torch_code_container.hh"
+#endif
+
 #ifdef WASM_BUILD
 #include "wasm_code_container.hh"
 #include "wast_code_container.hh"
@@ -193,6 +197,10 @@ static void enumBackends(ostream& out)
 
 #ifdef SOUL_BUILD
     out << dspto << "SOUL" << endl;
+#endif
+
+#ifdef TORCH_BUILD
+    out << dspto << "Torch" << endl;
 #endif
 
 #ifdef WASM_BUILD
@@ -901,7 +909,7 @@ static void printHelp()
     cout << tab << "-lang <lang> --language                 select output language," << endl;
     cout << tab
          << "                                        'lang' should be c, cpp (default), csharp, dlang, fir, interp, java, julia, llvm, "
-            "ocpp, rust, soul or wast/wasm."
+            "ocpp, rust, soul, torch, or wast/wasm."
          << endl;
     cout << tab
          << "-single     --single-precision-floats   use single precision floats for internal computations (default)."
@@ -1531,6 +1539,16 @@ static void compileSOUL(Tree signals, int numInputs, int numOutputs, bool genera
 #endif
 }
 
+static void compileTorch(Tree signals, int numInputs, int numOutputs, bool generate, ostream* out)
+{
+#ifdef TORCH_BUILD
+    gGlobal->gAllowForeignFunction = false;  // No foreign functions
+    container = TorchCodeContainer::createContainer(gGlobal->gClassName, numInputs, numOutputs, out);
+#else
+    throw faustexception("ERROR : -lang torch not supported since Torch backend is not built\n");
+#endif
+}
+
 static void createHelperFile(const string& outpath)
 {
     // Additional file with JS code
@@ -1677,6 +1695,8 @@ void generateCode(Tree signals, int numInputs, int numOutputs, bool generate)
             compileCSharp(signals, numInputs, numOutputs, generate, dst.get());
         } else if (startWith(gGlobal->gOutputLang, "soul")) {
             compileSOUL(signals, numInputs, numOutputs, generate, dst.get());
+        } else if (gGlobal->gOutputLang == "torch") {
+            compileTorch(signals, numInputs, numOutputs, generate, dst.get());
         } else if (startWith(gGlobal->gOutputLang, "wast")) {
             compileWAST(signals, numInputs, numOutputs, generate, dst.get(), outpath);
         } else if (startWith(gGlobal->gOutputLang, "wasm")) {
@@ -1697,7 +1717,7 @@ void generateCode(Tree signals, int numInputs, int numOutputs, bool generate)
                 new_comp = new DAGInstructionsCompiler(container);
             }
     #if defined(RUST_BUILD) || defined(JULIA_BUILD)
-            else if (gGlobal->gOutputLang == "rust" || gGlobal->gOutputLang == "julia") {
+            else if (gGlobal->gOutputLang == "rust" || gGlobal->gOutputLang == "julia" || gGlobal->gOutputLang == "torch") {
                 new_comp = new InstructionsCompiler1(container);
             }
     #endif
