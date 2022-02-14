@@ -59,6 +59,9 @@ class TorchCodeContainer : public virtual CodeContainer {
     
     virtual dsp_factory_base* produceFactory();
 
+    virtual void produceInfoFunctions(int tabs, const string& classname, const string& obj, bool ismethod,
+                                      bool isvirtual, TextInstVisitor* producer);
+
     CodeContainer* createScalarContainer(const std::string& name, int sub_container_type);
 
     static CodeContainer* createContainer(const std::string& name, int numInputs, int numOutputs,

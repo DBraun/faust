@@ -100,30 +100,25 @@ void TorchCodeContainer::produceClass()
     int n = 0;
     
     // Print header
-    *fOut << "#=\n"
+    *fOut << "\"\"\"" << endl
           << "Code generated with Faust version " << FAUSTVERSION << endl;
     *fOut << "Compilation options: ";
     stringstream stream;
     gGlobal->printCompilationOptions(stream);
     *fOut << stream.str();
     tab(n, *fOut);
-    *fOut << "=#";
+    *fOut << "\"\"\"";
     tab(n, *fOut);
     
-    // Dependencies and REAL alias
+    // dtype
     tab(n, *fOut);
-    *fOut << "using StaticArrays";
+    *fOut << "import math";
     tab(n, *fOut);
-    *fOut << "const REAL = " << ifloat();
+    *fOut << "import torch";
     tab(n, *fOut);
-    
-    // Missing mathematical functions
-    *fOut << "pow(x, y) = x ^ y";
+    *fOut << "dtype = " << ifloat();  // torch.float32
     tab(n, *fOut);
-    *fOut << "rint(x) = round(x, Base.Rounding.RoundNearest)";
-    tab(n, *fOut);
-    *fOut << "remainder(x, y) = rem(x, y, Base.Rounding.RoundNearest)";
-    
+        
     // Merge sub containers
     mergeSubContainers();
 
@@ -139,21 +134,21 @@ void TorchCodeContainer::produceClass()
     }
    
     tab(n, *fOut);
-    *fOut << "mutable struct " << fKlassName << "{T} <: dsp";
+    *fOut << "class " << fKlassName << "(torch.nn.Module):";
     tab(n + 1, *fOut);
 
-    // Fields
-    gGlobal->gTorchVisitor->Tab(n + 1);
-    generateDeclarations(gGlobal->gTorchVisitor);
-    // Generate global variables definition
-    for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-        if (dynamic_cast<DeclareVarInst*>(it)) {
-            it->accept(gGlobal->gTorchVisitor);
-        }
-    }
-    *fOut << fKlassName << "{T}() where {T} = begin";
+    //// Fields
+    //gGlobal->gTorchVisitor->Tab(n + 1);
+    //generateDeclarations(gGlobal->gTorchVisitor);
+    //// Generate global variables definition
+    //for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+    //    if (dynamic_cast<DeclareVarInst*>(it)) {
+    //        it->accept(gGlobal->gTorchVisitor);
+    //    }
+    //}
+    tab(n + 1, *fOut);
+    *fOut << "def __init__(self):";
     tab(n + 2, *fOut);
-    *fOut << "dsp = new{T}()";
     TorchInitFieldsVisitor initializer(fOut, n + 2);
     generateDeclarations(&initializer);
     // Generate global variables initialisation
@@ -162,91 +157,81 @@ void TorchCodeContainer::produceClass()
             it->accept(&initializer);
         }
     }
-    tab(n + 2, *fOut);
-    *fOut << "dsp";
-    tab(n + 1, *fOut);
-    *fOut << "end";
-    tab(n, *fOut);
-    *fOut << "end";
     tab(n, *fOut);
     
     // Print metadata declaration
-    produceMetadata(n);
+    produceMetadata(n+1);
 
     // Get sample rate method
     tab(n, *fOut);
     gGlobal->gTorchVisitor->Tab(n);
-    generateGetSampleRate("getSampleRate", "dsp", false, false)->accept(gGlobal->gTorchVisitor);
 
-    tab(n, *fOut);
-    produceInfoFunctions(n, "", "dsp", false, false, gGlobal->gTorchVisitor);
+    // todo: enable generateGetSampleRate
+    //generateGetSampleRate("getSampleRate", "dsp", false, false)->accept(gGlobal->gTorchVisitor);
+
+    tab(n+1, *fOut);
+    produceInfoFunctions(n+1, "", "self", false, false, gGlobal->gTorchVisitor);
     
-    tab(n, *fOut);
-    *fOut << "function classInit!(dsp::" << fKlassName << "{T}, sample_rate::Int32) where {T}";
+    tab(n+1, *fOut);
+    *fOut << "def classInit(self, sample_rate: int):";
     {
-        tab(n + 1, *fOut);
-        gGlobal->gTorchVisitor->Tab(n + 1);
+        tab(n + 2, *fOut);
+        gGlobal->gTorchVisitor->Tab(n + 2);
         inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gTorchVisitor);
     }
     back(1, *fOut);
-    *fOut << "end";
     
     tab(n, *fOut);
-    tab(n, *fOut);
-    *fOut << "function instanceResetUserInterface!(dsp::" << fKlassName << "{T}) where {T}";
+    tab(n+1, *fOut);
+    *fOut << "def instanceResetUserInterface(self):";
     {
-        tab(n + 1, *fOut);
+        tab(n + 2, *fOut);
+        *fOut << "pass" << endl;
         generateResetUserInterface(gGlobal->gTorchVisitor);
     }
-    back(1, *fOut);
-    *fOut << "end";
+    back(2, *fOut);
     
     tab(n, *fOut);
-    tab(n, *fOut);
-    *fOut << "function instanceClear!(dsp::" << fKlassName << "{T}) where {T}";
+    tab(n+1, *fOut);
+    *fOut << "def instanceClear(self):";
     {
-        tab(n + 1, *fOut);
+        tab(n + 2, *fOut);
         generateClear(gGlobal->gTorchVisitor);
     }
-    back(1, *fOut);
-    *fOut << "end";
+    back(2, *fOut);
 
-    tab(n, *fOut);
-    tab(n, *fOut);
-    *fOut << "function instanceConstants!(dsp::" << fKlassName << "{T}, sample_rate::Int32) where {T}";
+    tab(n+1, *fOut);
+    *fOut << "def instanceConstants(self, sample_rate: int):";
     {
-        tab(n + 1, *fOut);
+        tab(n + 2, *fOut);
         inlineSubcontainersFunCalls(fInitInstructions)->accept(gGlobal->gTorchVisitor);
     }
-    back(1, *fOut);
-    *fOut << "end";
+    back(2, *fOut);
    
-    tab(n, *fOut);
-    tab(n, *fOut);
-    *fOut << "function instanceInit!(dsp::" << fKlassName << "{T}, sample_rate::Int32) where {T}";
-    tab(n + 1, *fOut);
-    *fOut << "instanceConstants!(dsp, sample_rate)";
-    tab(n + 1, *fOut);
-    *fOut << "instanceResetUserInterface!(dsp)";
-    tab(n + 1, *fOut);
-    *fOut << "instanceClear!(dsp)";
-    tab(n, *fOut);
-    *fOut << "end";
+    //tab(n, *fOut);
+    //tab(n + 1, *fOut);
+    //*fOut << "def instanceInit(self, sample_rate: int):";
+    //tab(n + 2, *fOut);
+    //*fOut << "instanceConstants(dsp, sample_rate):";
+    //tab(n + 2, *fOut);
+    //*fOut << "instanceResetUserInterface(dsp):";
+    //tab(n + 2, *fOut);
+    //*fOut << "instanceClear(dsp):";
+    //tab(n, *fOut);
 
-    tab(n, *fOut);
-    tab(n, *fOut);
-    *fOut << "function init!(dsp::" << fKlassName << "{T}, sample_rate::Int32) where {T}";
-    tab(n + 1, *fOut);
-    *fOut << "classInit!(dsp, sample_rate)";
-    tab(n + 1, *fOut);
-    *fOut << "instanceInit!(dsp, sample_rate)";
-    tab(n, *fOut);
-    *fOut << "end";
+    //tab(n, *fOut);
+    //tab(n, *fOut);
+    //*fOut << "def function init(self, sample_rate: int):";
+    //tab(n + 1, *fOut);
+    //*fOut << "def classInit(dsp, sample_rate: int)";
+    //tab(n + 1, *fOut);
+    //*fOut << "instanceInit(dsp, sample_rate: int)";
+    //tab(n, *fOut);
     
     // JSON generation
     tab(n, *fOut);
-    tab(n, *fOut);
-    *fOut << "function getJSON(dsp::" << fKlassName << "{T}) where {T}";
+    tab(n+1, *fOut);
+    *fOut << "def getJSON(self):";
     {
         string json;
         if (gGlobal->gFloatSize == 1) {
@@ -254,34 +239,34 @@ void TorchCodeContainer::produceClass()
         } else {
             json = generateJSON<double>();
         }
-        tab(n + 1, *fOut);
+        tab(n + 2, *fOut);
         *fOut << "return \"" << flattenJSON(json) << "\"" << endl;
         tab(n, *fOut);
     }
     back(1, *fOut);
-    *fOut << "end";
 
     // User interface
     tab(n, *fOut);
-    tab(n, *fOut);
-    *fOut << "function buildUserInterface!(dsp::" << fKlassName << "{T}, ui_interface::UI) where {T}";
     tab(n + 1, *fOut);
-    gGlobal->gTorchVisitor->Tab(n + 1);
+    *fOut << "def buildUserInterface(self, ui_interface):";
+    tab(n + 2, *fOut);
+    gGlobal->gTorchVisitor->Tab(n + 2);
     generateUserInterface(gGlobal->gTorchVisitor);
-    back(1, *fOut);
-    *fOut << "end";
+    back(2, *fOut);
     tab(n, *fOut);
     
     // Compute
-    generateCompute(n);
+    generateCompute(n+1);
 }
 
 void TorchCodeContainer::generateCompute(int n)
 {
     // Generates declaration
     tab(n, *fOut);
-    *fOut << "@inbounds function compute!(dsp::" << fKlassName
-          << "{T}, " << fFullCount << subst("::Int32, inputs::Matrix{$0}, outputs::Matrix{$0}) where {T}", xfloat());
+    // fFullCount is the number of samples
+    // xfloat() is FAUSTFLOAT
+    // *fOut << "def forward(self, " << fFullCount << subst(": int, inputs::Matrix{$0}, outputs::Matrix{$0}):", xfloat());
+    *fOut << "def forward(self, x: torch.Tensor):";
     tab(n + 1, *fOut);
     gGlobal->gTorchVisitor->Tab(n + 1);
 
@@ -299,38 +284,47 @@ void TorchCodeContainer::generateCompute(int n)
     generatePostComputeBlock(gGlobal->gTorchVisitor);
 
     back(1, *fOut);
-    *fOut << "end" << endl;
 }
 
 void TorchCodeContainer::produceMetadata(int tabs)
 {
     tab(tabs, *fOut);
-    *fOut << "function metadata!(dsp::" << fKlassName << "{T}, m::FMeta) where {T}";
+    *fOut << "def metadata(self):";
     
         // We do not want to accumulate metadata from all hierachical levels, so the upper level only is kept
     for (const auto& i : gGlobal->gMetaDataSet) {
         if (i.first != tree("author")) {
             tab(tabs + 1, *fOut);
-            *fOut << "declare!(m, \"" << *(i.first) << "\", " << **(i.second.begin()) << ");";
+            *fOut << "print(\"" << *(i.first) << "\", " << **(i.second.begin()) << ")";
         } else {
                 // But the "author" meta data is accumulated, the upper level becomes the main author and sub-levels become
                 // "contributor"
             for (set<Tree>::iterator j = i.second.begin(); j != i.second.end(); j++) {
                 if (j == i.second.begin()) {
                     tab(tabs + 1, *fOut);
-                    *fOut << "declare!(m, \"" << *(i.first) << "\", " << **j << ");";
+                    *fOut << "print(\"" << *(i.first) << "\", " << **j << ")";
                 } else {
                     tab(tabs + 1, *fOut);
-                    *fOut << "declare!(m, \""
+                    *fOut << "print(\""
                     << "contributor"
-                    << "\", " << **j << ");";
+                    << "\", " << **j << ")";
                 }
             }
         }
     }
     
     tab(tabs, *fOut);
-    *fOut << "end" << endl;
+    *fOut << endl;
+}
+
+// Functions are coded with a "class" prefix, so to stay separated in "gGlobalTable"
+void TorchCodeContainer::produceInfoFunctions(int tabs, const string& classname, const string& obj, bool ismethod,
+                                         bool isvirtual, TextInstVisitor* producer)
+{
+    // Input/Output method
+    producer->Tab(tabs);
+    generateGetInputs("getNumInputs", obj, ismethod, isvirtual)->accept(producer);
+    generateGetOutputs("getNumOutputs", obj, ismethod, isvirtual)->accept(producer);
 }
 
 // Scalar
@@ -356,8 +350,8 @@ void TorchVectorCodeContainer::generateCompute(int n)
 
     // Generates declaration
     tab(n + 1, *fOut);
-    *fOut << "@inbounds function compute!(dsp::" << fKlassName
-          << "{T}, " << fFullCount << subst("::Int32, inputs::Matrix{$0}, outputs::Matrix{$0}) where {T}", xfloat());
+    // *fOut << "def forward(self, " << fFullCount << subst("::Int32, inputs::Matrix{$0}, outputs::Matrix{$0}) where {T}", xfloat());
+    *fOut << "def forward(self, x: torch.Tensor):";
     tab(n + 2, *fOut);
     gGlobal->gTorchVisitor->Tab(n + 2);
 
@@ -368,5 +362,4 @@ void TorchVectorCodeContainer::generateCompute(int n)
     fDAGBlock->accept(gGlobal->gTorchVisitor);
 
     back(1, *fOut);
-    *fOut << "end";
 }

@@ -55,7 +55,7 @@ struct TorchInitFieldsVisitor : public DispatchVisitor {
     {
         // kStaticStruct are actually merged in the main DSP
         if (named->getAccess() & Address::kStruct || named->getAccess() & Address::kStaticStruct) {
-            *fOut << "dsp.";
+            *fOut << "self.";
         }
         *fOut << named->fName;
     }
@@ -65,9 +65,9 @@ struct TorchInitFieldsVisitor : public DispatchVisitor {
         ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(typed);
         faustassert(array_type);
         if (isIntPtrType(typed->getType())) {
-            *fOut << "zeros(Int32, " << array_type->fSize << ")";
+            *fOut << "torch.zeros(" << array_type->fSize << ", dtype=torch.int32)";
         } else {
-            *fOut << "zeros(T, " << array_type->fSize << ")";
+            *fOut << "torch.zeros(" << array_type->fSize << ", dtype=torch.int32)";
         }
     }
     
@@ -75,32 +75,35 @@ struct TorchInitFieldsVisitor : public DispatchVisitor {
     
     virtual void visit(Int32ArrayNumInst* inst)
     {
+        *fOut << "torch.tensor(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
-            *fOut << sep << "Int32(" << inst->fNumTable[i] << ")";
+            *fOut << sep << inst->fNumTable[i];
             sep = ',';
         }
-        *fOut << ']';
+        *fOut << "], dtype=torch.int32)";
     }
     
     virtual void visit(FloatArrayNumInst* inst)
     {
+        *fOut << "torch.tensor(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << checkFloat(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << ']';
+        *fOut << "], dtype=torch.float32)";
     }
     
     virtual void visit(DoubleArrayNumInst* inst)
     {
+        *fOut << "torch.tensor(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << checkDouble(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << ']';
+        *fOut << "], dtype=torch.float64)";
     }
     
 };
@@ -322,10 +325,10 @@ class TorchInstVisitor : public TextInstVisitor {
     {
         // Special case
         if (inst->fZone == "0") {
-            *fOut << "declare!(ui_interface, :dummy, " << quote(inst->fKey)
+            *fOut << "self.declare(ui_interface, :dummy, " << quote(inst->fKey)
             << ", " << quote(inst->fValue) << ")";
         } else {
-            *fOut << "declare!(ui_interface, :" << inst->fZone << ", "
+            *fOut << "self.declare(ui_interface, :" << inst->fZone << ", "
             << quote(inst->fKey) << ", " << quote(inst->fValue) << ")";
         }
         EndLine(' ');
@@ -336,22 +339,23 @@ class TorchInstVisitor : public TextInstVisitor {
         string name;
         switch (inst->fOrient) {
             case OpenboxInst::kVerticalBox:
-                name = "openVerticalBox!(";
+                name = "self.openVerticalBox(";
                 break;
             case OpenboxInst::kHorizontalBox:
-                name = "openHorizontalBox!(";
+                name = "self.openHorizontalBox(";
                 break;
             case OpenboxInst::kTabBox:
-                name = "openTabBox!(";
+                name = "self.openTabBox(";
                 break;
         }
-        *fOut << name << "ui_interface, " << quote(inst->fName) << ")";
+        // *fOut << name << "ui_interface, " << quote(inst->fName) << ")";
+        *fOut << name << "ui_interface)";
         EndLine(' ');
     }
 
     virtual void visit(CloseboxInst* inst)
     {
-        *fOut << "closeBox!(ui_interface)";
+        *fOut << "self.closeBox(ui_interface)";
         tab(fTab, *fOut);
     }
     
@@ -359,11 +363,12 @@ class TorchInstVisitor : public TextInstVisitor {
     {
         string name;
         if (inst->fType == AddButtonInst::kDefaultButton) {
-            name = "addButton!(";
+            name = "self.addButton(";
         } else {
-            name = "addCheckButton!(";
+            name = "self.addCheckButton(";
         }
-        *fOut << name << "ui_interface, " << quote(inst->fLabel) << ", :" << inst->fZone << ")";
+        // *fOut << name << "ui_interface, " << quote(inst->fLabel) << ", :" << inst->fZone << ")";
+        *fOut << name << "ui_interface)";
         EndLine(' ');
     }
 
@@ -372,15 +377,16 @@ class TorchInstVisitor : public TextInstVisitor {
         string name;
         switch (inst->fType) {
             case AddSliderInst::kHorizontal:
-                name = "addHorizontalSlider!(";
+                name = "self.addHorizontalSlider(";
                 break;
             case AddSliderInst::kVertical:
-                name = "addVerticalSlider!(";
+                name = "self.addVerticalSlider(";
                 break;
             case AddSliderInst::kNumEntry:
-                name = "addNumEntry!(";
+                name = "self.addNumEntry(";
                 break;
         }
+        // todo: fix this
         *fOut << name << "ui_interface, " << quote(inst->fLabel) << ", :" << inst->fZone << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fInit)) << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMin)) << ", "
@@ -394,12 +400,13 @@ class TorchInstVisitor : public TextInstVisitor {
         string name;
         switch (inst->fType) {
             case AddBargraphInst::kHorizontal:
-                name = "addHorizontalBargraph!(";
+                name = "self.addHorizontalBargraph(";
                 break;
             case AddBargraphInst::kVertical:
-                name = "addVerticalBargraph!(";
+                name = "self.addVerticalBargraph(";
                 break;
         }
+        // todo: fix this
         *fOut << name << "ui_interface, " << quote(inst->fLabel) << ", :" << inst->fZone << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMin)) << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMax)) << ")";
@@ -412,46 +419,49 @@ class TorchInstVisitor : public TextInstVisitor {
         throw faustexception("ERROR : 'soundfile' primitive not yet supported for Torch\n");
     }
     
-    virtual void visit(Int32NumInst* inst) { *fOut << "Int32(" << inst->fNum << ")"; }
+    virtual void visit(Int32NumInst* inst) { *fOut << "torch.tensor([" << inst->fNum << "], dtype=torch.int32)"; }
     
-    virtual void visit(Int64NumInst* inst) { *fOut << "Int64(" << inst->fNum << ")"; }
+    virtual void visit(Int64NumInst* inst) { *fOut << "torch.tensor([" << inst->fNum << "], dtype=torch.int64)"; }
     
     virtual void visit(Int32ArrayNumInst* inst)
     {
+        *fOut << "torch.tensor(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
-            *fOut << sep << "Int32(" << inst->fNumTable[i] << ")";
+            *fOut << sep << inst->fNumTable[i];
             sep = ',';
         }
-        *fOut << ']';
+        *fOut << "], dtype=torch.int32)";
     }
     
     virtual void visit(FloatArrayNumInst* inst)
     {
+        *fOut << "torch.tensor(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << checkFloat(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << ']';
+        *fOut << "], dtype=torch.float32)";
     }
     
     virtual void visit(DoubleArrayNumInst* inst)
     {
+        *fOut << "torch.tensor(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << checkDouble(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << ']';
+        *fOut << "], dtype=torch.float64)";
     }
     
     virtual void visit(BinopInst* inst)
     {
         if (inst->fOpcode == kXOR) {
-            *fOut << "xor(";
+            *fOut << "(";
             inst->fInst1->accept(this);
-            *fOut << ", ";
+            *fOut << " ^ ";
              inst->fInst2->accept(this);
             *fOut << ")";
         } else {
@@ -510,7 +520,7 @@ class TorchInstVisitor : public TextInstVisitor {
            gFunctionSymbolTable[inst->fName] = true;
         }
         
-        *fOut << "function " << inst->fName;
+        *fOut << "def " << inst->fName;
         generateFunDefArgs(inst);
         generateFunDefBody(inst);
     }
@@ -521,7 +531,7 @@ class TorchInstVisitor : public TextInstVisitor {
         if (inst->fNumChannels == 0) return;
     
         for (int i = 0; i < inst->fNumChannels; ++i) {
-            *fOut << inst->fBufferName1 << i << " = @inbounds @view " << inst->fBufferName2 << "[:, " << (i+1) << "]";
+            *fOut << inst->fBufferName1 << i << " = " << inst->fBufferName2 << "[:, " << (i+1) << "]";
             tab(fTab, *fOut);
         }
     }
@@ -529,16 +539,15 @@ class TorchInstVisitor : public TextInstVisitor {
     virtual void generateFunDefBody(DeclareFunInst* inst)
     {
         if (inst->fCode->fCode.size() == 0) {
-            *fOut << ") where {T}" << endl;  // Pure prototype
+            *fOut << "):" << endl;  // Pure prototype
         } else {
             // Function body
-            *fOut << ") where {T}";
+            *fOut << "):";
             fTab++;
             tab(fTab, *fOut);
             inst->fCode->accept(this);
             fTab--;
             back(1, *fOut);
-            *fOut << "end";
             tab(fTab, *fOut);
         }
     }
@@ -547,7 +556,7 @@ class TorchInstVisitor : public TextInstVisitor {
     {
         // kStaticStruct are actually merged in the main DSP
         if (named->getAccess() & Address::kStruct || named->getAccess() & Address::kStaticStruct) {
-            *fOut << "dsp.";
+            *fOut << "self.";
         }
         *fOut << named->fName;
     }
@@ -591,7 +600,7 @@ class TorchInstVisitor : public TextInstVisitor {
     virtual void visit(::CastInst* inst)
     {
         if (isIntType(inst->fType->getType())) {
-            *fOut << "trunc(";
+            *fOut << "math.floor(";
             *fOut << fTypeManager->generateType(inst->fType) << ", ";
         } else {
             *fOut << fTypeManager->generateType(inst->fType) << "(";
@@ -614,10 +623,10 @@ class TorchInstVisitor : public TextInstVisitor {
     virtual void visit(Select2Inst* inst)
     {
         *fOut << "(";
-        visitCond(inst->fCond);
-        *fOut << " ? ";
         inst->fThen->accept(this);
-        *fOut << " : ";
+        *fOut << " if ";
+        visitCond(inst->fCond);
+        *fOut << " else ";
         inst->fElse->accept(this);
         *fOut << ")";
     }
@@ -626,8 +635,7 @@ class TorchInstVisitor : public TextInstVisitor {
     virtual void visit(FunCallInst* inst)
     {
         string name = (gPolyMathLibTable.find(inst->fName) != gPolyMathLibTable.end()) ? gPolyMathLibTable[inst->fName] : inst->fName;
-        // Function that mutate their arguments use the '!' syntax
-        *fOut << name << ((fMutateFun && inst->fArgs.size() > 0) ?  "!(" : "(");
+        *fOut << name << "(";
         // Compile parameters
         generateFunCallArgs(inst->fArgs.begin(), inst->fArgs.end(), inst->fArgs.size());
         *fOut << ")";
@@ -643,38 +651,56 @@ class TorchInstVisitor : public TextInstVisitor {
         fTab--;
         back(1, *fOut);
         if (inst->fElse->fCode.size() > 0) {
-            *fOut << "elseif";
+            *fOut << "elif";
             fTab++;
             tab(fTab, *fOut);
             inst->fElse->accept(this);
             fTab--;
             back(1, *fOut);
-            *fOut << "end";
-        } else {
-            *fOut << "end";
         }
         tab(fTab, *fOut);
     }
   
+    // virtual void visit(ForLoopInst* inst)
+    // {
+    //     // Don't generate empty loops...
+    //     if (inst->fCode->size() == 0) return;
+
+    //     *fOut << "for ";
+    //     fFinishLine = false;
+    //     inst->fInit->accept(this);
+    //     *fOut << ":";
+    //     inst->fEnd->accept(this);
+    //     *fOut << "; ";
+    //     inst->fIncrement->accept(this);
+    //     fFinishLine = true;
+    //     fTab++;
+    //     tab(fTab, *fOut);
+    //     inst->fCode->accept(this);
+    //     fTab--;
+    //     back(1, *fOut);
+    //     tab(fTab, *fOut);
+    // }
     virtual void visit(ForLoopInst* inst)
     {
         // Don't generate empty loops...
         if (inst->fCode->size() == 0) return;
 
-        *fOut << "for ";
         fFinishLine = false;
         inst->fInit->accept(this);
-        *fOut << ":";
+        tab(fTab, *fOut);
+        *fOut << "while ";
         inst->fEnd->accept(this);
-        *fOut << "; ";
-        inst->fIncrement->accept(this);
+        *fOut << ":";
+        tab(fTab, *fOut);
         fFinishLine = true;
         fTab++;
+        tab(fTab, *fOut);
+        inst->fIncrement->accept(this);
         tab(fTab, *fOut);
         inst->fCode->accept(this);
         fTab--;
         back(1, *fOut);
-        *fOut << "end";
         tab(fTab, *fOut);
     }
     
@@ -683,9 +709,10 @@ class TorchInstVisitor : public TextInstVisitor {
         // Don't generate empty loops...
         if (inst->fCode->size() == 0) return;
         
-        *fOut << "@inbounds for " << inst->getName() << " in ";
+        *fOut << "for " << inst->getName() << " in ";
     
         if (inst->fReverse) {
+            // todo:
             *fOut << "reverse(";
             Int32NumInst* lower_bound = dynamic_cast<Int32NumInst*>(inst->fLowerBound);
             faustassert(lower_bound);
@@ -702,14 +729,16 @@ class TorchInstVisitor : public TextInstVisitor {
         } else {
             Int32NumInst* lower_bound = dynamic_cast<Int32NumInst*>(inst->fLowerBound);
             faustassert(lower_bound);
-            *fOut << lower_bound->fNum << ":";
             Int32NumInst* upper_bound = dynamic_cast<Int32NumInst*>(inst->fUpperBound);
-            if (upper_bound) {
-                *fOut << (upper_bound->fNum - 1);
+
+            *fOut << "range(" << lower_bound->fNum << ", " << upper_bound->fNum-1 << ", ";
+            if (upper_bound->fNum > lower_bound->fNum) {
+                *fOut << "1";
             } else {
                 inst->fUpperBound->accept(this);
                 *fOut << "-1";
             }
+            *fOut << ")";
         }
 
         fTab++;
@@ -717,7 +746,6 @@ class TorchInstVisitor : public TextInstVisitor {
         inst->fCode->accept(this);
         fTab--;
         back(1, *fOut);
-        *fOut << "end";
         tab(fTab, *fOut);
     }
     

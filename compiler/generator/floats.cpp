@@ -133,32 +133,32 @@ void initFaustFloat()
     // Specific for Torch backend
     } else  if (gGlobal->gOutputLang == "torch") {
         numsuffix[0] = "";
-        numsuffix[1] = "f0";
+        numsuffix[1] = "";
         numsuffix[2] = "";
         numsuffix[3] = "";
         numsuffix[4] = "";
         
         floatname[0] = FLOATMACRO;
-        floatname[1] = "Float32";
-        floatname[2] = "Float64";
+        floatname[1] = "torch.float32";
+        floatname[2] = "torch.float64";
         floatname[3] = "dummy";
         floatname[4] = "dummy";
         
         floatptrname[0] = FLOATMACROPTR;
-        floatptrname[1] = "Float32*";
-        floatptrname[2] = "Float64*";
+        floatptrname[1] = "torch.float32*";
+        floatptrname[2] = "torch.float64*";
         floatptrname[3] = "dummy*";
         floatptrname[4] = "dummy*";
         
         floatptrptrname[0] = FLOATMACROPTRPTR;
-        floatptrptrname[1] = "Float32**";
-        floatptrptrname[2] = "Float64**";
+        floatptrptrname[1] = "torch.float32**";
+        floatptrptrname[2] = "torch.float64**";
         floatptrptrname[3] = "dummy**";
         floatptrptrname[4] = "dummy**";
         
         castname[0] = FLOATCASTER;
-        castname[1] = "(Float32)";
-        castname[2] = "(Float64)";
+        castname[1] = "(torch.float32)";
+        castname[2] = "(torch.float64)";
         castname[3] = "(dummy)";
         castname[4] = "(dummy)";
         

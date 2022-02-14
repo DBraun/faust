@@ -431,35 +431,35 @@ class TorchStringTypeManager : public StringTypeManager {
     {
         fPtrRef = ptr_ref;
 
-        fTypeDirectTable[Typed::kInt32]     = "Int32";
-        fTypeDirectTable[Typed::kInt32_ptr] = "Int32";
-        fTypeDirectTable[Typed::kInt32_vec] = "vector<Int32>";
+        fTypeDirectTable[Typed::kInt32]     = "torch.int32";
+        fTypeDirectTable[Typed::kInt32_ptr] = "torch.int32";
+        fTypeDirectTable[Typed::kInt32_vec] = "vector<Int32>"; // todo:
 
-        fTypeDirectTable[Typed::kInt64]     = "Int64";
-        fTypeDirectTable[Typed::kInt64_ptr] = "Int64";
-        fTypeDirectTable[Typed::kInt64_vec] = "vector<Int64>";
+        fTypeDirectTable[Typed::kInt64]     = "torch.int64";
+        fTypeDirectTable[Typed::kInt64_ptr] = "torch.int64";
+        fTypeDirectTable[Typed::kInt64_vec] = "vector<Int64>"; // todo:
 
-        fTypeDirectTable[Typed::kFloat]     = "T";
-        fTypeDirectTable[Typed::kFloat_ptr] = "T";
-        fTypeDirectTable[Typed::kFloat_ptr_ptr] = "T";
-        fTypeDirectTable[Typed::kFloat_vec] = "vector<T>";
+        fTypeDirectTable[Typed::kFloat]     = "";
+        fTypeDirectTable[Typed::kFloat_ptr] = "";
+        fTypeDirectTable[Typed::kFloat_ptr_ptr] = "";
+        fTypeDirectTable[Typed::kFloat_vec] = ""; // todo:
         
-        fTypeDirectTable[Typed::kDouble]     = "T";
-        fTypeDirectTable[Typed::kDouble_ptr] = "T";
-        fTypeDirectTable[Typed::kDouble_ptr_ptr] = "T";
-        fTypeDirectTable[Typed::kDouble_vec] = "vector<T>";
+        fTypeDirectTable[Typed::kDouble]     = "";
+        fTypeDirectTable[Typed::kDouble_ptr] = "";
+        fTypeDirectTable[Typed::kDouble_ptr_ptr] = "";
+        fTypeDirectTable[Typed::kDouble_vec] = ""; // todo:
 
-        fTypeDirectTable[Typed::kQuad]     = "quad";
-        fTypeDirectTable[Typed::kQuad_ptr] = fPtrRef + "quad";
+        fTypeDirectTable[Typed::kQuad]     = "";
+        fTypeDirectTable[Typed::kQuad_ptr] = fPtrRef + "";
         
         fTypeDirectTable[Typed::kFixedPoint]     = "fixpoint_t";
         fTypeDirectTable[Typed::kFixedPoint_ptr] = fPtrRef + "fixpoint_t";
         fTypeDirectTable[Typed::kFixedPoint_ptr] = fPtrRef + fPtrRef + "fixpoint_t";
         fTypeDirectTable[Typed::kFixedPoint_vec] = "vector<fixpoint_t>";
 
-        fTypeDirectTable[Typed::kBool]     = "bool";
-        fTypeDirectTable[Typed::kBool_ptr] = fPtrRef + "bool";
-        fTypeDirectTable[Typed::kBool_vec] = "vector<bool>";
+        fTypeDirectTable[Typed::kBool]     = "torch.bool";
+        fTypeDirectTable[Typed::kBool_ptr] = fPtrRef + "torch.bool";
+        fTypeDirectTable[Typed::kBool_vec] = "torch.tensor[torch.bool]";  // todo:
 
         fTypeDirectTable[Typed::kVoid]     = "void";
         fTypeDirectTable[Typed::kVoid_ptr] = fPtrRef + "void";
@@ -468,8 +468,8 @@ class TorchStringTypeManager : public StringTypeManager {
         fTypeDirectTable[Typed::kSound_ptr] = fPtrRef + "Soundfile";
 
         // DSP has to be empty here
-        fTypeDirectTable[Typed::kObj]     = struct_name + "{T}";
-        fTypeDirectTable[Typed::kObj_ptr] = struct_name + "{T}";
+        fTypeDirectTable[Typed::kObj]     = "";  // struct_name
+        fTypeDirectTable[Typed::kObj_ptr] = "";
 
         fTypeDirectTable[Typed::kUint_ptr] = "uintptr_t";
     }
@@ -484,7 +484,10 @@ class TorchStringTypeManager : public StringTypeManager {
             return fTypeDirectTable[basic_typed->fType];
         } else if (named_typed) {
             string ty_str = generateType(named_typed->fType);
-            return named_typed->fName + ((ty_str != "") ? ("::" + ty_str) : "");
+            if (ty_str != "") {
+                return ty_str + "(" + named_typed->fName + ")";
+            }
+            return named_typed->fName;
         } else if (array_typed) {
             return fTypeDirectTable[array_typed->getType()];
         } else {
@@ -500,14 +503,17 @@ class TorchStringTypeManager : public StringTypeManager {
         ArrayTyped* array_typed = dynamic_cast<ArrayTyped*>(type);
 
         if (basic_typed) {
-            return name + "::" + fTypeDirectTable[basic_typed->fType];
+            return name;
+            //return name + "::" + fTypeDirectTable[basic_typed->fType];
         } else if (named_typed) {
             string ty_str = named_typed->fName + generateType(named_typed->fType);
-            return name + ((ty_str != "") ? ("::" + ty_str) : "");
+            //return name + ((ty_str != "") ? ("::" + ty_str) : "");
+            return name;
         } else if (array_typed) {
-            return (array_typed->fSize == 0)
-                    ? name + "::" + fPtrRef + generateType(array_typed->fType)
-                    : name + "::Vector{" + generateType(array_typed->fType) + "}";
+            // return (array_typed->fSize == 0)
+            //         ? name + "::" + fPtrRef + generateType(array_typed->fType)
+            //         : name + "::Vector{" + generateType(array_typed->fType) + "}";
+            return name;
         } else {
             faustassert(false);
             return "";
