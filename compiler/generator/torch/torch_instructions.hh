@@ -339,23 +339,22 @@ class TorchInstVisitor : public TextInstVisitor {
         string name;
         switch (inst->fOrient) {
             case OpenboxInst::kVerticalBox:
-                name = "self.openVerticalBox(";
+                *fOut << "ui_interface.openVerticalBox()";
                 break;
             case OpenboxInst::kHorizontalBox:
-                name = "self.openHorizontalBox(";
+                *fOut << "ui_interface.openHorizontalBox()";
                 break;
             case OpenboxInst::kTabBox:
-                name = "self.openTabBox(";
+                *fOut << "ui_interface.openTabBox()";
                 break;
         }
         // *fOut << name << "ui_interface, " << quote(inst->fName) << ")";
-        *fOut << name << "ui_interface)";
         EndLine(' ');
     }
 
     virtual void visit(CloseboxInst* inst)
     {
-        *fOut << "self.closeBox(ui_interface)";
+        *fOut << "ui_interface.closeBox()";
         tab(fTab, *fOut);
     }
     
@@ -363,12 +362,11 @@ class TorchInstVisitor : public TextInstVisitor {
     {
         string name;
         if (inst->fType == AddButtonInst::kDefaultButton) {
-            name = "self.addButton(";
+            *fOut << "ui_interface.addButton()";
         } else {
-            name = "self.addCheckButton(";
+            *fOut << "ui_interface.addCheckButton()";
         }
         // *fOut << name << "ui_interface, " << quote(inst->fLabel) << ", :" << inst->fZone << ")";
-        *fOut << name << "ui_interface)";
         EndLine(' ');
     }
 
@@ -377,17 +375,17 @@ class TorchInstVisitor : public TextInstVisitor {
         string name;
         switch (inst->fType) {
             case AddSliderInst::kHorizontal:
-                name = "self.addHorizontalSlider(";
+                name = "ui_interface.addHorizontalSlider(";
                 break;
             case AddSliderInst::kVertical:
-                name = "self.addVerticalSlider(";
+                name = "ui_interface.addVerticalSlider(";
                 break;
             case AddSliderInst::kNumEntry:
-                name = "self.addNumEntry(";
+                name = "ui_interface.addNumEntry(";
                 break;
         }
         // todo: fix this
-        *fOut << name << "ui_interface, " << quote(inst->fLabel) << ", \"" << inst->fZone << "\", "
+        *fOut << name << quote(inst->fLabel) << ", \"" << inst->fZone << "\", "
               << cast2FAUSTFLOAT(checkReal(inst->fInit)) << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMin)) << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMax)) << ", "
@@ -400,14 +398,14 @@ class TorchInstVisitor : public TextInstVisitor {
         string name;
         switch (inst->fType) {
             case AddBargraphInst::kHorizontal:
-                name = "self.addHorizontalBargraph(";
+                name = "ui_interface.addHorizontalBargraph(";
                 break;
             case AddBargraphInst::kVertical:
-                name = "self.addVerticalBargraph(";
+                name = "ui_interface.addVerticalBargraph(";
                 break;
         }
         // todo: fix this
-        *fOut << name << "ui_interface, " << quote(inst->fLabel) << ", :" << inst->fZone << ", "
+        *fOut << name << quote(inst->fLabel) << ", :" << inst->fZone << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMin)) << ", "
               << cast2FAUSTFLOAT(checkReal(inst->fMax)) << ")";
         EndLine(' ');
@@ -755,4 +753,3 @@ class TorchInstVisitor : public TextInstVisitor {
 };
 
 #endif
-

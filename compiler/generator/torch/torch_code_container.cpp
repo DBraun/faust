@@ -29,7 +29,8 @@
 using namespace std;
 
 /*
- Torch backend and module description:
+* the notes directly below are copied from julia_code_container.cpp
+ Julia backend and module description:
  
  - 'delete' for SubContainers is not generated
  - add the ! character to the name of functions that modify their arguments
@@ -37,7 +38,7 @@ using namespace std;
  - in order to simplify global array typing, subcontainers are actually merged in the main DSP structure:
     - so 'mergeSubContainers' is used
     - global variables are added in the DSP structure
-    - the TorchInitFieldsVisitor class does initialisation for waveforms
+    - the JuliaInitFieldsVisitor class does initialisation for waveforms
     - the fGlobalDeclarationInstructions contains global functions and variables. It is "manually" used
     to generate global functions and move global variables declaration at DSP structure level.
 */
@@ -151,9 +152,16 @@ void TorchCodeContainer::produceClass()
     //    }
     //}
     tab(n + 1, *fOut);
-    *fOut << "def __init__(self):";
+    *fOut << "def __init__(self, sample_rate: int):";
     tab(n + 2, *fOut);
     *fOut << "super(" << fKlassName << ", self).__init__()";
+    tab(n + 2, *fOut);
+    *fOut << "self.classInit(sample_rate)";
+    tab(n + 2, *fOut);
+    *fOut << "self.instanceConstants(sample_rate)";
+    tab(n + 2, *fOut);
+    *fOut << "self.instanceResetUserInterface()";
+    tab(n + 2, *fOut);
     TorchInitFieldsVisitor initializer(fOut, n + 2);
     generateDeclarations(&initializer);
     // Generate global variables initialisation
@@ -285,7 +293,7 @@ void TorchCodeContainer::generateCompute(int n)
     */
     generatePostComputeBlock(gGlobal->gTorchVisitor);
 
-    *fOut << "return torch.stack([output0])";  // todo: more general solution when there are multiple outputs?
+    *fOut << "return outputs";
 
     tab(n, *fOut);
 }

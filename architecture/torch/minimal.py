@@ -25,11 +25,7 @@ SAMPLERATE = 44100
 def test():
 
     # Init DSP
-    my_dsp = mydsp()
-    my_dsp.classInit(SAMPLERATE)
-    my_dsp.instanceConstants(SAMPLERATE)
-    my_dsp.instanceResetUserInterface()
-
+    my_dsp = mydsp(SAMPLERATE)
     print("getNumInputs: ", my_dsp.getNumInputs())
     print("getNumOutputs: ", my_dsp.getNumOutputs())
 
