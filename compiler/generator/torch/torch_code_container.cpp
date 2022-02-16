@@ -279,7 +279,13 @@ void TorchCodeContainer::generateCompute(int n)
     // fFullCount is the number of samples
     // xfloat() is FAUSTFLOAT
     // *fOut << "def forward(self, " << fFullCount << subst(": int, inputs::Matrix{$0}, outputs::Matrix{$0}):", xfloat());
-    *fOut << "def forward(self, inputs: torch.Tensor, outputs: torch.Tensor, count: int):";
+    *fOut << "def forward(self, inputs: torch.Tensor):";
+    tab(n + 1, *fOut);
+    *fOut << "# todo: use torch.vmap to allow batch sizes greater than 1";
+    tab(n + 1, *fOut);
+    *fOut << "outputs = torch.zeros_like(inputs, requires_grad=True)";
+    tab(n + 1, *fOut);
+    *fOut << "count = inputs.shape[-1]";
     tab(n + 1, *fOut);
     gGlobal->gTorchVisitor->Tab(n + 1);
 
@@ -384,6 +390,7 @@ TorchVectorCodeContainer::TorchVectorCodeContainer(const string& name, int numIn
 {
 }
 
+// todo: this is not tested. see libcode.cpp
 void TorchVectorCodeContainer::generateCompute(int n)
 {
     // Possibly generate separated functions
@@ -393,8 +400,7 @@ void TorchVectorCodeContainer::generateCompute(int n)
 
     // Generates declaration
     tab(n + 1, *fOut);
-    // *fOut << "def forward(self, " << fFullCount << subst("::Int32, inputs::Matrix{$0}, outputs::Matrix{$0}) where {T}", xfloat());
-    *fOut << "def forward(self, inputs: torch.Tensor, outputs: torch.Tensor, count: int):";
+    *fOut << "def forward(self, inputs: torch.Tensor):";
     tab(n + 2, *fOut);
     gGlobal->gTorchVisitor->Tab(n + 2);
 
