@@ -53,18 +53,15 @@ def test():
     duration = 1.
 
     inputs = torch.zeros(my_dsp.getNumInputs(), int(SAMPLERATE*duration), dtype=dtype, device=device)
-    outputs = torch.zeros(my_dsp.getNumOutputs(), int(SAMPLERATE*duration), dtype=dtype, device=device)
-    count = outputs.shape[1]
-    print('count: ', count)
-    output = my_dsp(inputs, outputs, count)
+    output = my_dsp(inputs)
 
-    # todo: assert the shape of the output with getNumOutputs()
-    assert(output.shape[0] == outputs.shape[0])
-    
+    assert output.ndim == 2
+    assert output.shape[0] == my_dsp.getNumOutputs()
+    assert output.shape[1] == inputs.shape[1]
+        
     # todo: display the outputs
 
 def main():
-    test()
     pass
 
 if __name__ == '__main__':
