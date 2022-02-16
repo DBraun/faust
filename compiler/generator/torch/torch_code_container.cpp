@@ -156,12 +156,6 @@ void TorchCodeContainer::produceClass()
     tab(n + 2, *fOut);
     *fOut << "super(" << fKlassName << ", self).__init__()";
     tab(n + 2, *fOut);
-    *fOut << "self.classInit(sample_rate)";
-    tab(n + 2, *fOut);
-    *fOut << "self.instanceConstants(sample_rate)";
-    tab(n + 2, *fOut);
-    *fOut << "self.instanceResetUserInterface()";
-    tab(n + 2, *fOut);
     TorchInitFieldsVisitor initializer(fOut, n + 2);
     generateDeclarations(&initializer);
     // Generate global variables initialisation
@@ -170,7 +164,14 @@ void TorchCodeContainer::produceClass()
             it->accept(&initializer);
         }
     }
-    tab(n, *fOut);
+    tab(n + 2, *fOut);
+    tab(n + 2, *fOut);
+    *fOut << "self.classInit(sample_rate)";
+    tab(n + 2, *fOut);
+    *fOut << "self.instanceConstants(sample_rate)";
+    tab(n + 2, *fOut);
+    *fOut << "self.instanceResetUserInterface()";
+    tab(n + 2, *fOut);
     
     // Print metadata declaration
     produceMetadata(n+1);
@@ -202,7 +203,9 @@ void TorchCodeContainer::produceClass()
         tab(n + 2, *fOut);
         *fOut << "pass";
         tab(n + 2, *fOut);
+        gGlobal->gTorchVisitor->is_resetting_ui = true;
         generateResetUserInterface(gGlobal->gTorchVisitor);
+        gGlobal->gTorchVisitor->is_resetting_ui = false;
     }
     back(1, *fOut);
 
@@ -326,7 +329,6 @@ void TorchCodeContainer::produceMetadata(int tabs)
     }
     
     tab(tabs, *fOut);
-    *fOut << endl;
 }
 
 // Functions are coded with a "class" prefix, so to stay separated in "gGlobalTable"
@@ -336,6 +338,7 @@ void TorchCodeContainer::produceInfoFunctions(int tabs, const string& classname,
     // Input/Output method
     producer->Tab(tabs);
     generateGetInputs("getNumInputs", obj, ismethod, isvirtual)->accept(producer);
+    tab(tabs, *fOut);
     generateGetOutputs("getNumOutputs", obj, ismethod, isvirtual)->accept(producer);
 }
 

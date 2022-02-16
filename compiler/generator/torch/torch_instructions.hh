@@ -66,8 +66,10 @@ struct TorchInitFieldsVisitor : public DispatchVisitor {
         faustassert(array_type);
         if (isIntPtrType(typed->getType())) {
             *fOut << "torch.zeros(" << array_type->fSize << ", dtype=torch.int32, device=device)";
+        } else if (isFloatType(typed->getType())) {
+            *fOut << "torch.zeros(" << array_type->fSize << ", dtype=torch.float32, device=device)";
         } else {
-            *fOut << "torch.zeros(" << array_type->fSize << ", dtype=torch.int32, device=device)";
+            *fOut << "torch.zeros(" << array_type->fSize << ", dtype=torch.float64, device=device)";
         }
     }
     
@@ -126,6 +128,8 @@ class TorchInstVisitor : public TextInstVisitor {
     
    public:
     using TextInstVisitor::visit;
+
+    bool is_resetting_ui = false;
 
     TorchInstVisitor(std::ostream* out, const string& struct_name, int tab = 0, bool mutate_fun = false)
         : TextInstVisitor(out, ".", new TorchStringTypeManager(xfloat(), "*", struct_name), tab), fMutateFun(mutate_fun)
@@ -254,7 +258,7 @@ class TorchInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["expf"]       = "exp";
         gPolyMathLibTable["exp2f"]      = "exp2";
         gPolyMathLibTable["exp10f"]     = "exp10f";
-        gPolyMathLibTable["floorf"]     = "math.floor";
+        gPolyMathLibTable["floorf"]     = "torch.floor";
         gPolyMathLibTable["fmodf"]      = "mod";
         gPolyMathLibTable["logf"]       = "log";
         gPolyMathLibTable["log2f"]      = "log2";
@@ -263,9 +267,9 @@ class TorchInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["remainderf"] = "remainder";
         gPolyMathLibTable["rintf"]      = "rint";
         gPolyMathLibTable["roundf"]     = "round";
-        gPolyMathLibTable["sinf"]       = "math.sin";
+        gPolyMathLibTable["sinf"]       = "torch.sin";
         gPolyMathLibTable["sqrtf"]      = "sqrt";
-        gPolyMathLibTable["tanf"]       = "math.tan";
+        gPolyMathLibTable["tanf"]       = "torch.tan";
                              
         // Hyperbolic
         gPolyMathLibTable["acoshf"]     = "acosh";
@@ -293,7 +297,7 @@ class TorchInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["exp"]       = "exp";
         gPolyMathLibTable["exp2"]      = "exp2";
         gPolyMathLibTable["exp10"]     = "exp10";
-        gPolyMathLibTable["floor"]     = "math.floor";
+        gPolyMathLibTable["floor"]     = "torch.floor";
         gPolyMathLibTable["fmod"]      = "mod";
         gPolyMathLibTable["log"]       = "log";
         gPolyMathLibTable["log2"]      = "log2";
@@ -302,9 +306,9 @@ class TorchInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["remainder"] = "remainder";
         gPolyMathLibTable["rint"]      = "rint";
         gPolyMathLibTable["round"]     = "round";
-        gPolyMathLibTable["sin"]       = "math.sin";
+        gPolyMathLibTable["sin"]       = "torch.sin";
         gPolyMathLibTable["sqrt"]      = "sqrt";
-        gPolyMathLibTable["tan"]       = "math.tan";
+        gPolyMathLibTable["tan"]       = "torch.tan";
     
         // Hyperbolic
         gPolyMathLibTable["acosh"]     = "acosh";
@@ -605,7 +609,17 @@ class TorchInstVisitor : public TextInstVisitor {
     {
         inst->fAddress->accept(this);
         *fOut << " = ";
+
+        if (is_resetting_ui) {
+            *fOut << "torch.nn.Parameter(torch.tensor(";
+        }
+
         inst->fValue->accept(this);
+
+        if (is_resetting_ui) {
+            *fOut << "))";
+        }
+
         EndLine(' ');
     }
       
