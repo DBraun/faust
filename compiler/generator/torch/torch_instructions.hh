@@ -240,87 +240,87 @@ class TorchInstVisitor : public TextInstVisitor {
         gFunctionSymbolTable["tanhl"]  = true;
    
         // Polymath mapping int version
-        gPolyMathLibTable["abs"]   = "abs";
-        gPolyMathLibTable["max_i"] = "max";
-        gPolyMathLibTable["min_i"] = "min";
+        gPolyMathLibTable["abs"]   = "torch.abs";
+        gPolyMathLibTable["max_i"] = "torch.max";
+        gPolyMathLibTable["min_i"] = "torch.min";
 
         // Polymath mapping float version
-        gPolyMathLibTable["max_f"] = "max";
-        gPolyMathLibTable["min_f"] = "min";
+        gPolyMathLibTable["max_f"] = "torch.max";
+        gPolyMathLibTable["min_f"] = "torch.min";
 
-        gPolyMathLibTable["fabsf"]      = "abs";
-        gPolyMathLibTable["acosf"]      = "acos";
-        gPolyMathLibTable["asinf"]      = "asin";
-        gPolyMathLibTable["atanf"]      = "atan";
-        gPolyMathLibTable["atan2f"]     = "atan";
-        gPolyMathLibTable["ceilf"]      = "ceil";
-        gPolyMathLibTable["cosf"]       = "cos";
-        gPolyMathLibTable["expf"]       = "exp";
-        gPolyMathLibTable["exp2f"]      = "exp2";
-        gPolyMathLibTable["exp10f"]     = "exp10f";
+        gPolyMathLibTable["fabsf"]      = "torch.abs";
+        gPolyMathLibTable["acosf"]      = "torch.acos";
+        gPolyMathLibTable["asinf"]      = "torch.asin";
+        gPolyMathLibTable["atanf"]      = "torch.atan";
+        gPolyMathLibTable["atan2f"]     = "torch.atan";
+        gPolyMathLibTable["ceilf"]      = "torch.ceil";
+        gPolyMathLibTable["cosf"]       = "torch.cos";
+        gPolyMathLibTable["expf"]       = "torch.exp";
+        gPolyMathLibTable["exp2f"]      = "torch.exp2";
+        gPolyMathLibTable["exp10f"]     = "torch.exp10f";
         gPolyMathLibTable["floorf"]     = "torch.floor";
         gPolyMathLibTable["fmodf"]      = "mod";
-        gPolyMathLibTable["logf"]       = "log";
-        gPolyMathLibTable["log2f"]      = "log2";
-        gPolyMathLibTable["log10f"]     = "log10";
-        gPolyMathLibTable["powf"]       = "pow";
-        gPolyMathLibTable["remainderf"] = "remainder";
+        gPolyMathLibTable["logf"]       = "torch.log";
+        gPolyMathLibTable["log2f"]      = "torch.log2";
+        gPolyMathLibTable["log10f"]     = "torch.log10";
+        gPolyMathLibTable["powf"]       = "torch.pow";
+        gPolyMathLibTable["remainderf"] = "torch.remainder";
         gPolyMathLibTable["rintf"]      = "rint";
         gPolyMathLibTable["roundf"]     = "round";
         gPolyMathLibTable["sinf"]       = "torch.sin";
-        gPolyMathLibTable["sqrtf"]      = "sqrt";
+        gPolyMathLibTable["sqrtf"]      = "torch.sqrt";
         gPolyMathLibTable["tanf"]       = "torch.tan";
                              
         // Hyperbolic
-        gPolyMathLibTable["acoshf"]     = "acosh";
-        gPolyMathLibTable["asinhf"]     = "asinh";
-        gPolyMathLibTable["atanhf"]     = "atanh";
-        gPolyMathLibTable["coshf"]      = "cosh";
-        gPolyMathLibTable["sinhf"]      = "sinh";
-        gPolyMathLibTable["tanhf"]      = "tanh";
+        gPolyMathLibTable["acoshf"]     = "torch.acosh";
+        gPolyMathLibTable["asinhf"]     = "torch.asinh";
+        gPolyMathLibTable["atanhf"]     = "torch.atanh";
+        gPolyMathLibTable["coshf"]      = "torch.cosh";
+        gPolyMathLibTable["sinhf"]      = "torch.sinh";
+        gPolyMathLibTable["tanhf"]      = "torch.tanh";
     
-        gPolyMathLibTable["isnanf"]     = "isnan";
-        gPolyMathLibTable["isinff"]     = "isinf";
-        gPolyMathLibTable["copysignf"]  = "copysign";
+        gPolyMathLibTable["isnanf"]     = "torch.isnan";
+        gPolyMathLibTable["isinff"]     = "torch.isinf";
+        gPolyMathLibTable["copysignf"]  = "torch.copysign";
         
         // Polymath mapping double version
         gPolyMathLibTable["max_"] = "max";
         gPolyMathLibTable["min_"] = "min";
 
-        gPolyMathLibTable["fabs"]      = "abs";
-        gPolyMathLibTable["acos"]      = "acos";
-        gPolyMathLibTable["asin"]      = "asin";
-        gPolyMathLibTable["atan"]      = "atan";
-        gPolyMathLibTable["atan2"]     = "atan";
-        gPolyMathLibTable["ceil"]      = "ceil";
-        gPolyMathLibTable["cos"]       = "cos";
-        gPolyMathLibTable["exp"]       = "exp";
-        gPolyMathLibTable["exp2"]      = "exp2";
-        gPolyMathLibTable["exp10"]     = "exp10";
+        gPolyMathLibTable["fabs"]      = "torch.abs";
+        gPolyMathLibTable["acos"]      = "torch.acos";
+        gPolyMathLibTable["asin"]      = "torch.asin";
+        gPolyMathLibTable["atan"]      = "torch.atan";
+        gPolyMathLibTable["atan2"]     = "torch.atan";
+        gPolyMathLibTable["ceil"]      = "torch.ceil";
+        gPolyMathLibTable["cos"]       = "torch.cos";
+        gPolyMathLibTable["exp"]       = "torch.exp";
+        gPolyMathLibTable["exp2"]      = "torch.exp2";
+        gPolyMathLibTable["exp10"]     = "torch.exp10";
         gPolyMathLibTable["floor"]     = "torch.floor";
         gPolyMathLibTable["fmod"]      = "mod";
-        gPolyMathLibTable["log"]       = "log";
-        gPolyMathLibTable["log2"]      = "log2";
-        gPolyMathLibTable["log10"]     = "log10";
-        gPolyMathLibTable["pow"]       = "pow";
+        gPolyMathLibTable["log"]       = "torch.log";
+        gPolyMathLibTable["log2"]      = "torch.log2";
+        gPolyMathLibTable["log10"]     = "torch.log10";
+        gPolyMathLibTable["pow"]       = "torch.pow";
         gPolyMathLibTable["remainder"] = "remainder";
         gPolyMathLibTable["rint"]      = "rint";
-        gPolyMathLibTable["round"]     = "round";
+        gPolyMathLibTable["round"]     = "torch.round";
         gPolyMathLibTable["sin"]       = "torch.sin";
-        gPolyMathLibTable["sqrt"]      = "sqrt";
+        gPolyMathLibTable["sqrt"]      = "torch.sqrt";
         gPolyMathLibTable["tan"]       = "torch.tan";
     
         // Hyperbolic
-        gPolyMathLibTable["acosh"]     = "acosh";
-        gPolyMathLibTable["asinh"]     = "asinh";
-        gPolyMathLibTable["atanh"]     = "atanh";
-        gPolyMathLibTable["cosh"]      = "cosh";
-        gPolyMathLibTable["sinh"]      = "sinh";
-        gPolyMathLibTable["tanh"]      = "tanh";
+        gPolyMathLibTable["acosh"]     = "torch.acosh";
+        gPolyMathLibTable["asinh"]     = "torch.asinh";
+        gPolyMathLibTable["atanh"]     = "torch.atanh";
+        gPolyMathLibTable["cosh"]      = "torch.cosh";
+        gPolyMathLibTable["sinh"]      = "torch.sinh";
+        gPolyMathLibTable["tanh"]      = "torch.tanh";
 
-        gPolyMathLibTable["isnan"]     = "isnan";
-        gPolyMathLibTable["isinf"]     = "isinf";
-        gPolyMathLibTable["copysign"]  = "copysign";
+        gPolyMathLibTable["isnan"]     = "torch.isnan";
+        gPolyMathLibTable["isinf"]     = "torch.isinf";
+        gPolyMathLibTable["copysign"]  = "torch.copysign";
     }
 
     virtual ~TorchInstVisitor() {}
@@ -329,10 +329,10 @@ class TorchInstVisitor : public TextInstVisitor {
     {
         // Special case
         if (inst->fZone == "0") {
-            *fOut << "self.declare(ui_interface, :dummy, " << quote(inst->fKey)
+            *fOut << "self.declare(ui_interface, dummy, " << quote(inst->fKey)
             << ", " << quote(inst->fValue) << ")";
         } else {
-            *fOut << "self.declare(ui_interface, :" << inst->fZone << ", "
+            *fOut << "self.declare(ui_interface, self." << inst->fZone << ", "
             << quote(inst->fKey) << ", " << quote(inst->fValue) << ")";
         }
         EndLine(' ');
