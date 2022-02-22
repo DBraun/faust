@@ -543,6 +543,7 @@ struct global {
     bool   gVHDLSwitch;
     bool   gVHDLTrace;
     bool   gElementarySwitch;
+    bool   gTorchSwitch;
     bool   gPrintXMLSwitch;
     bool   gPrintJSONSwitch;
     bool   gPrintDocSwitch;

@@ -170,6 +170,8 @@ void TorchCodeContainer::produceClass()
     tab(n + 2, *fOut);
     *fOut << "self.instanceConstants(sample_rate)";
     tab(n + 2, *fOut);
+    *fOut << "self.instanceClear()";
+    tab(n + 2, *fOut);
     *fOut << "self.instanceResetUserInterface()";
     tab(n + 2, *fOut);
     
@@ -280,29 +282,29 @@ void TorchCodeContainer::generateCompute(int n)
     // xfloat() is FAUSTFLOAT
     // *fOut << "def forward(self, " << fFullCount << subst(": int, inputs::Matrix{$0}, outputs::Matrix{$0}):", xfloat());
     *fOut << "def forward(self, inputs: torch.Tensor):";
-    tab(n + 1, *fOut);
-    *fOut << "# todo: use torch.vmap to allow batch sizes greater than 1";
-    tab(n + 1, *fOut);
-    *fOut << "outputs = torch.zeros_like(inputs, requires_grad=True)";
-    tab(n + 1, *fOut);
-    *fOut << "count = inputs.shape[-1]";
+    //tab(n + 1, *fOut);
+    //*fOut << "# todo: use torch.vmap to allow batch sizes greater than 1";
+    //tab(n + 1, *fOut);
+    //*fOut << "outputs = torch.zeros_like(inputs, requires_grad=True)";
+    //tab(n + 1, *fOut);
+    //*fOut << "count = inputs.shape[-1]";
     tab(n + 1, *fOut);
     gGlobal->gTorchVisitor->Tab(n + 1);
 
     // Generates local variables declaration and setup
     generateComputeBlock(gGlobal->gTorchVisitor);
 
-    // Generates one single scalar loop
-    SimpleForLoopInst* loop = fCurLoop->generateSimpleScalarLoop(fFullCount);
+    // 
+    auto loop = fCurLoop->generateOneSample();
     loop->accept(gGlobal->gTorchVisitor);
-    
+
     /*
     // TODO : atomic switch
     // Currently for soundfile management
     */
     generatePostComputeBlock(gGlobal->gTorchVisitor);
 
-    *fOut << "return outputs";
+    *fOut << "return _result";
 
     tab(n, *fOut);
 }

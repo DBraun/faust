@@ -30,6 +30,7 @@
 #include "instructions.hh"
 #include "instructions_compiler.hh"
 #include "instructions_compiler1.hh"
+#include "instructions_compiler2.hh"
 #include "ppsig.hh"
 #include "prim2.hh"
 #include "privatise.hh"
@@ -39,6 +40,7 @@
 #include "sigToGraph.hh"
 #include "signal2vhdlVisitor.hh"
 #include "signal2Elementary.hh"
+#include "signal2Torch.hh"
 #include "sigprint.hh"
 #include "sigtyperules.hh"
 #include "simplify.hh"
@@ -300,6 +302,14 @@ Tree InstructionsCompiler::prepare(Tree LS)
         V.sig2Elementary(L5, js_file);
         V.mapself(L5);
     }
+
+    // Experimental : generate Torch code if -torch option is set
+    if (gGlobal->gTorchSwitch) {
+        Signal2Torch V;
+        ofstream js_file(subst("$0-torch.py", gGlobal->makeDrawPath()).c_str());
+        V.sig2Torch(L5, js_file);
+        V.mapself(L5);
+    }
     
     return L5;
 }
@@ -416,7 +426,12 @@ CodeContainer* InstructionsCompiler::signal2Container(const string& name, Tree s
     if (gGlobal->gOutputLang == "rust" || gGlobal->gOutputLang == "julia") {
         InstructionsCompiler1 C(container);
         C.compileSingleSignal(sig);
-    } else {
+    } else if (gGlobal->gOutputLang == "torch") {
+        InstructionsCompiler2 C(container);
+        C.compileSingleSignal(sig);
+    }
+    else
+    {
         InstructionsCompiler C(container);
         C.compileSingleSignal(sig);
     }
@@ -517,6 +532,8 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
         if (gGlobal->gOutputLang == "rust" || gGlobal->gOutputLang == "julia") {
             // special handling for Rust and Julia backends
             pushComputeBlockMethod(InstBuilder::genDeclareBufferIterators("input", "inputs", fContainer->inputs(), false));
+        } else if (gGlobal->gOutputLang == "torch") {
+            // todo:
         } else {
             // "input" and "inputs" used as a name convention
             if (gGlobal->gOneSampleControl) {
@@ -546,7 +563,12 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
         if (gGlobal->gOutputLang == "rust" || gGlobal->gOutputLang == "julia") {
             // special handling for Rust and Julia backends
             pushComputeBlockMethod(InstBuilder::genDeclareBufferIterators("output", "outputs", fContainer->outputs(), true));
-        } else {
+        }
+        else if (gGlobal->gOutputLang == "torch") {
+            // todo:
+            // by doing nothing here, we avoid writing "output0 = outputs[0]"
+        }
+        else {
             // "output" and "outputs" used as a name convention
             if (gGlobal->gOneSampleControl) {
                 for (int index = 0; index < fContainer->outputs(); index++) {
@@ -577,7 +599,13 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
         if (gGlobal->gOutputLang == "rust") {
             name = subst("*output$0", T(index));
             pushComputeDSPMethod(InstBuilder::genStoreStackVar(name, res));
-        } else if (gGlobal->gOneSampleControl) {
+        }
+        else if (gGlobal->gOutputLang == "torch") {
+            // todo:
+            res = CS(sig);
+            pushComputeDSPMethod(InstBuilder::genStoreStackVar("_result", res));
+        }
+        else if (gGlobal->gOneSampleControl) {
             name = subst("output$0", T(index));
             if (gGlobal->gComputeMix) {
                 ValueInst* res1 = InstBuilder::genAdd(res, InstBuilder::genLoadStackVar(name));
@@ -905,6 +933,8 @@ ValueInst* InstructionsCompiler::generateInput(Tree sig, int idx)
     // HACK for Rust backend
     if (gGlobal->gOutputLang == "rust") {
         res = InstBuilder::genLoadStackVar(subst("*input$0", T(idx)));
+    } else if (gGlobal->gOutputLang == "torch") {
+        res = InstBuilder::genLoadGlobalVar("inputs");  // todo: ?
     } else if (gGlobal->gOneSampleControl) {
         res = InstBuilder::genLoadStructVar(subst("input$0", T(idx)));
     } else if (gGlobal->gOneSample >= 0) {

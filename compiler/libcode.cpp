@@ -50,6 +50,7 @@
 #include "global.hh"
 #include "instructions_compiler.hh"
 #include "instructions_compiler1.hh"
+#include "instructions_compiler2.hh"
 #include "libfaust.h"
 #include "ppbox.hh"
 #include "ppsig.hh"
@@ -401,6 +402,10 @@ static bool processCmdline(int argc, const char* argv[])
             
         } else if (isCmd(argv[i], "-elm", "--elementary")) {
             gGlobal->gElementarySwitch = true;
+            i += 1;
+
+        } else if (isCmd(argv[i], "-torch", "--torch")) {
+            gGlobal->gTorchSwitch = true;
             i += 1;
 
         } else if (isCmd(argv[i], "-f", "--fold") && (i + 1 < argc)) {
@@ -1717,8 +1722,13 @@ void generateCode(Tree signals, int numInputs, int numOutputs, bool generate)
                 new_comp = new DAGInstructionsCompiler(container);
             }
     #if defined(RUST_BUILD) || defined(JULIA_BUILD)
-            else if (gGlobal->gOutputLang == "rust" || gGlobal->gOutputLang == "julia" || gGlobal->gOutputLang == "torch") {
+            else if (gGlobal->gOutputLang == "rust" || gGlobal->gOutputLang == "julia") {
                 new_comp = new InstructionsCompiler1(container);
+            }
+    #endif
+    #if defined(TORCH_BUILD)
+            else if (gGlobal->gOutputLang == "torch") {
+                new_comp = new InstructionsCompiler2(container);
             }
     #endif
             else {
