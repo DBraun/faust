@@ -19,11 +19,13 @@
  ************************************************************************
  ************************************************************************/
 //#include "instructions_compiler.cpp"
+#include "ensure.hh"
 #include "instructions_compiler2.hh"
 #include "instructions.hh"
 #include "sigtyperules.hh"
 #include "ppsig.hh"
 #include "prim2.hh"
+#include "torch_code_container.hh"
 
 static inline BasicTyped* genBasicFIRTyped(int sig_type)
 {
@@ -238,9 +240,28 @@ ValueInst* InstructionsCompiler2::generateDelay(Tree sig, Tree exp, Tree delay)
 }
 
 /**
+ * Generate code for a projection of a group of mutually recursive definitions
+ */
+ValueInst* InstructionsCompiler2::generateRecProj(Tree sig, Tree r, int i)
+{
+    string     vname;
+    Tree       var, le;
+    ValueInst* res;
+
+    if (!getVectorNameProperty(sig, vname)) {
+        ensure(isRec(r, var, le));
+        res = generateRec(sig, r, var, le, i);
+        ensure(getVectorNameProperty(sig, vname));
+    } else {
+        res = InstBuilder::genNullValueInst();  // Result not used
+    }
+    return res;
+}
+
+/**
  * Generate code for a group of mutually recursive definitions
  */
-ValueInst* InstructionsCompiler2::generateRec(Tree sig, Tree var, Tree le, int index)
+ValueInst* InstructionsCompiler2::generateRec(Tree other, Tree sig, Tree var, Tree le, int index)
 {
     int N = len(le);
 
@@ -259,6 +280,83 @@ ValueInst* InstructionsCompiler2::generateRec(Tree sig, Tree var, Tree le, int i
             getTypedNames(getCertifiedSigType(e), "Rec", ctype[i], vname[i]);
             setVectorNameProperty(e, vname[i]);
             delay[i] = fOccMarkup->retrieve(e)->getMaxDelay();
+
+            // extra stuff
+
+            //{
+            //    string            fun_name = "fun_rec0";
+            //    list<NamedTyped*> args;
+            //    // todo: figure out the args from the Tree and append them?
+            //    args.push_back(InstBuilder::genNamedTyped("channel", Typed::kInt32));
+
+            //    BlockInst* block = InstBuilder::genBlockInst();
+
+            //    // todo: add the Tree to the block as code?
+            //    auto the_stream = new ostringstream();
+            //    auto container2 = dynamic_cast<TorchCodeContainer*> (TorchCodeContainer::createContainer(
+            //        gGlobal->gClassName, 1, 1, the_stream));
+            //    int numInputs = 0;
+            //    int numOutputs = 0;
+            //    //evaluateBlockDiagram(e, numInputs, numOutputs);
+
+            //    InstructionsCompiler2* compiler2 = new InstructionsCompiler2(container2);
+            //    compiler2->compileMultiSignal(e);
+
+            //    block->pushBackInst(container2->get_fComputeBlockInstructions());
+
+            //    // Return "rec_result" result
+            //    block->pushBackInst(InstBuilder::genRetInst(InstBuilder::genLoadStackVar("rec_result")));
+
+            //    // Creates function
+            //    FunTyped* fun_type = InstBuilder::genFunTyped(args, InstBuilder::genInt32Typed(), FunTyped::kDefault);
+            //    DeclareFunInst* funInst = InstBuilder::genDeclareFunInst(fun_name, fun_type, block);
+
+            //    pushComputeBlockMethod(funInst);
+            //}
+
+            //Address::AccessType var_access;
+            //ValueInst*          ccs = getConditionCode(nth(le, i));
+           // ValueInst*          ccs = generateCode(nth(le, i));
+            //NullStatementInst*  exp_inst = new NullStatementInst();
+            //RetInst*            exp_inst       = new RetInst(ccs);
+            //pushComputeBlockMethod(InstBuilder::genControlInst(ccs, exp_inst));
+            //generateCode(other);
+
+            //////auto* block = ;
+            //BlockInst* block     = InstBuilder::genBlockInst();
+            //block->pushBackInst(ccs);
+            ////ValueInst* valueinst = InstBuilder::genBlockInst(block);
+            //pushComputeBlockMethod(block);
+
+
+            //list<ValueInst*>  args_value;
+            //list<NamedTyped*> args_types;
+
+            //int blah = e->arity() - 1;
+            //for (int i = 0; i < blah; i++) {
+
+            //    args_value.push_back(CS(e->branch(i)));
+
+            //    int         sig_argtype = kReal;  // todo
+            //    BasicTyped* argtype = genBasicFIRTyped(sig_argtype);
+
+            //    args_types.push_back(InstBuilder::genNamedTyped("dummy" + to_string(i), argtype));
+
+            //    //Tree parameter = nth(e, i);
+            //    //// Reversed...
+            //    //int         sig_argtype = ffargtype(e, (ffarity(e) - 1) - i);
+            //    //BasicTyped* argtype     = genBasicFIRTyped(sig_argtype);
+            //    //args_types.push_back(InstBuilder::genNamedTyped("dummy" + to_string(i), argtype));
+            //    //args_value.push_back(InstBuilder::genCastInst(CS(parameter), argtype));
+            //}
+
+            //// Add function declaration
+
+            //int       sig_type = kReal; // todo
+            //FunTyped* fun_type = InstBuilder::genFunTyped(args_types, genBasicFIRTyped(sig_type));
+
+            //pushComputeBlockMethod(InstBuilder::genDeclareFunInst("rec_func0", fun_type));
+
         } else {
             // This projection is not used therefore
             // we should not generate code for it

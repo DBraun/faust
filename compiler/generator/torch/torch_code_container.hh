@@ -68,6 +68,8 @@ class TorchCodeContainer : public virtual CodeContainer {
 
     static CodeContainer* createContainer(const std::string& name, int numInputs, int numOutputs,
                                           std::ostream* dst = new std::stringstream());
+
+    BlockInst* get_fComputeBlockInstructions() { return fComputeBlockInstructions; }
 };
 
 class TorchScalarCodeContainer : public TorchCodeContainer {

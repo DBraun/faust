@@ -532,9 +532,11 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
         if (gGlobal->gOutputLang == "rust" || gGlobal->gOutputLang == "julia") {
             // special handling for Rust and Julia backends
             pushComputeBlockMethod(InstBuilder::genDeclareBufferIterators("input", "inputs", fContainer->inputs(), false));
-        } else if (gGlobal->gOutputLang == "torch") {
+        }
+        else if (gGlobal->gOutputLang == "torch") {
             // todo:
-        } else {
+        }
+        else {
             // "input" and "inputs" used as a name convention
             if (gGlobal->gOneSampleControl) {
                 for (int index = 0; index < fContainer->inputs(); index++) {
@@ -588,6 +590,10 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
         }
     }
 
+    // these two vars are only used for torch
+    std::string return_string = "torch.concat(";
+    std::string sep = "[";
+
     for (int index = 0; isList(L); L = tl(L), index++) {
         Tree sig = hd(L);
 
@@ -603,7 +609,10 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
         else if (gGlobal->gOutputLang == "torch") {
             // todo:
             res = CS(sig);
-            pushComputeDSPMethod(InstBuilder::genStoreStackVar("_result", res));
+            auto result_var = "_result" + to_string(index);
+            return_string = return_string + sep + result_var;
+            sep = ",";
+            pushComputeDSPMethod(InstBuilder::genStoreStackVar(result_var, res));
         }
         else if (gGlobal->gOneSampleControl) {
             name = subst("output$0", T(index));
@@ -630,6 +639,11 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
                 pushComputeDSPMethod(InstBuilder::genStoreArrayStackVar(name, getCurrentLoopIndex(), res));
             }
         }
+    }
+
+    if (gGlobal->gOutputLang == "torch") {
+        return_string = return_string + "], dim=-2)";
+        pushComputeDSPMethod(InstBuilder::genRetInst(InstBuilder::genLoadStackVar(return_string)));
     }
 
     Tree ui = InstructionsCompiler::prepareUserInterfaceTree(fUIRoot);
@@ -934,7 +948,8 @@ ValueInst* InstructionsCompiler::generateInput(Tree sig, int idx)
     if (gGlobal->gOutputLang == "rust") {
         res = InstBuilder::genLoadStackVar(subst("*input$0", T(idx)));
     } else if (gGlobal->gOutputLang == "torch") {
-        res = InstBuilder::genLoadGlobalVar("inputs");  // todo: ?
+        //res = InstBuilder::genLoadGlobalVar("inputs");  // todo: ?
+        res = InstBuilder::genLoadArrayStackVar("inputs", InstBuilder::genInt32NumInst(idx));
     } else if (gGlobal->gOneSampleControl) {
         res = InstBuilder::genLoadStructVar(subst("input$0", T(idx)));
     } else if (gGlobal->gOneSample >= 0) {

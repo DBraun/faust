@@ -34,10 +34,13 @@ class InstructionsCompiler2 : public InstructionsCompiler {
                                  Address::AccessType& var_access, ValueInst* ccs);
     ValueInst* generateDelay(Tree sig, Tree exp, Tree delay);
 
-/**
+    ValueInst* generateRecProj(Tree sig, Tree r, int i);
+
+    /**
      * Generate code for a group of mutually recursive definitions
      */
-    ValueInst* generateRec(Tree sig, Tree var, Tree le, int index);
+    ValueInst* generateRec(Tree other, Tree sig, Tree var, Tree le, int index);
+
 
    //private:
    // StatementInst* generateInitArray(const string& vname, Typed::VarType ctype, int delay);

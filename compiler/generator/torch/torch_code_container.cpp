@@ -304,8 +304,6 @@ void TorchCodeContainer::generateCompute(int n)
     */
     generatePostComputeBlock(gGlobal->gTorchVisitor);
 
-    *fOut << "return _result";
-
     tab(n, *fOut);
 }
 

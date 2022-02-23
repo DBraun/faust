@@ -1547,7 +1547,7 @@ static void compileSOUL(Tree signals, int numInputs, int numOutputs, bool genera
 static void compileTorch(Tree signals, int numInputs, int numOutputs, bool generate, ostream* out)
 {
 #ifdef TORCH_BUILD
-    gGlobal->gAllowForeignFunction = false;  // No foreign functions
+    gGlobal->gAllowForeignFunction = false;  // todo: No foreign functions
     container = TorchCodeContainer::createContainer(gGlobal->gClassName, numInputs, numOutputs, out);
 #else
     throw faustexception("ERROR : -lang torch not supported since Torch backend is not built\n");

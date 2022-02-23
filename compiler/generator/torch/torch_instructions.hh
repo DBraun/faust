@@ -537,6 +537,7 @@ class TorchInstVisitor : public TextInstVisitor {
         *fOut << "def " << inst->fName;
         generateFunDefArgs(inst);
         generateFunDefBody(inst);
+
     }
     
     virtual void visit(DeclareBufferIterators* inst)
@@ -545,7 +546,7 @@ class TorchInstVisitor : public TextInstVisitor {
         if (inst->fNumChannels == 0) return;
     
         for (int i = 0; i < inst->fNumChannels; ++i) {
-            *fOut << inst->fBufferName1 << i << " = " << inst->fBufferName2 << "[:, " << i << "]";
+            *fOut << inst->fBufferName1 << i << " = " << inst->fBufferName2 << "[ " << i << ":" << i+1 << ",:]";
             tab(fTab, *fOut);
         }
     }
@@ -553,7 +554,13 @@ class TorchInstVisitor : public TextInstVisitor {
     virtual void generateFunDefBody(DeclareFunInst* inst)
     {
         if (inst->fCode->fCode.size() == 0) {
-            *fOut << "):" << endl;  // Pure prototype
+            *fOut << "):";
+            fTab++;
+            tab(fTab, *fOut);
+            *fOut << "pass";
+            fTab--;
+            tab(fTab, *fOut);
+            tab(fTab, *fOut);
         } else {
             // Function body
             *fOut << "):";
@@ -589,10 +596,10 @@ class TorchInstVisitor : public TextInstVisitor {
             *fOut << "[";
             Int32NumInst* field_index = dynamic_cast<Int32NumInst*>(indexed->fIndex);
             if (field_index) {
-                *fOut << field_index->fNum << "]";
+                *fOut << field_index->fNum << ",:]";
             } else {
                 indexed->fIndex->accept(this);
-                *fOut << "]";
+                *fOut << ",:]";
             }
         }
     }
