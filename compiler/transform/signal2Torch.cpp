@@ -42,6 +42,7 @@
 #include "instructions.hh"
 #include "old_occurences.hh"
 
+#include <torch/csrc/jit/frontend/tracer.h>
 
 //-------------------------SignalVisitor-------------------------------
 // An identity transformation on signals. Can be used to test
@@ -56,8 +57,10 @@ Signal2Torch::parseStatements(Tree L, bool expect_indent, bool in_class)
 {
     TreeList stmts;
     while (!isNil(L)) {
+        std::cerr << "parseStatements1(" << std::endl;
         auto stmt = parseStmt(hd(L));
         stmts.push_back(stmt);
+        std::cerr << "parseStatements2(" << std::endl;
         L = tl(L);
     }
     return create_compound(TK_LIST, _sourceRange, std::move(stmts));
@@ -73,14 +76,52 @@ void Signal2Torch::mapself(Tree lt)
     return;
 }
 
+#include <torch/torch.h>
+
 void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 {
+
+    std::cerr << "sig2Torch(" << std::endl;
+
+    auto source  = std::make_shared<torch::jit::Source>("");
+    _sourceRange = SourceRange(source, 0, 0);
 
     const auto  name       = Ident::create(_sourceRange, "something");
     Maybe<Expr> superclass = Maybe<Expr>::create(_sourceRange);
     const auto  statements = parseStatements(L, /*expect_indent=*/true, /*in_class=*/true);
 
+    std::cerr << "ClassDef::create" << std::endl;
     auto classDef = ClassDef::create(_sourceRange, name, superclass, torch::jit::List<Stmt>(statements));
+
+    torch::jit::Node* node = nullptr;
+    std::shared_ptr<torch::jit::tracer::TracingState> tracer_state;
+    std::cerr << "isTracing" << std::endl;
+    if (torch::jit::tracer::isTracing()) {
+        std::cerr << "getTracingState" << std::endl;
+        tracer_state = torch::jit::tracer::getTracingState();
+        
+        at::Symbol op_name;
+        op_name = torch::jit::Symbol::fromQualString("aten::__ilshift__");
+        node    = tracer_state->graph->create(op_name, /*num_outputs=*/0);
+        torch::jit::tracer::recordSourceLocation(node);
+
+        auto myTensor = torch::zeros({1, 100});
+
+        torch::jit::tracer::addInputs(node, "self", myTensor);
+        //torch::jit::tracer::addInputs(node, "input_signal", other);  // todo
+        tracer_state->graph->insertNode(node);
+
+        torch::jit::tracer::setTracingState(nullptr);
+    }
+    //TypeDefault::__ilshift__(self, other);  // todo
+    if (tracer_state) {
+        torch::jit::tracer::setTracingState(std::move(tracer_state));
+        fout << tracer_state->graph->toString();
+        //torch::jit::tracer::addOutput(node, self);  // todo
+    }
+
+    //tracer_state->graph->print(fout);
+    
 
     //auto cu        = get_python_cu();
     //auto className = c10::QualifiedName("MyName");
@@ -108,17 +149,29 @@ Signal2Torch::generateFConst(Tree sig, Tree type, const string& file, const stri
     return Const::create(_sourceRange, "1");
 }
 
+  template <typename T>
+List<T> parseList(int begin, int sep, int end, T (ParserImpl::*parse)())
+{
+    auto           r = L.cur().range;
+    std::vector<T> elements;
+    parseSequence(begin, sep, end, [&] { elements.emplace_back((this->*parse)()); });
+    return List<T>::create(r, elements);
+}
+
 TreeRef
 Signal2Torch::parseStmt(Tree sig, bool in_class)
 {
+    std::cerr << "parseStmt(" << std::endl;
     int    i;
     double r;
     Tree   c, sel, x, y, z, u, v, var, le, label, id, ff, largs, type, name, file, sf;
     
     if (getUserData(sig)) {
         // todo: do what here?
+        
         TreeList stmts;
         for (Tree b : sig->branches()) {
+            std::cerr << "getUserData(" << std::endl;
             stmts.push_back(parseStmt(b));
         }
         return create_compound(TK_LIST, _sourceRange, std::move(stmts));
@@ -131,19 +184,32 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
         // TODO: push back a constant array
         //return;
     } else if (isSigInput(sig, &i)) {
+        std::cerr << "isSigInput(" << std::endl;
         //fOut << "isSigInput( " << i << " )";
         //fOut << "x[:,  " << i << " ]";
         // todo: slice operator
-        auto maybe_first = Maybe<Expr>::create(_sourceRange);
+        auto maybe_first  = Const::create(_sourceRange, std::to_string(i));
         auto maybe_second = Maybe<Expr>::create(_sourceRange);
         auto maybe_third  = Maybe<Expr>::create(_sourceRange);
-        auto subscript_exprs = torch::jit::List<Expr>(SliceExpr::create(_sourceRange, maybe_first, maybe_second, maybe_third));
-
+        std::cerr << "SliceExpr::create(" << std::endl;
+        //auto sliceexpr = SliceExpr::create(_sourceRange, maybe_first, maybe_second, maybe_third);
+        std::cerr << "torch::jit::List<Expr>" << std::endl;
+        auto sliceexpr = std::vector<torch::jit::Expr>();
+        std::cerr << "maybe_first" << std::endl;
+        sliceexpr.push_back(maybe_first);
+        //std::cerr << "maybe_second" << std::endl;
+        //sliceexpr.push_back((torch::jit::Expr)maybe_second);
+        //std::cerr << "maybe_third" << std::endl;
+        //sliceexpr.push_back((torch::jit::Expr)maybe_third);
+        std::cerr << "torch::jit::List<Expr>::create" << std::endl;
+        auto subscript_exprs = torch::jit::List<Expr>::create(_sourceRange, sliceexpr);
         auto input_expr = Const::create(_sourceRange, "0"); // todo: what's an Expr to refer to the arg input?
-
+        std::cerr << "isSigInput-Subscript::create" << std::endl;
         auto sliced_input = Subscript::create(_sourceRange, input_expr, subscript_exprs);
+        std::cerr << "isSigInput-return" << std::endl;
         return sliced_input;
     } else if (isSigOutput(sig, &i, x)) {
+        std::cerr << "isSigOutput(" << std::endl;
         // todo: do what here?
         return parseStmt(x);
     } else if (isSigDelay1(sig, x)) {
@@ -163,6 +229,7 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
         //return SigIota::create(x);
         //return;
     } else if (isSigBinOp(sig, &i, x, y)) {
+        std::cerr << "isSigBinOp(" << std::endl;
         // todo: use parseStmt(y)
         if (std::strcmp(binopname[i], "mul") == 0) {
             return create_compound('*', _sourceRange, {parseStmt(x)});
@@ -185,12 +252,14 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
     
     // Foreign functions
     else if (isSigFFun(sig, ff, largs)) {
+        std::cerr << "isSigFFun(" << std::endl;
         // todo: do what here?
         parseStmt(ff);
         mapself(largs);
         //return;
     } else if (isSigFConst(sig, type, name, file)) {
         // todo: do what here?
+        std::cerr << "isSigFConst(" << std::endl;
         return generateFConst(sig, type, tree2str(file), tree2str(name));
     } else if (isSigFVar(sig, type, name, file)) {
         // todo: do what here?
@@ -263,6 +332,7 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
         //self(x);
         //return;
     } else if (isRec(sig, var, le)) {
+        std::cerr << "isRec(" << std::endl;
         // todo: do what here?
         mapself(le);
         //self(var);
@@ -342,5 +412,6 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
         throw faustexception(error.str());
     }
 
+    std::cerr << "Const::create(" << std::endl;
     return Const::create(_sourceRange, "0");
 }
