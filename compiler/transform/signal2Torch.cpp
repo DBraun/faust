@@ -42,43 +42,6 @@
 #include "instructions.hh"
 #include "old_occurences.hh"
 
-#include <torch/csrc/jit/api/module.h>
-//#include <torch/csrc/jit/python/pybind_utils.h>
-#include <torch/csrc/jit/frontend/parser.h>
-
-#include <torch/csrc/jit/frontend/lexer.h>
-#include <torch/csrc/jit/frontend/parse_string_literal.h>
-#include <torch/csrc/jit/frontend/tree.h>
-#include <torch/csrc/jit/frontend/tree_views.h>
-
-//#include <ATen/core/symbol.h>
-//#include <ATen/record_function.h>
-//#include <c10/util/Exception.h>
-//#include <c10/util/StringUtil.h>
-//#include <c10/util/irange.h>
-
-using namespace torch;
-using torch::jit::Module;
-using torch::jit::Maybe;
-using torch::jit::Expr;
-using torch::jit::ExprStmt;
-using torch::jit::Stmt;
-using torch::jit::List;
-using torch::jit::ClassDef;
-using torch::jit::ClassType;
-using torch::jit::ParserImpl;
-using torch::jit::Ident;
-using torch::jit::SourceRange;
-using torch::jit::TreeRef;
-using torch::jit::TreeList;
-using torch::jit::Compound;
-using torch::jit::Const;
-using torch::jit::ListLiteral;
-using torch::jit::SliceExpr;
-using torch::jit::Subscript;
-using torch::jit::TK_LIST;
-
-//using torch::jit::get_python_cu;
 
 //-------------------------SignalVisitor-------------------------------
 // An identity transformation on signals. Can be used to test
@@ -87,48 +50,6 @@ using torch::jit::TK_LIST;
 
 // TO COMPLETE
 static const char* binopname[] = {"add", "sub", "mul", "div", "%", "<<", ">>", "ge", "le", "geq", "leq", "==", "!=", "&", "|", "^"};
-
-///*****************************************************************************
-// vector name property
-// *****************************************************************************/
-//
-///**
-// * Set the vector name property of a signal, the name of the vector used to
-// * store the previous values of the signal to implement a delay.
-// * @param sig the signal expression.
-// * @param vname the string representing the vector name.
-// * @return true is already compiled
-// */
-//void Signal2Torch::setVectorNameProperty(Tree sig, const string& vname)
-//{
-//    faustassert(vname.size() > 0);
-//    fVectorProperty.set(sig, vname);
-//}
-//
-///**
-// * Get the vector name property of a signal, the name of the vector used to
-// * store the previous values of the signal to implement a delay.
-// * @param sig the signal expression.
-// * @param vname the string where to store the vector name.
-// * @return true if the signal has this property, false otherwise
-// */
-//
-//bool Signal2Torch::getVectorNameProperty(Tree sig, string& vname)
-//{
-//    return fVectorProperty.get(sig, vname);
-//}
-//
-//void Signal2Torch::setTableNameProperty(Tree sig, const string& name)
-//{
-//    faustassert(name.size() > 0);
-//    fTableProperty.set(sig, name);
-//}
-//
-//bool Signal2Torch::getTableNameProperty(Tree sig, string& name)
-//{
-//    return fTableProperty.get(sig, name);
-//}
-//
 
 TreeRef
 Signal2Torch::parseStatements(Tree L, bool expect_indent = false, bool in_class = false)
@@ -159,7 +80,7 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
     Maybe<Expr> superclass = Maybe<Expr>::create(_sourceRange);
     const auto  statements = parseStatements(L, /*expect_indent=*/true, /*in_class=*/true);
 
-    auto classDef = ClassDef::create(_sourceRange, name, superclass, List<Stmt>(statements));
+    auto classDef = ClassDef::create(_sourceRange, name, superclass, torch::jit::List<Stmt>(statements));
 
     //auto cu        = get_python_cu();
     //auto className = c10::QualifiedName("MyName");
@@ -186,148 +107,6 @@ Signal2Torch::generateFConst(Tree sig, Tree type, const string& file, const stri
     // todo
     return Const::create(_sourceRange, "1");
 }
-//
-//#define _DNF_ 1
-//
-//
-//#if _DNF_
-//#define CND2CODE dnf2code
-//#else
-//#define CND2CODE cnf2code
-//#endif
-//
-//ValueInst* Signal2Torch::dnf2code(Tree cc)
-//{
-//    if (cc == gGlobal->nil) return InstBuilder::genNullValueInst();
-//    Tree c1 = hd(cc);
-//    cc      = tl(cc);
-//    if (cc == gGlobal->nil) {
-//        return and2code(c1);
-//    } else {
-//        return InstBuilder::genOr(and2code(c1), dnf2code(cc));
-//    }
-//}
-//
-//ValueInst* Signal2Torch::and2code(Tree cs)
-//{
-//    if (cs == gGlobal->nil) return InstBuilder::genNullValueInst();
-//    Tree c1 = hd(cs);
-//    cs      = tl(cs);
-//    if (cs == gGlobal->nil) {
-//        return self(c1);
-//    } else {
-//        return InstBuilder::genAnd(self(c1), and2code(cs));
-//    }
-//}
-//
-//ValueInst* Signal2Torch::cnf2code(Tree cs)
-//{
-//    if (cs == gGlobal->nil) return InstBuilder::genNullValueInst();
-//    Tree c1 = hd(cs);
-//    cs      = tl(cs);
-//    if (cs == gGlobal->nil) {
-//        return or2code(c1);
-//    } else {
-//        return InstBuilder::genAnd(or2code(c1), cnf2code(cs));
-//    }
-//}
-//
-//ValueInst* Signal2Torch::or2code(Tree cs)
-//{
-//    if (cs == gGlobal->nil) return InstBuilder::genNullValueInst();
-//    Tree c1 = hd(cs);
-//    cs      = tl(cs);
-//    if (cs == gGlobal->nil) {
-//        return self(c1);
-//    } else {
-//        return InstBuilder::genOr(self(c1), or2code(cs));
-//    }
-//}
-//
-//// Temporary implementation for test purposes
-//ValueInst* Signal2Torch::getConditionCode(Tree sig)
-//{
-//    Tree cc = fConditionProperty[sig];
-//    if ((cc != 0) && (cc != gGlobal->nil)) {
-//        CND2CODE(cc);
-//    } else {
-//        return InstBuilder::genNullValueInst();
-//    }
-//}
-
-/*****************************************************************************
- RECURSIONS
- *****************************************************************************/
-
-///**
-// * Generate code for a projection of a group of mutually recursive definitions
-// */
-//void Signal2Torch::generateRecProj(Tree sig, Tree r, int i)
-//{
-//    string     vname;
-//    Tree       var, le;
-//    ValueInst* res;
-//
-//    if (!getVectorNameProperty(sig, vname)) {
-//        ensure(isRec(r, var, le));
-//        generateRec(r, var, le, i);
-//        ensure(getVectorNameProperty(sig, vname));
-//    }
-//}
-
-///**
-// * Generate code for a group of mutually recursive definitions
-// */
-//void Signal2Torch::generateRec(Tree sig, Tree var, Tree le, int index)
-//{
-//    int N = len(le);
-//
-//    ValueInst*             res = nullptr;
-//    vector<bool>           used(N);
-//    vector<int>            delay(N);
-//    vector<string>         vname(N);
-//    vector<Typed::VarType> ctype(N);
-//
-//    // Prepare each element of a recursive definition
-//    for (int i = 0; i < N; i++) {
-//        Tree e = sigProj(i, sig);  // recreate each recursive definition
-//        if (fOccMarkup->retrieve(e)) {
-//            // This projection is used
-//            used[i] = true;
-//            getTypedNames(getCertifiedSigType(e), "Rec", ctype[i], vname[i]);
-//            setVectorNameProperty(e, vname[i]);
-//            delay[i] = fOccMarkup->retrieve(e)->getMaxDelay();
-//        } else {
-//            // This projection is not used therefore
-//            // we should not generate code for it
-//            used[i] = false;
-//        }
-//    }
-//
-//    // Generate delayline for each element of a recursive definition
-//    for (int i = 0; i < N; i++) {
-//        if (used[i]) {
-//            Address::AccessType var_access;
-//            ValueInst*          ccs = getConditionCode(nth(le, i));
-//            generateDelayLine(self(nth(le, i)), ctype[i], vname[i], delay[i], var_access, ccs);
-//        }
-//    }
-//}
-
-/*****************************************************************************
- CACHE CODE
- *****************************************************************************/
-
-//void Signal2Torch::getTypedNames(::Type t, const string& prefix, Typed::VarType& ctype, string& vname)
-//{
-//    if (t->nature() == kInt) {
-//        ctype = Typed::kInt32;
-//        vname = subst("i$0", gGlobal->getFreshID(prefix));
-//    } else {
-//        ctype = itfloat();
-//        vname = subst("f$0", gGlobal->getFreshID(prefix));
-//    }
-//}
 
 TreeRef
 Signal2Torch::parseStmt(Tree sig, bool in_class=false)

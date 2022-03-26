@@ -30,6 +30,45 @@
 #include "tree.hh"
 #include "treeTraversal.hh"
 
+
+////
+
+#include <torch/csrc/jit/api/module.h>
+//#include <torch/csrc/jit/python/pybind_utils.h>
+#include <torch/csrc/jit/frontend/parser.h>
+
+#include <torch/csrc/jit/frontend/lexer.h>
+#include <torch/csrc/jit/frontend/parse_string_literal.h>
+#include <torch/csrc/jit/frontend/tree.h>
+#include <torch/csrc/jit/frontend/tree_views.h>
+
+//#include <ATen/core/symbol.h>
+//#include <ATen/record_function.h>
+//#include <c10/util/Exception.h>
+//#include <c10/util/StringUtil.h>
+//#include <c10/util/irange.h>
+// using torch::jit::get_python_cu;
+
+using torch::jit::Module;
+using torch::jit::Maybe;
+using torch::jit::Expr;
+using torch::jit::ExprStmt;
+using torch::jit::Stmt;
+using torch::jit::List;
+using torch::jit::ClassDef;
+//using torch::jit::ClassType;
+using torch::jit::ParserImpl;
+using torch::jit::Ident;
+using torch::jit::SourceRange;
+using torch::jit::TreeRef;
+using torch::jit::TreeList;
+using torch::jit::Compound;
+using torch::jit::Const;
+using torch::jit::ListLiteral;
+using torch::jit::SliceExpr;
+using torch::jit::Subscript;
+using torch::jit::TK_LIST;
+
 //-------------------------Signal2Torch-------------------------------
 // Transforms signals to Torch code (see: https://pytorch.org)
 //----------------------------------------------------------------------
