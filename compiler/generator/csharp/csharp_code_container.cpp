@@ -65,7 +65,7 @@ CodeContainer* CSharpCodeContainer::createContainer(const string& name, const st
     } else if (gGlobal->gVectorSwitch) {
         throw faustexception("ERROR : Vector mode not supported for CSharp\n");
     } else {
-        container = new CSharpScalarCodeContainer(name, super, numInputs, numOutputs, dst, kInt);
+        container = new CSharpScalarCodeContainer(name, super, numInputs, numOutputs, dst, faust_kInt);
     }
 
     return container;
@@ -125,7 +125,7 @@ void CSharpCodeContainer::produceInternal()
 
     // Fill
     string counter = "count";
-    if (fSubContainerType == kInt) {
+    if (fSubContainerType == faust_kInt) {
         tab(n + 1, *fOut);
         *fOut << "public void fill" << fKlassName << subst("(int $0, int[] " + fTableName + ") { ", counter);
     } else {

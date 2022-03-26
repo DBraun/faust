@@ -29,7 +29,7 @@
 
 static inline BasicTyped* genBasicFIRTyped(int sig_type)
 {
-    return InstBuilder::genBasicTyped((sig_type == kInt) ? Typed::kInt32 : itfloat());
+    return InstBuilder::genBasicTyped((sig_type == faust_kInt) ? Typed::kInt32 : itfloat());
 }
 
 InstructionsCompiler2::InstructionsCompiler2(CodeContainer* container) : InstructionsCompiler(container)

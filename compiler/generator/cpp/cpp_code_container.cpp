@@ -97,15 +97,15 @@ CodeContainer* CPPCodeContainer::createContainer(const string& name, const strin
         container = new CPPVectorCodeContainer(name, super, numInputs, numOutputs, dst);
     } else {
         if (gGlobal->gOneSample == 0) {
-            container = new CPPScalarOneSampleCodeContainer1(name, super, numInputs, numOutputs, dst, kInt);
+            container = new CPPScalarOneSampleCodeContainer1(name, super, numInputs, numOutputs, dst, faust_kInt);
         } else if (gGlobal->gOneSample == 1) {
-            container = new CPPScalarOneSampleCodeContainer2(name, super, numInputs, numOutputs, dst, kInt);
+            container = new CPPScalarOneSampleCodeContainer2(name, super, numInputs, numOutputs, dst, faust_kInt);
         } else if (gGlobal->gOneSample == 2) {
-            container = new CPPScalarOneSampleCodeContainer3(name, super, numInputs, numOutputs, dst, kInt);
+            container = new CPPScalarOneSampleCodeContainer3(name, super, numInputs, numOutputs, dst, faust_kInt);
         } else if (gGlobal->gOneSample == 3) {
-            container = new CPPScalarOneSampleCodeContainer4(name, super, numInputs, numOutputs, dst, kInt);
+            container = new CPPScalarOneSampleCodeContainer4(name, super, numInputs, numOutputs, dst, faust_kInt);
         } else {
-            container = new CPPScalarCodeContainer(name, super, numInputs, numOutputs, dst, kInt);
+            container = new CPPScalarCodeContainer(name, super, numInputs, numOutputs, dst, faust_kInt);
         }
     }
 
@@ -233,7 +233,7 @@ void CPPCodeContainer::produceInternal()
     // Fill
     string counter = "count";
     tab(n + 1, *fOut);
-    if (fSubContainerType == kInt) {
+    if (fSubContainerType == faust_kInt) {
         tab(n + 1, *fOut);
         *fOut << "void fill" << fKlassName << subst("(int $0, int* " + fTableName + ") {", counter);
     } else {

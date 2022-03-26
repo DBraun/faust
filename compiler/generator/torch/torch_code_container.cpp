@@ -90,7 +90,7 @@ CodeContainer* TorchCodeContainer::createContainer(const string& name, int numIn
         //container = new TorchVectorCodeContainer(name, numInputs, numOutputs, dst);
         throw faustexception("ERROR : Vector not supported for Torch\n");
     } else {
-        container = new TorchScalarCodeContainer(name, numInputs, numOutputs, dst, kInt);
+        container = new TorchScalarCodeContainer(name, numInputs, numOutputs, dst, faust_kInt);
     }
 
     return container;

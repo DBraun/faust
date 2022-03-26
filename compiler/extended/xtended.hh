@@ -37,7 +37,7 @@ class CodeContainer;
 
 class xtended : public virtual Garbageable {
    private:
-    Symbol* fSymbol;  ///< the symbol the xtended is attached to
+    FaustSymbol* fSymbol;  ///< the symbol the xtended is attached to
 
    public:
     xtended(const char* name) : fSymbol(::symbol(name)) { setUserData(fSymbol, (void*)this); }
@@ -92,7 +92,7 @@ inline ValueInst* promote2real(int type, ValueInst* val)
 }
 inline ValueInst* promote2int(int type, ValueInst* val)
 {
-    return (type == kInt) ? val : InstBuilder::genCastInt32Inst(val);
+    return (type == faust_kInt) ? val : InstBuilder::genCastInt32Inst(val);
 }
 
 inline ValueInst* cast2real(int type, ValueInst* val)
@@ -101,7 +101,7 @@ inline ValueInst* cast2real(int type, ValueInst* val)
 }
 inline ValueInst* cast2int(int type, ValueInst* val)
 {
-    return (type == kInt) ? InstBuilder::genCastInt32Inst(val) : val;
+    return (type == faust_kInt) ? InstBuilder::genCastInt32Inst(val) : val;
 }
 
 #endif

@@ -108,7 +108,7 @@ CodeContainer* WASTCodeContainer::createContainer(const string& name, int numInp
         }
         container = new WASTVectorCodeContainer(name, numInputs, numOutputs, dst, internal_memory);
     } else {
-        container = new WASTScalarCodeContainer(name, numInputs, numOutputs, dst, kInt, internal_memory);
+        container = new WASTScalarCodeContainer(name, numInputs, numOutputs, dst, faust_kInt, internal_memory);
     }
 
     return container;

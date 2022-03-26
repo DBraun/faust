@@ -65,12 +65,12 @@ ValueInst* InstBuilder::genTypedZero(Typed::VarType type)
 
 Typed::VarType ctType(Type t)
 {
-    return (t->nature() == kInt) ? Typed::kInt32 : Typed::kFloat;
+    return (t->nature() == faust_kInt) ? Typed::kInt32 : Typed::kFloat;
 }
 
 string Typed::gTypeString[] = {"kInt32",          "kInt32_ptr",      "kInt32_vec",          "kInt32_vec_ptr",
                                "kInt64",          "kInt64_ptr",      "kInt64_vec",          "kInt64_vec_ptr",
-                               "kBool",           "kBool_ptr",       "kBool_vec",           "kBool_vec_ptr",
+                               "faust_kBool",           "kBool_ptr",       "kBool_vec",           "kBool_vec_ptr",
                                "kFloat",          "kFloat_ptr",      "kFloat_ptr_ptr",      "kFloat_vec",
                                "kFloat_vec_ptr",  "kFloatMacro",     "kFloatMacro_ptr",     "kFloatMacro_ptr_ptr",
                                "kDouble",         "kDouble_ptr",     "kDouble_ptr_ptr",     "kDouble_vec",       "kDouble_vec_ptr",

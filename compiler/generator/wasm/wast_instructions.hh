@@ -358,7 +358,7 @@ class WASTInstVisitor : public TextInstVisitor, public WASInst {
                 *fOut << "(i32.add (local.get $" << indexed->getName() << ") (i32.shl ";
                 indexed->fIndex->accept(this);
                 // Force "output" access to be coherent with fSubContainerType (integer or real)
-                if (fSubContainerType == kInt) {
+                if (fSubContainerType == faust_kInt) {
                     *fOut << " (i32.const 2)))";
                 } else {
                     *fOut << " (i32.const " << offStr << ")))";

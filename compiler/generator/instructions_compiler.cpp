@@ -53,7 +53,7 @@ ostream* Printable::fOut = &cout;
 
 static inline BasicTyped* genBasicFIRTyped(int sig_type)
 {
-    return InstBuilder::genBasicTyped((sig_type == kInt) ? Typed::kInt32 : itfloat());
+    return InstBuilder::genBasicTyped((sig_type == faust_kInt) ? Typed::kInt32 : itfloat());
 }
 
 InstructionsCompiler::InstructionsCompiler(CodeContainer* container)
@@ -1056,7 +1056,7 @@ ValueInst* InstructionsCompiler::generateFFun(Tree sig, Tree ff, Tree largs)
 
 void InstructionsCompiler::getTypedNames(::Type t, const string& prefix, Typed::VarType& ctype, string& vname)
 {
-    if (t->nature() == kInt) {
+    if (t->nature() == faust_kInt) {
         ctype = Typed::kInt32;
         vname = subst("i$0", gGlobal->getFreshID(prefix));
     } else {
@@ -1152,7 +1152,7 @@ ValueInst* InstructionsCompiler::generateVariableStore(Tree sig, ValueInst* exp)
             if (gGlobal->gOneSample >= 0 || gGlobal->gOneSampleControl) {
                 
                 if (gGlobal->gOneSample == 3) {
-                    if (t->nature() == kInt) {
+                    if (t->nature() == faust_kInt) {
                         pushComputeBlockMethod(InstBuilder::genStoreArrayStructVar(
                             "iControl", InstBuilder::genInt32NumInst(fContainer->fInt32ControlNum), exp));
                         ValueInst* res = InstBuilder::genLoadArrayStructVar(
@@ -1168,7 +1168,7 @@ ValueInst* InstructionsCompiler::generateVariableStore(Tree sig, ValueInst* exp)
                         return res;
                     }
                 } else {
-                    if (t->nature() == kInt) {
+                    if (t->nature() == faust_kInt) {
                         pushComputeBlockMethod(InstBuilder::genStoreArrayFunArgsVar(
                             "iControl", InstBuilder::genInt32NumInst(fContainer->fInt32ControlNum), exp));
                         ValueInst* res = InstBuilder::genLoadArrayFunArgsVar(
@@ -1243,7 +1243,7 @@ ValueInst* InstructionsCompiler::generateVariableStore(Tree sig, ValueInst* exp)
 ValueInst* InstructionsCompiler::generateIntCast(Tree sig, Tree x)
 {
     return generateCacheCode(sig,
-                             (getCertifiedSigType(x)->nature() != kInt) ? InstBuilder::genCastInt32Inst(CS(x)) : CS(x));
+                             (getCertifiedSigType(x)->nature() != faust_kInt) ? InstBuilder::genCastInt32Inst(CS(x)) : CS(x));
 }
 
 // Generate cast only when really necessary...
@@ -1336,7 +1336,7 @@ ValueInst* InstructionsCompiler::generateBargraphAux(Tree sig, Tree path, Tree m
             break;
     }
 
-    return generateCacheCode(sig, (t->nature() == kInt)
+    return generateCacheCode(sig, (t->nature() == faust_kInt)
                                       ? InstBuilder::genCastInt32Inst(InstBuilder::genLoadStructVar(varname))
                                       : InstBuilder::genLoadStructVar(varname));
 }

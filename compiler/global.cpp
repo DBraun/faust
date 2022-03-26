@@ -111,7 +111,7 @@ So we use a lower value here.
 global::global() : TABBER(1), gLoopDetector(1024, 400), gStackOverflowDetector(MAX_STACK_SIZE), gNextFreeColor(1)
 {
     CTree::init();
-    Symbol::init();
+    FaustSymbol::init();
 
     EVALPROPERTY   = symbol("EvalProperty");
     PMPROPERTYNODE = symbol("PMPROPERTY");
@@ -503,26 +503,26 @@ void global::init()
     // True by default but only usable with -lang ocpp backend
     gEnableFlag = true;
 
-    TINT  = makeSimpleType(kInt, kKonst, kComp, kVect, kNum, interval());
+    TINT  = makeSimpleType(faust_kInt, kKonst, kComp, kVect, kNum, interval());
     TREAL = makeSimpleType(kReal, kKonst, kComp, kVect, kNum, interval());
 
-    TKONST = makeSimpleType(kInt, kKonst, kComp, kVect, kNum, interval());
-    TBLOCK = makeSimpleType(kInt, kBlock, kComp, kVect, kNum, interval());
-    TSAMP  = makeSimpleType(kInt, kSamp, kComp, kVect, kNum, interval());
+    TKONST = makeSimpleType(faust_kInt, kKonst, kComp, kVect, kNum, interval());
+    TBLOCK = makeSimpleType(faust_kInt, kBlock, kComp, kVect, kNum, interval());
+    TSAMP  = makeSimpleType(faust_kInt, kSamp, kComp, kVect, kNum, interval());
 
-    TCOMP = makeSimpleType(kInt, kKonst, kComp, kVect, kNum, interval());
-    TINIT = makeSimpleType(kInt, kKonst, kInit, kVect, kNum, interval());
-    TEXEC = makeSimpleType(kInt, kKonst, kExec, kVect, kNum, interval());
+    TCOMP = makeSimpleType(faust_kInt, kKonst, kComp, kVect, kNum, interval());
+    TINIT = makeSimpleType(faust_kInt, kKonst, kInit, kVect, kNum, interval());
+    TEXEC = makeSimpleType(faust_kInt, kKonst, kExec, kVect, kNum, interval());
 
     // More predefined types
     TINPUT   = makeSimpleType(kReal, kSamp, kExec, kVect, kNum, interval(-1, 1));
     TGUI     = makeSimpleType(kReal, kBlock, kExec, kVect, kNum, interval());
     TGUI01   = makeSimpleType(kReal, kBlock, kExec, kVect, kNum, interval(0, 1));
-    INT_TGUI = makeSimpleType(kInt, kBlock, kExec, kVect, kNum, interval());
+    INT_TGUI = makeSimpleType(faust_kInt, kBlock, kExec, kVect, kNum, interval());
 
-    TREC = makeSimpleType(kInt, kSamp, kInit, kScal, kNum, interval(0, 0));
+    TREC = makeSimpleType(faust_kInt, kSamp, kInit, kScal, kNum, interval(0, 0));
     // !!! TRECMAX Maximal only in the last component of the type lattice
-    TRECMAX = makeSimpleType(kInt, kSamp, kInit, kScal, kNum, interval(-HUGE_VAL,HUGE_VAL));
+    TRECMAX = makeSimpleType(faust_kInt, kSamp, kInit, kScal, kNum, interval(-HUGE_VAL,HUGE_VAL));
 
     // empty Predefined bit depth
     RES = res();

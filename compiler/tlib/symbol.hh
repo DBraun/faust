@@ -48,22 +48,22 @@
 /**
  * Symbols are unique objects with a name stored in a hash table.
  */
-class Symbol : public virtual Garbageable {
+class FaustSymbol : public virtual Garbageable {
    private:
     static const int kHashTableSize = 511;          ///< Size of the hash table (a prime number is recommended)
-    static Symbol*   gSymbolTable[kHashTableSize];  ///< Hash table used to store the symbols
+    static FaustSymbol*   gSymbolTable[kHashTableSize];  ///< Hash table used to store the symbols
     static std::map<const char*, unsigned int> gPrefixCounters;
 
     // Fields
     std::string  fName;  ///< Name of the symbol
     unsigned int fHash;  ///< Hash key computed from the name and used to determine the hash table entry
-    Symbol*      fNext;  ///< Next symbol in the hash table entry
+    FaustSymbol*      fNext;  ///< Next symbol in the hash table entry
     void*        fData;  ///< Field to user disposal to store additional data
 
     // Constructors & destructors
-    Symbol(const std::string&, unsigned int hsh,
-           Symbol* nxt);  ///< Constructs a new symbol ready to be placed in the hash table
-    ~Symbol();            ///< The destructor is never used
+    FaustSymbol(const std::string&, unsigned int hsh,
+           FaustSymbol* nxt);  ///< Constructs a new symbol ready to be placed in the hash table
+    ~FaustSymbol();            ///< The destructor is never used
 
     // Others
     bool                equiv(unsigned int hash,
@@ -71,56 +71,56 @@ class Symbol : public virtual Garbageable {
     static unsigned int calcHashKey(const char* str);  ///< Compute the 32-bits hash key of string \p str
 
     // Static methods
-    static Symbol* get(const std::string& str);   ///< Get the symbol of name \p str
-    static Symbol* get(const char* str);          ///< Get the symbol of name \p str
-    static Symbol* prefix(const char* str);       ///< Creates a new symbol of name prefixed by \p str
+    static FaustSymbol* get(const std::string& str);   ///< Get the symbol of name \p str
+    static FaustSymbol* get(const char* str);          ///< Get the symbol of name \p str
+    static FaustSymbol* prefix(const char* str);       ///< Creates a new symbol of name prefixed by \p str
     static bool    isnew(const char* str);        ///< Returns \b true if no symbol of name \p str exists
 
    public:
     std::ostream& print(std::ostream& fout) const;  ///< print a symbol on a stream
 
-    friend Symbol*     symbol(const char* str);
-    friend Symbol*     symbol(const std::string& str);
-    friend Symbol*     unique(const char* str);
-    friend const char* name(Symbol* sym);
+    friend FaustSymbol*     symbol(const char* str);
+    friend FaustSymbol*     symbol(const std::string& str);
+    friend FaustSymbol*     unique(const char* str);
+    friend const char* name(FaustSymbol* sym);
 
-    friend void* getUserData(Symbol* sym);
-    friend void  setUserData(Symbol* sym, void* d);
+    friend void* getUserData(FaustSymbol* sym);
+    friend void  setUserData(FaustSymbol* sym, void* d);
 
     static void init();
 };
 
-inline Symbol* symbol(const char* str)
+inline FaustSymbol* symbol(const char* str)
 {
-    return Symbol::get(str);
+    return FaustSymbol::get(str);
 }  ///< Returns (and creates if new) the symbol of name \p str
-inline Symbol* symbol(const std::string& str)
+inline FaustSymbol* symbol(const std::string& str)
 {
-    return Symbol::get(str);
+    return FaustSymbol::get(str);
 }  ///< Returns (and creates if new) the symbol of name \p str
-inline Symbol* unique(const char* str)
+inline FaustSymbol* unique(const char* str)
 {
-    return Symbol::prefix(str);
+    return FaustSymbol::prefix(str);
 }  ///< Returns a new unique symbol of name strxxx
-inline const char* name(Symbol* sym)
+inline const char* name(FaustSymbol* sym)
 {
     return sym->fName.c_str();
 }  ///< Returns the name of a symbol
 
-inline void* getUserData(Symbol* sym)
+inline void* getUserData(FaustSymbol* sym)
 {
     return sym->fData;
 }  ///< Returns user data
-inline void setUserData(Symbol* sym, void* d)
+inline void setUserData(FaustSymbol* sym, void* d)
 {
     sym->fData = d;
 }  ///< Set user data
 
-inline std::ostream& operator<<(std::ostream& s, const Symbol& n)
+inline std::ostream& operator<<(std::ostream& s, const FaustSymbol& n)
 {
     return n.print(s);
 }
 
-typedef Symbol* Sym;
+typedef FaustSymbol* Sym;
 
 #endif

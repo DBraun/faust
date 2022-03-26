@@ -121,7 +121,7 @@ string commonAttr(Type t)
 {
     string sout;
     // nature
-    if (t->nature() == kInt) {
+    if (t->nature() == faust_kInt) {
         sout += " color=\"blue\"";
     } else {
         sout += " color=\"red\"";

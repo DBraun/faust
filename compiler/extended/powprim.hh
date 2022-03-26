@@ -92,16 +92,16 @@ class PowPrim : public xtended {
         faustassert(types.size() == arity());
 
         vector<Typed::VarType>          arg_types(2);
-        Typed::VarType                  result_type = (result->nature() == kInt) ? Typed::kInt32 : itfloat();
+        Typed::VarType                  result_type = (result->nature() == faust_kInt) ? Typed::kInt32 : itfloat();
 
         list<ValueInst*>::const_iterator it = args.begin();
         it++;
         Int32NumInst* arg1 = dynamic_cast<Int32NumInst*>(*it);
 
-        if (arg1 && (types[1]->nature() == kInt) && (types[1]->variability() == kKonst)
+        if (arg1 && (types[1]->nature() == faust_kInt) && (types[1]->variability() == kKonst)
             && (types[1]->computability() == kComp) && (gGlobal->gNeedManualPow)) {
             
-            arg_types[0] = (types[0]->nature() == kInt) ? Typed::kInt32 : itfloat();
+            arg_types[0] = (types[0]->nature() == faust_kInt) ? Typed::kInt32 : itfloat();
             arg_types[1] = Typed::kInt32;
             
             // Expand the pow depending of the exposant argument
@@ -156,7 +156,7 @@ class PowPrim : public xtended {
         faustassert(args.size() == arity());
         faustassert(types.size() == arity());
 
-        if ((types[1]->nature() == kInt) && (types[1]->variability() == kKonst) &&
+        if ((types[1]->nature() == faust_kInt) && (types[1]->variability() == kKonst) &&
             (types[1]->computability() == kComp)) {
             klass->rememberNeedPowerDef();
             return subst("faustpower<$1>($0)", args[0], args[1]);

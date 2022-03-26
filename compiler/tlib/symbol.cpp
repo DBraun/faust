@@ -35,9 +35,9 @@ using namespace std;
  * Hash table used to store the symbols.
  */
 
-Symbol* Symbol::gSymbolTable[kHashTableSize];
+FaustSymbol* FaustSymbol::gSymbolTable[kHashTableSize];
 
-map<const char*, unsigned int> Symbol::gPrefixCounters;
+map<const char*, unsigned int> FaustSymbol::gPrefixCounters;
 
 /**
  * Search the hash table for the symbol of name \p str or returns a new one.
@@ -45,9 +45,9 @@ map<const char*, unsigned int> Symbol::gPrefixCounters;
  * \return a symbol of name str
  */
 
-Symbol* Symbol::get(const string& str)
+FaustSymbol* FaustSymbol::get(const string& str)
 {
-    return Symbol::get(str.c_str());
+    return FaustSymbol::get(str.c_str());
 }
 
 /**
@@ -56,7 +56,7 @@ Symbol* Symbol::get(const string& str)
  * \return a symbol of name str
  */
 
-Symbol* Symbol::get(const char* rawstr)
+FaustSymbol* FaustSymbol::get(const char* rawstr)
 {
     // ---replaces control characters with white spaces---
     string str = rawstr;
@@ -66,10 +66,10 @@ Symbol* Symbol::get(const char* rawstr)
     }
     unsigned int hsh  = calcHashKey(str.c_str());
     int          bckt = hsh % kHashTableSize;
-    Symbol*      item = gSymbolTable[bckt];
+    FaustSymbol*      item = gSymbolTable[bckt];
 
     while (item && !item->equiv(hsh, str.c_str())) item = item->fNext;
-    Symbol* r = item ? item : gSymbolTable[bckt] = new Symbol(str, hsh, gSymbolTable[bckt]);
+    FaustSymbol* r = item ? item : gSymbolTable[bckt] = new FaustSymbol(str, hsh, gSymbolTable[bckt]);
 
     return r;
 }
@@ -80,11 +80,11 @@ Symbol* Symbol::get(const char* rawstr)
  * \return true if the string is NOT in the table (it is a new string)
  */
 
-bool Symbol::isnew(const char* str)
+bool FaustSymbol::isnew(const char* str)
 {
     unsigned int hsh  = calcHashKey(str);
     int          bckt = hsh % kHashTableSize;
-    Symbol*      item = gSymbolTable[bckt];
+    FaustSymbol*      item = gSymbolTable[bckt];
 
     while (item && !item->equiv(hsh, str)) item = item->fNext;
     return item == 0;
@@ -96,7 +96,7 @@ bool Symbol::isnew(const char* str)
  * \return a symbol of name \p prefix++n
  */
 
-Symbol* Symbol::prefix(const char* str)
+FaustSymbol* FaustSymbol::prefix(const char* str)
 {
     char name[256];
 
@@ -118,7 +118,7 @@ Symbol* Symbol::prefix(const char* str)
  * \return \p true if the name of the symbol and \p str are the same
  */
 
-bool Symbol::equiv(unsigned int hash, const char* str) const
+bool FaustSymbol::equiv(unsigned int hash, const char* str) const
 {
     return (fHash == hash) && (strcmp(fName.c_str(), str) == 0);
 }
@@ -129,7 +129,7 @@ bool Symbol::equiv(unsigned int hash, const char* str) const
  * \return a 32-bits hash key
  */
 
-unsigned int Symbol::calcHashKey(const char* str)
+unsigned int FaustSymbol::calcHashKey(const char* str)
 {
     unsigned int h = 0;
 
@@ -145,7 +145,7 @@ unsigned int Symbol::calcHashKey(const char* str)
  * \param nxt a pointer to the next symbol in the hash table entry
  */
 
-Symbol::Symbol(const string& str, unsigned int hsh, Symbol* nxt)
+FaustSymbol::FaustSymbol(const string& str, unsigned int hsh, FaustSymbol* nxt)
 {
     fName = str;
     fHash = hsh;
@@ -153,17 +153,17 @@ Symbol::Symbol(const string& str, unsigned int hsh, Symbol* nxt)
     fData = 0;
 }
 
-Symbol::~Symbol()
+FaustSymbol::~FaustSymbol()
 {
 }
 
-ostream& Symbol::print(ostream& fout) const  ///< print a symbol on a stream
+ostream& FaustSymbol::print(ostream& fout) const  ///< print a symbol on a stream
 {
     return fout << fName;
 }
 
-void Symbol::init()
+void FaustSymbol::init()
 {
     gPrefixCounters.clear();
-    memset(gSymbolTable, 0, sizeof(Symbol*) * kHashTableSize);
+    memset(gSymbolTable, 0, sizeof(FaustSymbol*) * kHashTableSize);
 }

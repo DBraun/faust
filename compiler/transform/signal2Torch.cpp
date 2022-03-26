@@ -52,7 +52,7 @@
 static const char* binopname[] = {"add", "sub", "mul", "div", "%", "<<", ">>", "ge", "le", "geq", "leq", "==", "!=", "&", "|", "^"};
 
 TreeRef
-Signal2Torch::parseStatements(Tree L, bool expect_indent = false, bool in_class = false)
+Signal2Torch::parseStatements(Tree L, bool expect_indent, bool in_class)
 {
     TreeList stmts;
     while (!isNil(L)) {
@@ -109,7 +109,7 @@ Signal2Torch::generateFConst(Tree sig, Tree type, const string& file, const stri
 }
 
 TreeRef
-Signal2Torch::parseStmt(Tree sig, bool in_class=false)
+Signal2Torch::parseStmt(Tree sig, bool in_class)
 {
     int    i;
     double r;
@@ -277,7 +277,7 @@ Signal2Torch::parseStmt(Tree sig, bool in_class=false)
     } else if (isSigFloatCast(sig, x)) {
         // todo: do what here?
         //self(x);
-        return;
+        //return;
     }
     
     // UI
@@ -335,7 +335,7 @@ Signal2Torch::parseStmt(Tree sig, bool in_class=false)
     
     else if (isNil(sig)) {
         // now nil can appear in table write instructions
-        return;
+        //return;
     } else {
         stringstream error;
         error << __FILE__ << ":" << __LINE__ << " ERROR : unrecognized signal : " << *sig << endl;

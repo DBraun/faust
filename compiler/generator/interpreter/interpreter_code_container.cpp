@@ -113,7 +113,7 @@ CodeContainer* InterpreterCodeContainer<REAL>::createContainer(const string& nam
         }
         container = new InterpreterVectorCodeContainer<REAL>(name, numInputs, numOutputs);
     } else {
-        container = new InterpreterScalarCodeContainer<REAL>(name, numInputs, numOutputs, kInt);
+        container = new InterpreterScalarCodeContainer<REAL>(name, numInputs, numOutputs, faust_kInt);
     }
 
     return container;

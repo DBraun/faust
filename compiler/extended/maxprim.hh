@@ -84,7 +84,7 @@ class MaxPrim : public xtended {
         faustassert(args.size() == arity());
         faustassert(types.size() == arity());
 
-        Typed::VarType         result_type = (result->nature() == kInt) ? Typed::kInt32 : itfloat();
+        Typed::VarType         result_type = (result->nature() == faust_kInt) ? Typed::kInt32 : itfloat();
         vector<Typed::VarType> arg_types;
         list<ValueInst*>       casted_args;
 
@@ -100,7 +100,7 @@ class MaxPrim : public xtended {
                 // both are floats, no need to cast
                 return container->pushFunction(subst("max_$0", isuffix()), result_type, arg_types, args);
             } else {
-                faustassert(n1 == kInt);  // second argument is not float, cast it to float
+                faustassert(n1 == faust_kInt);  // second argument is not float, cast it to float
                 // prepare args values
                 list<ValueInst*>::const_iterator it2 = args.begin();
                 casted_args.push_back((*it2));
@@ -109,7 +109,7 @@ class MaxPrim : public xtended {
                 return container->pushFunction(subst("max_$0", isuffix()), result_type, arg_types, casted_args);
             }
         } else if (n1 == kReal) {
-            faustassert(n0 == kInt);  // first not float but second is, cast first to float
+            faustassert(n0 == faust_kInt);  // first not float but second is, cast first to float
 
             // prepare args types
             arg_types.push_back(itfloat());
@@ -122,8 +122,8 @@ class MaxPrim : public xtended {
             casted_args.push_back((*it2));
             return container->pushFunction(subst("max_$0", isuffix()), result_type, arg_types, casted_args);
         } else {
-            faustassert(n0 == kInt);
-            faustassert(n1 == kInt);  // both are integers, check for booleans
+            faustassert(n0 == faust_kInt);
+            faustassert(n1 == faust_kInt);  // both are integers, check for booleans
             int b0 = types[0]->boolean();
             int b1 = types[1]->boolean();
 
@@ -136,7 +136,7 @@ class MaxPrim : public xtended {
                     // both are integers, no need to cast
                     return container->pushFunction("max_i", result_type, arg_types, args);
                 } else {
-                    faustassert(b1 == kBool);  // second is boolean, cast to int
+                    faustassert(b1 == faust_kBool);  // second is boolean, cast to int
                     // prepare args values
                     list<ValueInst*>::const_iterator it2 = args.begin();
                     casted_args.push_back((*it2));
@@ -145,7 +145,7 @@ class MaxPrim : public xtended {
                     return container->pushFunction("max_i", result_type, arg_types, casted_args);
                 }
             } else if (b1 == kNum) {
-                faustassert(b0 == kBool);  // first is boolean, cast to int
+                faustassert(b0 == faust_kBool);  // first is boolean, cast to int
                 // prepare args values
                 list<ValueInst*>::const_iterator it2 = args.begin();
                 casted_args.push_back(InstBuilder::genCastInt32Inst(*it2));
@@ -155,8 +155,8 @@ class MaxPrim : public xtended {
             } else {
                 // both are booleans, theoretically no need to cast, but we still do it to be sure 'true' is actually
                 // '1' and 'false' is actually '0' (which is not the case if compiled in SSE mode)
-                faustassert(b0 == kBool);
-                faustassert(b1 == kBool);  // both are booleans, cast both
+                faustassert(b0 == faust_kBool);
+                faustassert(b1 == faust_kBool);  // both are booleans, cast both
                 list<ValueInst*>::const_iterator it2 = args.begin();
                 casted_args.push_back(InstBuilder::genCastInt32Inst(*it2));
                 it2++;
@@ -179,15 +179,15 @@ class MaxPrim : public xtended {
                 // both are floats, no need to cast
                 return subst("max($0, $1)", args[0], args[1]);
             } else {
-                faustassert(n1 == kInt);  // second argument is not float, cast it to float
+                faustassert(n1 == faust_kInt);  // second argument is not float, cast it to float
                 return subst("max($0, $2($1))", args[0], args[1], icast());
             }
         } else if (n1 == kReal) {
-            faustassert(n0 == kInt);  // first not float but second is, cast first to float
+            faustassert(n0 == faust_kInt);  // first not float but second is, cast first to float
             return subst("max($2($0), $1)", args[0], args[1], icast());
         } else {
-            faustassert(n0 == kInt);
-            faustassert(n1 == kInt);  // both are integers, check for booleans
+            faustassert(n0 == faust_kInt);
+            faustassert(n1 == faust_kInt);  // both are integers, check for booleans
             int b0 = types[0]->boolean();
             int b1 = types[1]->boolean();
             if (b0 == kNum) {
@@ -195,17 +195,17 @@ class MaxPrim : public xtended {
                     // both are integers, no need to cast
                     return subst("max($0, $1)", args[0], args[1]);
                 } else {
-                    faustassert(b1 == kBool);  // second is boolean, cast to int
+                    faustassert(b1 == faust_kBool);  // second is boolean, cast to int
                     return subst("max($0, int($1))", args[0], args[1]);
                 }
             } else if (b1 == kNum) {
-                faustassert(b0 == kBool);  // first is boolean, cast to int
+                faustassert(b0 == faust_kBool);  // first is boolean, cast to int
                 return subst("max(int($0), $1)", args[0], args[1], icast());
             } else {
                 // both are booleans, theoretically no need to cast, but we still do it to be sure 'true' is actually
                 // '1' and 'false' is actually '0' (which is not the case if compiled in SSE mode)
-                faustassert(b0 == kBool);
-                faustassert(b1 == kBool);
+                faustassert(b0 == faust_kBool);
+                faustassert(b1 == faust_kBool);
                 return subst("max(int($0), int($1))", args[0], args[1]);
             }
         }

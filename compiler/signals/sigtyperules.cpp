@@ -386,7 +386,7 @@ static Type infereSigType(Tree sig, Tree env)
         return infereXType(sig, env);
 
     else if (isSigInt(sig, &i)) {
-        Type t = makeSimpleType(kInt, kKonst, kComp, kVect, kNum, interval(i));
+        Type t = makeSimpleType(faust_kInt, kKonst, kComp, kVect, kNum, interval(i));
         /*sig->setType(t);*/ return t;
     }
 
@@ -521,7 +521,7 @@ static Type infereSigType(Tree sig, Tree env)
     }
 
     else if (isSigSoundfile(sig, l)) {
-        return makeSimpleType(kInt, kBlock, kExec, kVect, kNum, interval(0, 0x7FFFFFFF));
+        return makeSimpleType(faust_kInt, kBlock, kExec, kVect, kNum, interval(0, 0x7FFFFFFF));
     }
 
     else if (isSigSoundfileLength(sig, sf, part)) {
@@ -529,7 +529,7 @@ static Type infereSigType(Tree sig, Tree env)
         Type t2 = T(part, env);
         CheckPartInterval(sig, t2);
         int c = std::max(int(kBlock), t2->variability());
-        return makeSimpleType(kInt, c, kExec, kVect, kNum, interval(0, 0x7FFFFFFF));  // A REVOIR (YO)
+        return makeSimpleType(faust_kInt, c, kExec, kVect, kNum, interval(0, 0x7FFFFFFF));  // A REVOIR (YO)
     }
 
     else if (isSigSoundfileRate(sig, sf, part)) {
@@ -537,7 +537,7 @@ static Type infereSigType(Tree sig, Tree env)
         Type t2 = T(part, env);
         CheckPartInterval(sig, t2);
         int c = std::max(int(kBlock), t2->variability());
-        return makeSimpleType(kInt, c, kExec, kVect, kNum, interval(0, 0x7FFFFFFF));
+        return makeSimpleType(faust_kInt, c, kExec, kVect, kNum, interval(0, 0x7FFFFFFF));
     }
 
     else if (isSigSoundfileBuffer(sig, sf, x, part, z)) {
@@ -684,7 +684,7 @@ static Type infereWriteTableType(Type tbl, Type wi, Type wd)
         throw faustexception(error.str());
     }
     SimpleType* st = isSimpleType(wi);
-    if (st == 0 || st->nature() > kInt) {
+    if (st == 0 || st->nature() > faust_kInt) {
         stringstream error;
         error << "ERROR inferring write table type, wrong write index type : " << wi << endl;
         throw faustexception(error.str());
@@ -724,7 +724,7 @@ static Type infereReadTableType(Type tbl, Type ri)
         throw faustexception(error.str());
     }
     SimpleType* st = isSimpleType(ri);
-    if (st == 0 || st->nature() > kInt) {
+    if (st == 0 || st->nature() > faust_kInt) {
         stringstream error;
         error << "ERROR inferring read table type, wrong write index type : " << ri << endl;
         throw faustexception(error.str());
@@ -811,7 +811,7 @@ static Type infereFFType(Tree ff, Tree ls, Tree env)
     } else {
         // otherwise variability and computability depends
         // arguments (OR of all arg types)
-        Type t = makeSimpleType(kInt, kKonst, kInit, kVect, kNum, interval());
+        Type t = makeSimpleType(faust_kInt, kKonst, kInit, kVect, kNum, interval());
         while (isList(ls)) {
             t  = t | T(hd(ls), env);
             ls = tl(ls);
@@ -878,7 +878,7 @@ static Type infereWaveformType(Tree wfsig, Tree env)
         iflag &= isInt(v->node());
     }
 
-    return makeSimpleType((iflag) ? kInt : kReal, kSamp, kComp, kScal, kNum, interval(lo, hi));
+    return makeSimpleType((iflag) ? faust_kInt : kReal, kSamp, kComp, kScal, kNum, interval(lo, hi));
 }
 
 /**

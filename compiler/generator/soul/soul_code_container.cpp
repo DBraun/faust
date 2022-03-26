@@ -62,7 +62,7 @@ CodeContainer* SOULCodeContainer::createContainer(const string& name, int numInp
         throw faustexception("ERROR : Vector mode not supported for SOUL\n");
         // container = new SOULVectorCodeContainer(name, numInputs, numOutputs, dst);
     } else {
-        container = new SOULScalarCodeContainer(name, numInputs, numOutputs, kInt, dst);
+        container = new SOULScalarCodeContainer(name, numInputs, numOutputs, faust_kInt, dst);
     }
 
     return container;
@@ -113,7 +113,7 @@ void SOULCodeContainer::produceInternal()
         int    table_size   = it.second;
         if (startWith(fun_name_aux, fun_name)) {
             tab(n + 1, *fOut);
-            if (fSubContainerType == kInt) {
+            if (fSubContainerType == faust_kInt) {
                 tab(n + 1, *fOut);
                 *fOut << "void " << fun_name_aux << " (" << fKlassName << "& this, "
                       << subst("int $0, int[" + to_string(table_size) + "]& " + fTableName + ")", counter);

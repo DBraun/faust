@@ -44,7 +44,7 @@ CodeContainer::CodeContainer()
       fNumOutputs(-1),
       fNumActives(0),
       fNumPassives(0),
-      fSubContainerType(kInt),
+      fSubContainerType(faust_kInt),
       fGeneratedSR(false),
       fExtGlobalDeclarationInstructions(InstBuilder::genBlockInst()),
       fGlobalDeclarationInstructions(InstBuilder::genBlockInst()),
@@ -700,7 +700,7 @@ DeclareFunInst* CodeContainer::generateFillFun(const string& name, const string&
         args.push_back(InstBuilder::genNamedTyped(obj, Typed::kObj_ptr));
     }
     args.push_back(InstBuilder::genNamedTyped("count", Typed::kInt32));
-    if (fSubContainerType == kInt) {
+    if (fSubContainerType == faust_kInt) {
         args.push_back(InstBuilder::genNamedTyped(fTableName, Typed::kInt32_ptr));
     } else {
         args.push_back(InstBuilder::genNamedTyped(fTableName, itfloatptr()));

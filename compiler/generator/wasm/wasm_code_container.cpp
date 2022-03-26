@@ -111,7 +111,7 @@ CodeContainer* WASMCodeContainer::createContainer(const string& name, int numInp
         }
         container = new WASMVectorCodeContainer(name, numInputs, numOutputs, dst, internal_memory);
     } else {
-        container = new WASMScalarCodeContainer(name, numInputs, numOutputs, dst, kInt, internal_memory);
+        container = new WASMScalarCodeContainer(name, numInputs, numOutputs, dst, faust_kInt, internal_memory);
     }
 
     return container;

@@ -71,7 +71,7 @@ Tree SignalPromotion::transformation(Tree sig)
                 }
 
             case kRem:
-                if (tx->nature() == kInt && ty->nature() == kInt) {
+                if (tx->nature() == faust_kInt && ty->nature() == faust_kInt) {
                     // int arguments => no promotion needed
                     return sigBinOp(op, self(x), self(y));
                 } else {
@@ -154,5 +154,5 @@ Tree SignalPromotion::smartIntCast(Type t, Tree sig)
 */
 Tree SignalPromotion::smartFloatCast(Type t, Tree sig)
 {
-    return (t->nature() == kInt) ? sigFloatCast(sig) : sig;
+    return (t->nature() == faust_kInt) ? sigFloatCast(sig) : sig;
 }

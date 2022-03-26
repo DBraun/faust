@@ -64,7 +64,7 @@ CodeContainer* JAVACodeContainer::createContainer(const string& name, const stri
     } else if (gGlobal->gVectorSwitch) {
         throw faustexception("ERROR : Vector mode not supported for Java\n");
     } else {
-        container = new JAVAScalarCodeContainer(name, super, numInputs, numOutputs, dst, kInt);
+        container = new JAVAScalarCodeContainer(name, super, numInputs, numOutputs, dst, faust_kInt);
     }
 
     return container;
@@ -121,7 +121,7 @@ void JAVACodeContainer::produceInternal()
 
     // Fill
     string counter = "count";
-    if (fSubContainerType == kInt) {
+    if (fSubContainerType == faust_kInt) {
         tab(n + 1, *fOut);
         *fOut << "void fill" << fKlassName << subst("(int $0, int[] output) {", counter);
     } else {

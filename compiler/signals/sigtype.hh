@@ -48,10 +48,10 @@
 //--------------------------------------------------
 // simple types quality
 
-enum { kInt = 0, kReal = 1 };  ///< nature : integer or floating point values
+enum { faust_kInt = 0, kReal = 1 };  ///< nature : integer or floating point values
 enum {
     kNum  = 0,
-    kBool = 1
+    faust_kBool = 1
 };  ///< boolean : when a signal stands for a boolean value ( while being of c-type int or float )
 enum { kKonst = 0, kBlock = 1, kSamp = 3 };  ///< variability : how fast values change
 enum { kComp = 0, kInit = 1, kExec = 3 };    ///< computability : when values are available
@@ -273,7 +273,7 @@ class SimpleType : public AudioType {
 
 inline Type intCast(Type t)
 {
-    return makeSimpleType(kInt, t->variability(), t->computability(), t->vectorability(), t->boolean(),
+    return makeSimpleType(faust_kInt, t->variability(), t->computability(), t->vectorability(), t->boolean(),
                           t->getInterval());
 }
 inline Type floatCast(Type t)
@@ -287,7 +287,7 @@ inline Type sampCast(Type t)
 }
 inline Type boolCast(Type t)
 {
-    return makeSimpleType(kInt, t->variability(), t->computability(), t->vectorability(), kBool, t->getInterval());
+    return makeSimpleType(faust_kInt, t->variability(), t->computability(), t->vectorability(), faust_kBool, t->getInterval());
 }
 inline Type numCast(Type t)
 {

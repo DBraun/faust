@@ -89,7 +89,7 @@ CodeContainer* JuliaCodeContainer::createContainer(const string& name, int numIn
         //container = new JuliaVectorCodeContainer(name, numInputs, numOutputs, dst);
         throw faustexception("ERROR : Vector not supported for Julia\n");
     } else {
-        container = new JuliaScalarCodeContainer(name, numInputs, numOutputs, dst, kInt);
+        container = new JuliaScalarCodeContainer(name, numInputs, numOutputs, dst, faust_kInt);
     }
 
     return container;

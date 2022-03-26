@@ -85,15 +85,15 @@ CodeContainer* CCodeContainer::createContainer(const string& name, int numInputs
         container = new CVectorCodeContainer(name, numInputs, numOutputs, dst);
     } else {
         if (gGlobal->gOneSample == 0) {
-            container = new CScalarOneSampleCodeContainer1(name, numInputs, numOutputs, dst, kInt);
+            container = new CScalarOneSampleCodeContainer1(name, numInputs, numOutputs, dst, faust_kInt);
         } else if (gGlobal->gOneSample == 1) {
-            container = new CScalarOneSampleCodeContainer2(name, numInputs, numOutputs, dst, kInt);
+            container = new CScalarOneSampleCodeContainer2(name, numInputs, numOutputs, dst, faust_kInt);
         } else if (gGlobal->gOneSample == 2) {
-            container = new CScalarOneSampleCodeContainer3(name, numInputs, numOutputs, dst, kInt);
+            container = new CScalarOneSampleCodeContainer3(name, numInputs, numOutputs, dst, faust_kInt);
         } else if (gGlobal->gOneSample == 3) {
-            container = new CScalarOneSampleCodeContainer4(name, numInputs, numOutputs, dst, kInt);
+            container = new CScalarOneSampleCodeContainer4(name, numInputs, numOutputs, dst, faust_kInt);
         } else {
-            container = new CScalarCodeContainer(name, numInputs, numOutputs, dst, kInt);
+            container = new CScalarCodeContainer(name, numInputs, numOutputs, dst, faust_kInt);
         }
     }
 
@@ -152,7 +152,7 @@ void CCodeContainer::produceInternal()
     // Fill
     tab(n, *fOut);
     string counter = "count";
-    if (fSubContainerType == kInt) {
+    if (fSubContainerType == faust_kInt) {
         tab(n, *fOut);
         *fOut << "static void fill" << fKlassName << "(" << fKlassName
               << subst("* dsp, int $0, int* " + fTableName + ") {", counter);

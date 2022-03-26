@@ -56,7 +56,7 @@ using namespace std;
 static Klass* signal2klass(Klass* parent, const string& name, Tree sig)
 {
     Type t = getCertifiedSigType(sig);  //, NULLENV);
-    if (t->nature() == kInt) {
+    if (t->nature() == faust_kInt) {
         ScalarCompiler C(new SigIntGenKlass(parent, name));
         C.compileSingleSignal(sig);
         return C.getClass();
@@ -643,12 +643,12 @@ string ScalarCompiler::generateBinOp(Tree sig, int opcode, Tree arg1, Tree arg2)
             // std::endl;
         }
 
-        if (t1->nature() == kInt && t2->nature() == kInt) {
+        if (t1->nature() == faust_kInt && t2->nature() == faust_kInt) {
             return generateCacheCode(sig, subst("($3($0) $1 $3($2))", c1, gBinOpTable[opcode]->fName, c2, ifloat()));
-        } else if (t1->nature() == kInt && t2->nature() == kReal) {
+        } else if (t1->nature() == faust_kInt && t2->nature() == kReal) {
             if (p0 > p2) c2 = subst("($0)", c2);
             return generateCacheCode(sig, subst("($3($0) $1 $2)", c1, gBinOpTable[opcode]->fName, c2, ifloat()));
-        } else if (t1->nature() == kReal && t2->nature() == kInt) {
+        } else if (t1->nature() == kReal && t2->nature() == faust_kInt) {
             if (p0 > p1) c1 = subst("($0)", c1);
             return generateCacheCode(sig, subst("($0 $1 $3($2))", c1, gBinOpTable[opcode]->fName, c2, ifloat()));
         } else {
@@ -690,7 +690,7 @@ string ScalarCompiler::generateFFun(Tree sig, Tree ff, Tree largs)
 
 void ScalarCompiler::getTypedNames(Type t, const string& prefix, string& ctype, string& vname)
 {
-    if (t->nature() == kInt) {
+    if (t->nature() == faust_kInt) {
         ctype = "int";
         vname = subst("i$0", getFreshID(prefix));
     } else {
@@ -1020,7 +1020,7 @@ string ScalarCompiler::generateTable(Tree sig, Tree tsize, Tree content)
     // A REVOIR !!!!!!!!!
     Type t = getCertifiedSigType(content);  //, tEnv);
 
-    if (t->nature() == kInt) {
+    if (t->nature() == faust_kInt) {
         vname = getFreshID("itbl");
         ctype = "int";
     } else {
@@ -1072,7 +1072,7 @@ string ScalarCompiler::generateStaticTable(Tree sig, Tree tsize, Tree content)
     // A REVOIR !!!!!!!!!
     Type t = getCertifiedSigType(content);  //, tEnv);
 
-    if (t->nature() == kInt) {
+    if (t->nature() == faust_kInt) {
         vname = getFreshID("itbl");
         ctype = "int";
     } else {
@@ -1226,7 +1226,7 @@ string ScalarCompiler::generatePrefix(Tree sig, Tree x, Tree e)
     string vperm = getFreshID("M");
     string vtemp = getFreshID("T");
 
-    string type = (te->nature() == kInt) ? "int" : ifloat();
+    string type = (te->nature() == faust_kInt) ? "int" : ifloat();
 
     fClass->addDeclCode(subst("$0 \t$1;", type, vperm));
     fClass->addInitCode(subst("$0 = $1;", vperm, CS(x)));

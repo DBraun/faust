@@ -1021,7 +1021,7 @@ class WASMInstVisitor : public DispatchVisitor, public WASInst {
             if (gGlobal->gLoopVarInBytes) {
                 *fOut << int8_t(WasmOp::I32Add);
             } else {
-                *fOut << int8_t(BinaryConsts::I32Const) << S32LEB((fSubContainerType == kInt) ? 2 : offStrNum);
+                *fOut << int8_t(BinaryConsts::I32Const) << S32LEB((fSubContainerType == faust_kInt) ? 2 : offStrNum);
                 *fOut << int8_t(WasmOp::I32Shl);
                 *fOut << int8_t(WasmOp::I32Add);
             }

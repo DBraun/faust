@@ -45,8 +45,8 @@
 class CTree;
 typedef CTree* Tree;
 
-class Symbol;
-typedef Symbol* Sym;
+class FaustSymbol;
+typedef FaustSymbol* Sym;
 
 class xtended;
 class AudioType;

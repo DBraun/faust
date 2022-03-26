@@ -67,8 +67,8 @@ CodeContainer* DLangCodeContainer::createContainer(const string& name, const str
         container = new DLangVectorCodeContainer(name, super, numInputs, numOutputs, dst);
     } else {
         container = (gGlobal->gOneSample >= 0)
-            ? new DLangScalarOneSampleCodeContainer(name, super, numInputs, numOutputs, dst, kInt)
-            : new DLangScalarCodeContainer(name, super, numInputs, numOutputs, dst, kInt);
+            ? new DLangScalarOneSampleCodeContainer(name, super, numInputs, numOutputs, dst, faust_kInt)
+            : new DLangScalarCodeContainer(name, super, numInputs, numOutputs, dst, faust_kInt);
     }
 
     return container;
@@ -208,7 +208,7 @@ void DLangCodeContainer::produceInternal()
     // Fill
     string counter = "count";
     tab(n + 1, *fOut);
-    if (fSubContainerType == kInt) {
+    if (fSubContainerType == faust_kInt) {
         tab(n + 1, *fOut);
         *fOut << "void fill" << fKlassName << subst("(int $0, int[] " + fTableName + ") nothrow @nogc {", counter);
     } else {

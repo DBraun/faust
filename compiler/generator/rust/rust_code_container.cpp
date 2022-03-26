@@ -78,7 +78,7 @@ CodeContainer* RustCodeContainer::createContainer(const string& name, int numInp
         // container = new RustVectorCodeContainer(name, numInputs, numOutputs, dst);
         throw faustexception("ERROR : Vector not supported for Rust\n");
     } else {
-        container = new RustScalarCodeContainer(name, numInputs, numOutputs, dst, kInt);
+        container = new RustScalarCodeContainer(name, numInputs, numOutputs, dst, faust_kInt);
     }
 
     return container;
@@ -129,7 +129,7 @@ void RustCodeContainer::produceInternal()
     // Fill
     tab(n + 1, *fOut);
     string counter = "count";
-    if (fSubContainerType == kInt) {
+    if (fSubContainerType == faust_kInt) {
         tab(n + 1, *fOut);
         *fOut << "fn fill" << fKlassName << subst("(&mut self, $0: i32, table: &mut[i32]) {", counter);
     } else {

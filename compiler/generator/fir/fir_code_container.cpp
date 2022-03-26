@@ -50,7 +50,7 @@ CodeContainer* FIRCodeContainer::createContainer(const string& name, int numInpu
     } else if (gGlobal->gVectorSwitch) {
         container = new FIRVectorCodeContainer(name, numInputs, numOutputs, dst, top_level);
     } else {
-        container = new FIRScalarCodeContainer(name, numInputs, numOutputs, kInt, dst, top_level);
+        container = new FIRScalarCodeContainer(name, numInputs, numOutputs, faust_kInt, dst, top_level);
     }
 
     return container;

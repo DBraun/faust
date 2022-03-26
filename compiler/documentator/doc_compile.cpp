@@ -463,7 +463,7 @@ string DocCompiler::generateBinOp(Tree sig, int opcode, Tree arg1, Tree arg2, in
     Type t1            = getCertifiedSigType(arg1);
     Type t2            = getCertifiedSigType(arg2);
     bool intOpDetected = false;
-    if ((t1->nature() == kInt) && (t2->nature() == kInt)) {
+    if ((t1->nature() == faust_kInt) && (t2->nature() == faust_kInt)) {
         intOpDetected = true;
     }
 
@@ -536,7 +536,7 @@ string DocCompiler::generateFFun(Tree sig, Tree ff, Tree largs, int priority)
 
 void DocCompiler::getTypedNames(Type t, const string& prefix, string& ctype, string& vname)
 {
-    if (t->nature() == kInt) {
+    if (t->nature() == faust_kInt) {
         ctype = "int";
         vname = subst("$0", getFreshID(prefix));
     } else {
