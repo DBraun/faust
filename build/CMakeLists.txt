@@ -111,6 +111,16 @@ endif()
 endif()
 
 ####################################
+# PyTorch / LibTorch
+if (TORCH_BACKEND)
+	find_package(Torch REQUIRED)
+	set (FAUST_LIBS ${FAUST_LIBS} "${TORCH_LIBRARIES}")
+	set (CMAKE_CXX_STANDARD 14)
+	# set_property(TARGET dcgan PROPERTY CXX_STANDARD 14)
+endif()
+
+
+####################################
 # platform dependent settings
 if (WIN32 AND MSVC_STATIC)
 	include (misc/msvc_static_runtime.cmake)

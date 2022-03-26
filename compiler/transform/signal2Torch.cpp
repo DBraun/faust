@@ -42,6 +42,44 @@
 #include "instructions.hh"
 #include "old_occurences.hh"
 
+#include <torch/csrc/jit/api/module.h>
+//#include <torch/csrc/jit/python/pybind_utils.h>
+#include <torch/csrc/jit/frontend/parser.h>
+
+#include <torch/csrc/jit/frontend/lexer.h>
+#include <torch/csrc/jit/frontend/parse_string_literal.h>
+#include <torch/csrc/jit/frontend/tree.h>
+#include <torch/csrc/jit/frontend/tree_views.h>
+
+//#include <ATen/core/symbol.h>
+//#include <ATen/record_function.h>
+//#include <c10/util/Exception.h>
+//#include <c10/util/StringUtil.h>
+//#include <c10/util/irange.h>
+
+using namespace torch;
+using torch::jit::Module;
+using torch::jit::Maybe;
+using torch::jit::Expr;
+using torch::jit::ExprStmt;
+using torch::jit::Stmt;
+using torch::jit::List;
+using torch::jit::ClassDef;
+using torch::jit::ClassType;
+using torch::jit::ParserImpl;
+using torch::jit::Ident;
+using torch::jit::SourceRange;
+using torch::jit::TreeRef;
+using torch::jit::TreeList;
+using torch::jit::Compound;
+using torch::jit::Const;
+using torch::jit::ListLiteral;
+using torch::jit::SliceExpr;
+using torch::jit::Subscript;
+using torch::jit::TK_LIST;
+
+//using torch::jit::get_python_cu;
+
 //-------------------------SignalVisitor-------------------------------
 // An identity transformation on signals. Can be used to test
 // that everything works, and as a pattern for real transformations.
@@ -91,32 +129,62 @@ static const char* binopname[] = {"add", "sub", "mul", "div", "%", "<<", ">>", "
 //    return fTableProperty.get(sig, name);
 //}
 //
-void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
+
+TreeRef
+Signal2Torch::parseStatements(Tree L, bool expect_indent = false, bool in_class = false)
 {
-    fOut << "\n##\n";
-    fOut << "def forward(self, x):\n";
-    tab(++indent, fOut);
+    TreeList stmts;
     while (!isNil(L)) {
-        self(hd(L)); // comment
+        auto stmt = parseStmt(hd(L));
+        stmts.push_back(stmt);
         L = tl(L);
-        if (!isNil(L)) fOut << ", ";
     }
-    tab(--indent, fOut);
-    fOut << "\n##\n";
-    fout << fOut.str();
+    return create_compound(TK_LIST, _sourceRange, std::move(stmts));
 }
 
-void Signal2Torch::generateFConst(Tree sig, Tree type, const string& file, const string& name_aux)
+void Signal2Torch::mapself(Tree lt)
+{
+    // todo: this is wrong
+    if (!isNil(lt)) {
+        auto blah = parseStmt(hd(lt));
+        mapself(tl(lt));
+    }
+    return;
+}
+
+void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
+{
+
+    const auto  name       = Ident::create(_sourceRange, "something");
+    Maybe<Expr> superclass = Maybe<Expr>::create(_sourceRange);
+    const auto  statements = parseStatements(L, /*expect_indent=*/true, /*in_class=*/true);
+
+    auto classDef = ClassDef::create(_sourceRange, name, superclass, List<Stmt>(statements));
+
+    //auto cu        = get_python_cu();
+    //auto className = c10::QualifiedName("MyName");
+    //auto classType = ClassType::create(className, cu,
+    //                            /* is_module = */ false,
+    //                            /* doc_string = */ "", getUnresolvedClassAttributes(classDef));
+
+    //auto module = Module(cu, classType);
+
+    //fout << fOut.str();
+}
+
+TreeRef
+Signal2Torch::generateFConst(Tree sig, Tree type, const string& file, const string& name_aux)
 {
     // Special case for 02/25/19 renaming
     string name = (name_aux == "fSamplingFreq") ? "fSampleRate" : name_aux;
-    fOut << "(";
     if (name_aux == "fSamplingFreq") {
         fOut << "SAMPLERATE";
     } else {
         fOut << name_aux;
     }
-    fOut << ")";
+
+    // todo
+    return Const::create(_sourceRange, "1");
 }
 //
 //#define _DNF_ 1
@@ -261,292 +329,239 @@ void Signal2Torch::generateFConst(Tree sig, Tree type, const string& file, const
 //    }
 //}
 
-void Signal2Torch::visit(Tree sig)
+TreeRef
+Signal2Torch::parseStmt(Tree sig, bool in_class=false)
 {
     int    i;
     double r;
     Tree   c, sel, x, y, z, u, v, var, le, label, id, ff, largs, type, name, file, sf;
     
     if (getUserData(sig)) {
+        // todo: do what here?
+        TreeList stmts;
         for (Tree b : sig->branches()) {
-            self(b);
+            stmts.push_back(parseStmt(b));
         }
-        return;
+        return create_compound(TK_LIST, _sourceRange, std::move(stmts));
     } else if (isSigInt(sig, &i)) {
-        fOut << "torch.Tensor([" << i << "], dtype=torch.int32)";
-        return;
+        return Const::create(_sourceRange, std::to_string(i));
     } else if (isSigReal(sig, &r)) {
-        fOut << "torch.Tensor([" << r << "], dtype=torch.float32)";
-        return;
+        // for double vals
+        return Const::create(_sourceRange, std::to_string(r));
     } else if (isSigWaveform(sig)) {
-        fOut << "isSigWaveform";
-        return;
+        // TODO: push back a constant array
+        //return;
     } else if (isSigInput(sig, &i)) {
-        tab(++indent, fOut);
         //fOut << "isSigInput( " << i << " )";
-        fOut << "x[:,  " << i << " ]";
-        tab(--indent, fOut);
-        return;
-    } else if (isSigOutput(sig, &i, x)) {
-        fOut << "isSigOutput( ";
-        self(x);
-        fOut << " )";
-        return;
-    } else if (isSigDelay1(sig, x)) {
-        fOut << "isSigDelay1( ";
-        self(x);
-        fOut << " )";
-        return;
-    } else if (isSigDelay(sig, x, y)) {
-        fOut << "isSigDelay( ";
-        self(x);
-        fOut << " , ";
-        self(y);
-        fOut << " )";        
-        return;
-    } else if (isSigPrefix(sig, x, y)) {
-        fOut << "isSigPrefix( ";
-        self(x);
-        fOut << " , ";
-        self(y);
-        fOut << " )";   
-        return;
-    } else if (isSigIota(sig, x)) {
-        fOut << "isSigIota( ";
-        self(x);
-        fOut << " )";
-        return;
-    } else if (isSigBinOp(sig, &i, x, y)) {
+        //fOut << "x[:,  " << i << " ]";
+        // todo: slice operator
+        auto maybe_first = Maybe<Expr>::create(_sourceRange);
+        auto maybe_second = Maybe<Expr>::create(_sourceRange);
+        auto maybe_third  = Maybe<Expr>::create(_sourceRange);
+        auto subscript_exprs = torch::jit::List<Expr>(SliceExpr::create(_sourceRange, maybe_first, maybe_second, maybe_third));
 
+        auto input_expr = Const::create(_sourceRange, "0"); // todo: what's an Expr to refer to the arg input?
+
+        auto sliced_input = Subscript::create(_sourceRange, input_expr, subscript_exprs);
+        return sliced_input;
+    } else if (isSigOutput(sig, &i, x)) {
+        // todo: do what here?
+        return parseStmt(x);
+    } else if (isSigDelay1(sig, x)) {
+        // todo: do what here?
+        //return Delay::create(x);
+        //return;
+    } else if (isSigDelay(sig, x, y)) {
+        // todo: do what here?
+        //return Delay::create(x, y);
+        //return;
+    } else if (isSigPrefix(sig, x, y)) {
+        // todo: do what here?
+        // return SigPrefix::create(x, y);
+        //return;
+    } else if (isSigIota(sig, x)) {
+        // todo: do what here?
+        //return SigIota::create(x);
+        //return;
+    } else if (isSigBinOp(sig, &i, x, y)) {
+        // todo: use parseStmt(y)
         if (std::strcmp(binopname[i], "mul") == 0) {
-            fOut << "(";
-            self(x);
-            fOut << "*";
-            self(y);
-            fOut << ")";
-            return;
+            return create_compound('*', _sourceRange, {parseStmt(x)});
         }
 
         if (std::strcmp(binopname[i], "div") == 0) {
-            fOut << "(";
-            self(x);
-            fOut << "/";
-            self(y);
-            fOut << ")";
-            return;
+            return create_compound('/', _sourceRange, {parseStmt(x)});
         }
 
         if (std::strcmp(binopname[i], "add") == 0) {
-            fOut << "(";
-            self(x);
-            fOut << "+";
-            self(y);
-            fOut << ")";
-            return;
+            return create_compound('+', _sourceRange, {parseStmt(x)});
         }
 
         if (std::strcmp(binopname[i], "sub") == 0) {
-            fOut << "(";
-            self(x);
-            fOut << "-";
-            self(y);
-            fOut << ")";
-            return;
+            return create_compound('-', _sourceRange, {parseStmt(x)});
         }
 
-        fOut << "torch." << binopname[i] << "(";
-        self(x);
-        fOut << ", ";
-        self(y);
-        fOut << ")";
-        return;
+        return create_compound(i, _sourceRange, {parseStmt(x)});  // todo: get the right int kind. refer to binopname
     }
     
     // Foreign functions
     else if (isSigFFun(sig, ff, largs)) {
-        fOut << "isSigFFun.";
-        self(ff);
-        fOut << "(";
+        // todo: do what here?
+        parseStmt(ff);
         mapself(largs);
-        fOut << ")";
-        return;
+        //return;
     } else if (isSigFConst(sig, type, name, file)) {
-        generateFConst(sig, type, tree2str(file), tree2str(name));
-        return;
+        // todo: do what here?
+        return generateFConst(sig, type, tree2str(file), tree2str(name));
     } else if (isSigFVar(sig, type, name, file)) {
-        fOut << "isSigFVar(";
+        // todo: do what here?
         //self(name);
-        fOut << ")";
-        return;
+        //return;
     }
     
     // Tables
     else if (isSigTable(sig, id, x, y)) {
-        fOut << "isSigTable(";
-        self(x);
-        fOut << ", ";
-        self(y);
-        fOut << ")";
-        return;
+        // todo: do what here?
+        //self(x);
+        //self(y);
+        //return;
     } else if (isSigWRTbl(sig, id, x, y, z)) {
-        fOut << "isSigWRTbl(";
-        self(x);
-        fOut << ", ";
-        self(y);
-        fOut << ", ";
-        self(z);
-        fOut << ")";
-        return;
+        // todo: do what here?
+        //self(x);
+        //self(y);
+        //self(z);
+        //return;
     } else if (isSigRDTbl(sig, x, y)) {
-        fOut << "isSigRDTbl(";
-        self(x);
-        fOut << ", ";
-        self(y);
-        fOut << ")";
-        return;
+        // todo: do what here?
+        //self(x);
+        //self(y);
+        //return;
     }
     
     // Doc
     else if (isSigDocConstantTbl(sig, x, y)) {
-        fOut << "isSigDocConstantTbl(";
-        self(x);
-        fOut << ", ";
-        self(y);
-        fOut << ")";
-        return;
+        // todo: do what here?
+        //self(x);
+        //self(y);
+        //return;
     } else if (isSigDocWriteTbl(sig, x, y, u, v)) {
-        self(x);
-        self(y);
-        self(u);
-        self(v);
-        return;
+        // todo: do what here?
+        //self(x);
+        //self(y);
+        //self(u);
+        //self(v);
+        //return;
     } else if (isSigDocAccessTbl(sig, x, y)) {
-        self(x);
-        self(y);
-        return;
+        // todo: do what here?
+        //self(x);
+        //self(y);
+        //return;
     }
     
     // Select2 (and Select3 expressed with Select2)
     else if (isSigSelect2(sig, sel, x, y)) {
-        fOut << "torch.where(";
-        self(sel);
-        fOut << ", ";
-        self(x);
-        fOut << ", ";
-        self(y);
-        fOut << ")";
-        return;
+        // todo: do a ternary?
+        // torch.where( sel, x, y);
+        //self(sel);
+        //self(x);
+        //self(y);
+        //return;
     }
     
     // Table sigGen
     else if (isSigGen(sig, x)) {
         if (fVisitGen) {
-            fOut << "isSigGen(";
-            self(x);
-            fOut << ")";
-            return;
+            //self(x);
+            //return;
         } else {
-            fOut << "notIsGen";
-            return;
+            //return;
         }
     }
     
     // Recursive signals
     else if (isProj(sig, &i, x)) {
-
-        fOut << "isProj(" << i << ", ";
-        tab(++indent, fOut);
-        self(x);
-        tab(--indent, fOut);
-        fOut << ")\n";
-        return;
+        // todo: do what here?
+        //self(x);
+        //return;
     } else if (isRec(sig, var, le)) {
-        fOut << "isRec(le = ";
-        tab(++indent, fOut);
+        // todo: do what here?
         mapself(le);
-        tab(indent, fOut);
-        //fOut << ", var = ";
         //self(var);
-        tab(--indent, fOut);
-        fOut << ")\n";
-
-        return;
+        //return;
     }
     
     // Int and Float Cast
     else if (isSigIntCast(sig, x)) {
-        fOut << "(";
-        self(x);
-        fOut << ").type(torch.int32)";
-        return;
+        // todo: do what here?
+        //self(x);
+        //return;
     } else if (isSigFloatCast(sig, x)) {
-        fOut << "(";
-        self(x);
-        fOut << ").type(torch.float32)";
+        // todo: do what here?
+        //self(x);
         return;
     }
     
     // UI
     else if (isSigButton(sig, label)) {
-        return;
+        //return;
     } else if (isSigCheckbox(sig, label)) {
-        return;
+        //return;
     } else if (isSigVSlider(sig, label, c, x, y, z)) {
-        self(c), self(x), self(y), self(z);
-        return;
+        //self(c), self(x), self(y), self(z);
+        //return;
     } else if (isSigHSlider(sig, label, c, x, y, z)) {
-
-        fOut << "torch.nn.Parameter(";
-        self(c);
-        fOut << ")";
+        // todo: do what here?
+        // torch.nn.Parameter
+        //self(c);
         
         // todo: use the min, max, step
         //self(x), self(y), self(z);
-        return;
+        //return;
     } else if (isSigNumEntry(sig, label, c, x, y, z)) {
-        self(c), self(x), self(y), self(z);
-        return;
+        //self(c), self(x), self(y), self(z);
+        //return;
     } else if (isSigVBargraph(sig, label, x, y, z)) {
-        self(x), self(y), self(z);
-        return;
+        //self(x), self(y), self(z);
+        //return;
     } else if (isSigHBargraph(sig, label, x, y, z)) {
-        self(x), self(y), self(z);
-        return;
+        //self(x), self(y), self(z);
+        //return;
     }
     
     // Soundfile length, rate, channels, buffer
     else if (isSigSoundfile(sig, label)) {
-        return;
+        //return;
     } else if (isSigSoundfileLength(sig, sf, x)) {
-        self(sf), self(x);
-        return;
+        //self(sf), self(x);
+        //return;
     } else if (isSigSoundfileRate(sig, sf, x)) {
-        self(sf), self(x);
-        return;
+        //self(sf), self(x);
+        //return;
     } else if (isSigSoundfileBuffer(sig, sf, x, y, z)) {
-        self(sf), self(x), self(y), self(z);
-        return;
+        //self(sf), self(x), self(y), self(z);
+        //return;
     }
     
     // Attach, Enable, Control
     else if (isSigAttach(sig, x, y)) {
-        self(x), self(y);
-        return;
+        //self(x), self(y);
+        //return;
     } else if (isSigEnable(sig, x, y)) {
-        self(x), self(y);
-        return;
+        //self(x), self(y);
+        //return;
     } else if (isSigControl(sig, x, y)) {
-        self(x), self(y);
-        return;
+        //self(x), self(y);
+        //return;
     }
     
     else if (isNil(sig)) {
         // now nil can appear in table write instructions
-        fOut << "isNil";
         return;
     } else {
         stringstream error;
         error << __FILE__ << ":" << __LINE__ << " ERROR : unrecognized signal : " << *sig << endl;
         throw faustexception(error.str());
     }
+
+    return Const::create(_sourceRange, "0");
 }

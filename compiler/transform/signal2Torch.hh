@@ -34,21 +34,47 @@
 // Transforms signals to Torch code (see: https://pytorch.org)
 //----------------------------------------------------------------------
 
-class Signal2Torch : public TreeTraversal {
+class Signal2Torch {
     bool fVisitGen;
     std::stringstream fOut;
-
-    int indent = 0;
 
    public:
     Signal2Torch() : fVisitGen(false) {}
     
+    TreeRef generateFConst(Tree sig, Tree type, const string& file, const string& name_aux);
+
     void sig2Torch(Tree L, ofstream& fout);
+    TreeRef parseStatements(Tree sig, bool expect_indent = false, bool in_class = false);
 
-    void generateFConst(Tree sig, Tree type, const string& file, const string& name_aux);
 
-   protected:
-    void visit(Tree);
+    //void traceEnter(Tree t)
+    //{
+    //    tab(fIndent, cerr);
+    //    cerr << fMessage << " Enter: " << *t << endl;
+    //}
+
+    //void traceExit(Tree t)
+    //{
+    //    tab(fIndent, cerr);
+    //    cerr << fMessage << "  Exit: " << *t << endl;
+    //}
+
+    void mapself(Tree lt);
+
+    // void visit(Tree);
+    TreeRef parseStmt(Tree, bool in_class = false);
+
+
+private:
+    TreeRef create_compound(int kind, const SourceRange& range, TreeList&& trees)
+    {
+        return Compound::create(kind, range, std::move(trees));
+    }
+    //TreeRef makeList(const SourceRange& range, TreeList&& trees)
+    //{
+    //    return create_compound(TK_LIST, range, std::move(trees));
+    //}
+    SourceRange _sourceRange = SourceRange();
 };
 
 #endif
