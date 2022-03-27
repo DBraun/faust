@@ -42,7 +42,11 @@
 #include "instructions.hh"
 #include "old_occurences.hh"
 
-#include <torch/csrc/jit/frontend/tracer.h>
+//#include <torch/csrc/jit/frontend/tracer.h>
+//#include <torch/csrc/jit/frontend/parser.h>
+#include <torch/csrc/jit/frontend/resolver.h>
+#include <torch/csrc/jit/serialization/python_print.h>
+#include <torch/csrc/jit/python/pybind_utils.h>
 
 //-------------------------SignalVisitor-------------------------------
 // An identity transformation on signals. Can be used to test
@@ -163,10 +167,92 @@ Signal2Torch::parseFunction(Tree L, bool is_method)
     return List<Stmt>(def_list);
 }
 
+void collectUnresolvedNames(std::vector<std::string>& names, const torch::jit::TreeView& node)
+{
+    if (node.kind() == torch::jit::TK_ASSIGN) {
+        for (const auto& expr : Assign{node.get()}.lhs_list()) {
+            collectUnresolvedNames(names, expr);
+        }
+    } else if (node.kind() == torch::jit::TK_TUPLE_LITERAL) {
+        for (const auto& expr : torch::jit::TupleLiteral{node.get()}.inputs()) {
+            collectUnresolvedNames(names, expr);
+        }
+    } else if (node.kind() == TK_LIST_LITERAL) {
+        for (const auto& expr : ListLiteral{node.get()}.inputs()) {
+            collectUnresolvedNames(names, expr);
+        }
+    } else if (node.kind() == torch::jit::TK_VAR) {
+        names.push_back(Var{node.get()}.name().name());
+    }
+}
+
+std::vector<std::string> getUnresolvedClassAttributes1(const ClassDef& def)
+{
+    if (!def.assigns().present()) {
+        return {};
+    }
+    std::vector<std::string> ret;
+    for (const auto& assign : def.assigns().get()) {
+        collectUnresolvedNames(ret, assign);
+    }
+    return ret;
+}
+
+//#include <WinBase.h>
+//#include <windows.h>
+
 void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 {
 
     std::cerr << "sig2Torch(" << std::endl;
+
+    {
+        constexpr c10::string_view testSource = R"JIT(
+  class FooTest:
+    def __init__(self, x):
+      self.x = x
+    def get_x(self):
+      return self.x
+    an_attribute : Tensor
+)JIT";
+//        constexpr c10::string_view testSource = R"JIT(
+//  class FooTest:
+//    def __init__(self):
+//      pass
+//    def forward(self, input):
+//      return input
+//)JIT";
+
+        torch::jit::Parser p(std::make_shared<torch::jit::Source>(std::string(testSource).c_str()));
+        std::vector<Def>      definitions;
+        //std::vector<torch::jit::Resolver> resolvers;
+
+        const auto classDef = ClassDef(p.parseClass());
+        //p.lexer().expect(torch::jit::TK_EOF);
+
+        //(classDef.name/*().name(), "FooTest");
+        //(classDef.body().size(), 3);
+        //(Def(classDef.body()[0]).name().name(), "__init__");
+        //(Def(classDef.body()[1*/]).name().name(), "get_x");
+
+        //AddDllDirectory(L"c:\\Python39");
+
+        auto cu        = torch::jit::get_python_cu();
+        auto className = c10::QualifiedName("MyName");
+        auto classType = torch::jit::ClassType::create(className, cu,
+                                                       /* is_module = */ false,
+                                                       /* doc_string = */ "", getUnresolvedClassAttributes1(classDef)
+        );
+
+        auto module = Module(cu, classType);
+        std::vector<at::IValue> constants;
+        torch::jit::PrintDepsTable deps;
+        torch::jit::PythonPrint pp(constants, deps);
+        pp.printNamedType(module.type());
+        std::cerr << "Python code:" << std::endl;
+        std::cerr << pp.str() << std::endl;
+
+    }
 
     auto source  = std::make_shared<torch::jit::Source>("");
     _sourceRange = SourceRange(source, 0, 0);
@@ -213,7 +299,7 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 
     //auto cu        = get_python_cu();
     //auto className = c10::QualifiedName("MyName");
-    //auto classType = ClassType::create(className, cu,
+    //auto classType = torch::jit::ClassType::create(className, cu,
     //                            /* is_module = */ false,
     //                            /* doc_string = */ "", getUnresolvedClassAttributes(classDef));
 

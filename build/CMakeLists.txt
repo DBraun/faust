@@ -116,6 +116,9 @@ if (TORCH_BACKEND)
 	find_package(Torch REQUIRED)
 	set (FAUST_LIBS ${FAUST_LIBS} "${TORCH_LIBRARIES}")
 	set (CMAKE_CXX_STANDARD 14)
+
+	find_package(Python 3.9 EXACT REQUIRED COMPONENTS Interpreter Development)
+	set (FAUST_LIBS ${FAUST_LIBS} Python::Python)
 	# set_property(TARGET dcgan PROPERTY CXX_STANDARD 14)
 endif()
 

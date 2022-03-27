@@ -49,7 +49,7 @@
 //#include <c10/util/irange.h>
 // using torch::jit::get_python_cu;
 
-
+using torch::jit::Assign;
 //using torch::jit::BinOp;
 using torch::jit::ClassDef;
 // using torch::jit::ClassType;
