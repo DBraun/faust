@@ -50,15 +50,35 @@
 //----------------------------------------------------------------------
 
 // TO COMPLETE
-static const char* binopname[] = {"add", "sub", "mul", "div", "%", "<<", ">>", "ge", "le", "geq", "leq", "==", "!=", "&", "|", "^"};
+//static const char* binopname[] = {"add", "sub", "mul", "div", "%", "<<", ">>", "ge", "le", "geq", "leq", "==", "!=", "&", "|", "^"};
+static const int binopname[] = {'+',
+                                '-',
+                                '*',
+                                '/',
+                                '%',
+                                torch::jit::TK_LSHIFT,
+                                torch::jit::TK_RSHIFT,
+                                '>',
+                                '<',
+                                torch::jit::TK_GE,
+                                torch::jit::TK_LE,
+                                torch::jit::TK_EQ,
+                                torch::jit::TK_NE,
+                                torch::jit::TK_AND,
+                                torch::jit::TK_OR,
+                                '^'};
+
+    //  case TK_AND : case TK_OR : case '<' : case '>' : case TK_IS : case TK_ISNOT : case TK_EQ : case TK_LE : case TK_GE
+    //: case TK_NE : case '+' : case '*' : case '/' : case '-' : case '@' : case TK_POW : case TK_LSHIFT : case TK_RSHIFT
+    //: case '%' : case '&' : case '^' : case '|' : case TK_FLOOR_DIV : case TK_IN :
 
 TreeRef
-Signal2Torch::parseStatements(Tree L, bool expect_indent, bool in_class)
+Signal2Torch::parseStatements(Tree L, bool in_class)
 {
     TreeList stmts;
     while (!isNil(L)) {
         std::cerr << "parseStatements1(" << std::endl;
-        auto stmt = parseStmt(hd(L));
+        auto stmt = parseStmt(hd(L), in_class);
         stmts.push_back(stmt);
         std::cerr << "parseStatements2(" << std::endl;
         L = tl(L);
@@ -78,6 +98,48 @@ void Signal2Torch::mapself(Tree lt)
 
 #include <torch/torch.h>
 
+List<Param>
+Signal2Torch::parseFormalParams()
+{
+    std::vector<Param> params;
+    auto               theType = Maybe<Expr>::create(_sourceRange);
+    auto               theDef = Maybe<Expr>::create(_sourceRange);
+
+    params.emplace_back(
+        Param::create(_sourceRange, Ident::create(_sourceRange, "self"), theType, theDef, false));  // todo:
+    params.emplace_back(
+        Param::create(_sourceRange, Ident::create(_sourceRange, "input"), theType, theDef, false));  // todo:
+
+    return List<Param>::create(_sourceRange, params);
+}
+
+Decl
+Signal2Torch::parseDecl()
+{
+    List<Param> paramlist = parseFormalParams();
+    return Decl::create(paramlist.range(), List<Param>(paramlist), Maybe<Expr>::create(_sourceRange));
+}
+
+Ident
+Signal2Torch::parseIdent()
+{
+    // whenever we parse something that has a TreeView type we always
+    // use its create method so that the accessors and the constructor
+    // of the Compound tree are in the same place.
+    return Ident::create(_sourceRange, "parseIdent");
+}
+
+TreeRef
+Signal2Torch::parseFunction(Tree L, bool is_method)
+{
+    auto name = Ident::create(_sourceRange, "forward");
+    auto decl = parseDecl();
+
+    TreeRef stmts_list = parseStatements(L, is_method);
+   
+    return Def::create(name.range(), Ident(name), Decl(decl), List<Stmt>(stmts_list));
+}
+
 void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 {
 
@@ -88,7 +150,7 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 
     const auto  name       = Ident::create(_sourceRange, "something");
     Maybe<Expr> superclass = Maybe<Expr>::create(_sourceRange);
-    const auto  statements = parseStatements(L, /*expect_indent=*/true, /*in_class=*/true);
+    const auto  statements = parseStatements(L, /*in_class=*/true);
 
     std::cerr << "ClassDef::create" << std::endl;
     auto classDef = ClassDef::create(_sourceRange, name, superclass, torch::jit::List<Stmt>(statements));
@@ -172,7 +234,7 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
         TreeList stmts;
         for (Tree b : sig->branches()) {
             std::cerr << "getUserData(" << std::endl;
-            stmts.push_back(parseStmt(b));
+            stmts.push_back(parseStmt(b, in_class));
         }
         return create_compound(TK_LIST, _sourceRange, std::move(stmts));
     } else if (isSigInt(sig, &i)) {
@@ -203,7 +265,9 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
         //sliceexpr.push_back((torch::jit::Expr)maybe_third);
         std::cerr << "torch::jit::List<Expr>::create" << std::endl;
         auto subscript_exprs = torch::jit::List<Expr>::create(_sourceRange, sliceexpr);
-        auto input_expr = Const::create(_sourceRange, "0"); // todo: what's an Expr to refer to the arg input?
+        auto input_expr      = Var::create(_sourceRange, Ident::create(_sourceRange, "input"));
+        return input_expr;
+        // todo: slice the input
         std::cerr << "isSigInput-Subscript::create" << std::endl;
         auto sliced_input = Subscript::create(_sourceRange, input_expr, subscript_exprs);
         std::cerr << "isSigInput-return" << std::endl;
@@ -211,7 +275,8 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
     } else if (isSigOutput(sig, &i, x)) {
         std::cerr << "isSigOutput(" << std::endl;
         // todo: do what here?
-        return parseStmt(x);
+        return Return::create(_sourceRange, Expr(parseStmt(x)));
+        //return parseStmt(x, in_class);
     } else if (isSigDelay1(sig, x)) {
         // todo: do what here?
         //return Delay::create(x);
@@ -230,31 +295,14 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
         //return;
     } else if (isSigBinOp(sig, &i, x, y)) {
         std::cerr << "isSigBinOp(" << std::endl;
-        // todo: use parseStmt(y)
-        if (std::strcmp(binopname[i], "mul") == 0) {
-            return create_compound('*', _sourceRange, {parseStmt(x)});
-        }
-
-        if (std::strcmp(binopname[i], "div") == 0) {
-            return create_compound('/', _sourceRange, {parseStmt(x)});
-        }
-
-        if (std::strcmp(binopname[i], "add") == 0) {
-            return create_compound('+', _sourceRange, {parseStmt(x)});
-        }
-
-        if (std::strcmp(binopname[i], "sub") == 0) {
-            return create_compound('-', _sourceRange, {parseStmt(x)});
-        }
-
-        return create_compound(i, _sourceRange, {parseStmt(x)});  // todo: get the right int kind. refer to binopname
+        return torch::jit::BinOp::create(_sourceRange, binopname[i], Expr(parseStmt(x, in_class)), Expr(parseStmt(y, in_class)));
     }
     
     // Foreign functions
     else if (isSigFFun(sig, ff, largs)) {
         std::cerr << "isSigFFun(" << std::endl;
         // todo: do what here?
-        parseStmt(ff);
+        parseStmt(ff, in_class);
         mapself(largs);
         //return;
     } else if (isSigFConst(sig, type, name, file)) {
@@ -310,10 +358,12 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
     else if (isSigSelect2(sig, sel, x, y)) {
         // todo: do a ternary?
         // torch.where( sel, x, y);
-        //self(sel);
-        //self(x);
-        //self(y);
-        //return;
+        // self(sel);
+        // self(x);
+        // self(y);
+        // return;
+        return TernaryIf::create(_sourceRange, Expr(parseStmt(sel, in_class)), Expr(parseStmt(x, in_class)),
+                                 Expr(parseStmt(y, in_class)));
     }
     
     // Table sigGen
@@ -363,6 +413,8 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
         // torch.nn.Parameter
         //self(c);
         
+        return Select::create(_sourceRange, Var::create(_sourceRange, Ident::create(_sourceRange, "self")),
+                       Ident::create(_sourceRange, "hSlider")); // todo
         // todo: use the min, max, step
         //self(x), self(y), self(z);
         //return;

@@ -49,24 +49,34 @@
 //#include <c10/util/irange.h>
 // using torch::jit::get_python_cu;
 
-using torch::jit::Module;
-using torch::jit::Maybe;
-using torch::jit::Expr;
-using torch::jit::ExprStmt;
-using torch::jit::Stmt;
-using torch::jit::List;
+
+//using torch::jit::BinOp;
 using torch::jit::ClassDef;
-//using torch::jit::ClassType;
-using torch::jit::ParserImpl;
-using torch::jit::Ident;
-using torch::jit::SourceRange;
-using torch::jit::TreeRef;
-using torch::jit::TreeList;
+// using torch::jit::ClassType;
 using torch::jit::Compound;
 using torch::jit::Const;
+using torch::jit::Decl;
+using torch::jit::Def;
+using torch::jit::Expr;
+using torch::jit::ExprStmt;
+using torch::jit::Ident;
+using torch::jit::List;
 using torch::jit::ListLiteral;
+using torch::jit::Maybe;
+using torch::jit::Module;
+using torch::jit::Param;
+using torch::jit::ParserImpl;
+using torch::jit::Return;
+using torch::jit::Select;
 using torch::jit::SliceExpr;
+using torch::jit::SourceRange;
+using torch::jit::Stmt;
 using torch::jit::Subscript;
+using torch::jit::TernaryIf;
+using torch::jit::TreeList;
+using torch::jit::TreeRef;
+using torch::jit::Var;
+
 using torch::jit::TK_LIST;
 
 //-------------------------Signal2Torch-------------------------------
@@ -83,7 +93,7 @@ class Signal2Torch {
     TreeRef generateFConst(Tree sig, Tree type, const string& file, const string& name_aux);
 
     void sig2Torch(Tree L, ofstream& fout);
-    TreeRef parseStatements(Tree sig, bool expect_indent = false, bool in_class = false);
+    TreeRef parseStatements(Tree sig, bool in_class = false);
 
 
     //void traceEnter(Tree t)
@@ -114,6 +124,14 @@ private:
     //    return create_compound(TK_LIST, range, std::move(trees));
     //}
     SourceRange _sourceRange = SourceRange();
+
+    List<Param> parseFormalParams();
+
+    Decl parseDecl();
+
+    TreeRef parseFunction(Tree L, bool is_method);
+
+    Ident parseIdent();
 };
 
 #endif
