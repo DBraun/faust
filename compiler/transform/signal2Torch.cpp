@@ -78,11 +78,17 @@ Signal2Torch::parseStatements(Tree L, bool in_class)
     TreeList stmts;
     while (!isNil(L)) {
         std::cerr << "parseStatements1(" << std::endl;
-        auto stmt = parseStmt(hd(L), in_class);
+        auto stmt = Return::create(_sourceRange, Expr(parseStmt(hd(L), in_class)));
         stmts.push_back(stmt);
+        break;
         std::cerr << "parseStatements2(" << std::endl;
         L = tl(L);
+        std::cerr << "parseStatements3(" << std::endl;
     }
+    std::cerr << "parseStatements4(" << std::endl;
+    //return stmts[0];
+    //return std::move(stmts[0]);
+    // todo: need to concatenate the statements with something other than TK_LIST which is invalid for the Expr constructor.
     return create_compound(TK_LIST, _sourceRange, std::move(stmts));
 }
 
@@ -136,8 +142,25 @@ Signal2Torch::parseFunction(Tree L, bool is_method)
     auto decl = parseDecl();
 
     TreeRef stmts_list = parseStatements(L, is_method);
-   
-    return Def::create(name.range(), Ident(name), Decl(decl), List<Stmt>(stmts_list));
+    std::cerr << "Def::create1" << std::endl;
+
+    std::cerr << "stmts_list kind: " << torch::jit::kindToString(stmts_list->kind()) << std::endl;
+
+    auto tmp1 = std::make_unique<std::ostream>(std::cerr.rdbuf());
+    std::cerr << "stmts_list tree" << std::endl;
+    torch::jit::pretty_tree(stmts_list).print(*tmp1.get(), stmts_list, 40);
+    std::cerr << std::endl;
+    std::cerr << "Def::create2" << std::endl;
+
+    auto list_stmts = List<Stmt>(stmts_list);
+
+    std::cerr << "Def::create3" << std::endl;
+
+    auto theDef = Def::create(_sourceRange, Ident(name), Decl(decl), list_stmts);
+    TreeList stmts;
+    stmts.push_back(theDef);
+    auto def_list = create_compound(TK_LIST, _sourceRange, std::move(stmts));
+    return List<Stmt>(def_list);
 }
 
 void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
@@ -148,16 +171,19 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
     auto source  = std::make_shared<torch::jit::Source>("");
     _sourceRange = SourceRange(source, 0, 0);
 
-    const auto  name       = Ident::create(_sourceRange, "something");
+    const auto  name       = Ident::create(_sourceRange, "MyModule");
     Maybe<Expr> superclass = Maybe<Expr>::create(_sourceRange);
-    const auto  statements = parseStatements(L, /*in_class=*/true);
+    const auto  statements = parseFunction(L, /*in_class=*/true);
 
-    std::cerr << "ClassDef::create" << std::endl;
-    auto classDef = ClassDef::create(_sourceRange, name, superclass, torch::jit::List<Stmt>(statements));
-
+    std::cerr << "ClassDef::create1" << std::endl;
+    std::cerr << "statements kind: " << torch::jit::kindToString(statements->kind()) << std::endl;
+    auto classDef = ClassDef(statements);
+    //auto classDef = ClassDef::create(_sourceRange, name, superclass, List<Stmt>(statements));
+    std::cerr << "ClassDef::create2" << std::endl;
     torch::jit::Node* node = nullptr;
     std::shared_ptr<torch::jit::tracer::TracingState> tracer_state;
     std::cerr << "isTracing" << std::endl;
+
     if (torch::jit::tracer::isTracing()) {
         std::cerr << "getTracingState" << std::endl;
         tracer_state = torch::jit::tracer::getTracingState();
@@ -230,19 +256,22 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
     
     if (getUserData(sig)) {
         // todo: do what here?
-        
+        std::cerr << "getUserData1(" << std::endl;
         TreeList stmts;
         for (Tree b : sig->branches()) {
-            std::cerr << "getUserData(" << std::endl;
+            std::cerr << "getUserData2(" << std::endl;
             stmts.push_back(parseStmt(b, in_class));
         }
         return create_compound(TK_LIST, _sourceRange, std::move(stmts));
     } else if (isSigInt(sig, &i)) {
+        std::cerr << "isSigInt(" << std::endl;
         return Const::create(_sourceRange, std::to_string(i));
     } else if (isSigReal(sig, &r)) {
+        std::cerr << "isSigReal(" << std::endl;
         // for double vals
         return Const::create(_sourceRange, std::to_string(r));
     } else if (isSigWaveform(sig)) {
+        std::cerr << "isSigWaveform(" << std::endl;
         // TODO: push back a constant array
         //return;
     } else if (isSigInput(sig, &i)) {
@@ -275,21 +304,25 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
     } else if (isSigOutput(sig, &i, x)) {
         std::cerr << "isSigOutput(" << std::endl;
         // todo: do what here?
-        return Return::create(_sourceRange, Expr(parseStmt(x)));
+        return Return::create(_sourceRange, Expr(parseStmt(x, in_class)));
         //return parseStmt(x, in_class);
     } else if (isSigDelay1(sig, x)) {
+        std::cerr << "isSigDelay1(" << std::endl;
         // todo: do what here?
         //return Delay::create(x);
         //return;
     } else if (isSigDelay(sig, x, y)) {
+        std::cerr << "isSigDelay(" << std::endl;
         // todo: do what here?
         //return Delay::create(x, y);
         //return;
     } else if (isSigPrefix(sig, x, y)) {
+        std::cerr << "isSigPrefix(" << std::endl;
         // todo: do what here?
         // return SigPrefix::create(x, y);
         //return;
     } else if (isSigIota(sig, x)) {
+        std::cerr << "isSigIota(" << std::endl;
         // todo: do what here?
         //return SigIota::create(x);
         //return;
@@ -310,6 +343,7 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
         std::cerr << "isSigFConst(" << std::endl;
         return generateFConst(sig, type, tree2str(file), tree2str(name));
     } else if (isSigFVar(sig, type, name, file)) {
+        std::cerr << "isSigFVar(" << std::endl;
         // todo: do what here?
         //self(name);
         //return;
@@ -356,6 +390,7 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
     
     // Select2 (and Select3 expressed with Select2)
     else if (isSigSelect2(sig, sel, x, y)) {
+        std::cerr << "isSigSelect2(" << std::endl;
         // todo: do a ternary?
         // torch.where( sel, x, y);
         // self(sel);
@@ -368,6 +403,7 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
     
     // Table sigGen
     else if (isSigGen(sig, x)) {
+        std::cerr << "isSigGen(" << std::endl;
         if (fVisitGen) {
             //self(x);
             //return;
@@ -378,6 +414,7 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
     
     // Recursive signals
     else if (isProj(sig, &i, x)) {
+        std::cerr << "isProj(" << std::endl;
         // todo: do what here?
         //self(x);
         //return;
@@ -391,10 +428,12 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
     
     // Int and Float Cast
     else if (isSigIntCast(sig, x)) {
+        std::cerr << "isSigIntCast(" << std::endl;
         // todo: do what here?
         //self(x);
         //return;
     } else if (isSigFloatCast(sig, x)) {
+        std::cerr << "isSigFloatCast(" << std::endl;
         // todo: do what here?
         //self(x);
         //return;
@@ -457,6 +496,8 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
     
     else if (isNil(sig)) {
         // now nil can appear in table write instructions
+        std::cerr << "isNil(" << std::endl;
+        return TreeRef();
         //return;
     } else {
         stringstream error;

@@ -78,6 +78,8 @@ using torch::jit::TreeRef;
 using torch::jit::Var;
 
 using torch::jit::TK_LIST;
+using torch::jit::TK_LIST_COMP;
+using torch::jit::TK_LIST_LITERAL;
 
 //-------------------------Signal2Torch-------------------------------
 // Transforms signals to Torch code (see: https://pytorch.org)
