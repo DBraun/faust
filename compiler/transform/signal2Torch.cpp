@@ -93,7 +93,7 @@ Signal2Torch::parseStatements(Tree L, bool in_class)
     //return stmts[0];
     //return std::move(stmts[0]);
     // todo: need to concatenate the statements with something other than TK_LIST which is invalid for the Expr constructor.
-    return create_compound(TK_LIST, _sourceRange, std::move(stmts));
+    return makeList(_sourceRange, std::move(stmts));
 }
 
 void Signal2Torch::mapself(Tree lt)
@@ -121,6 +121,26 @@ Signal2Torch::parseFormalParams()
         Param::create(_sourceRange, Ident::create(_sourceRange, "input"), theType, theDef, false));  // todo:
 
     return List<Param>::create(_sourceRange, params);
+}
+
+TreeRef
+Signal2Torch::makeInitFunction() {
+    auto name = Ident::create(_sourceRange, "__init__");
+
+    std::vector<Param> params;
+    auto               theType = Maybe<Expr>::create(_sourceRange);
+    auto               theDef = Maybe<Expr>::create(_sourceRange);
+
+    params.emplace_back(
+        Param::create(_sourceRange, Ident::create(_sourceRange, "self"), theType, theDef, false));
+
+    List<Param> paramlist = List<Param>::create(_sourceRange, params);
+    auto decl = Decl::create(paramlist.range(), List<Param>(paramlist), Maybe<Expr>::create(_sourceRange));
+
+    // assume that _init_statements already has items due to the forward method being parsed.
+    auto list_stmts = List<Stmt>(makeList(_sourceRange, std::move(_init_statements)));
+
+    return Def::create(_sourceRange, Ident(name), Decl(decl), list_stmts);
 }
 
 Decl
@@ -163,7 +183,7 @@ Signal2Torch::parseFunction(Tree L, bool is_method)
     auto theDef = Def::create(_sourceRange, Ident(name), Decl(decl), list_stmts);
     TreeList stmts;
     stmts.push_back(theDef);
-    auto def_list = create_compound(TK_LIST, _sourceRange, std::move(stmts));
+    auto def_list = makeList(_sourceRange, std::move(stmts));
     return List<Stmt>(def_list);
 }
 
@@ -199,7 +219,7 @@ std::vector<std::string> getUnresolvedClassAttributes1(const ClassDef& def)
 }
 
 //#include <WinBase.h>
-//#include <windows.h>
+#include <windows.h>
 
 void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 {
@@ -207,14 +227,14 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
     std::cerr << "sig2Torch(" << std::endl;
 
     {
-        constexpr c10::string_view testSource = R"JIT(
-  class FooTest:
-    def __init__(self, x):
-      self.x = x
-    def get_x(self):
-      return self.x
-    an_attribute : Tensor
-)JIT";
+//        constexpr c10::string_view testSource = R"JIT(
+//  class FooTest:
+//    def __init__(self, x):
+//      self.x = x
+//    def get_x(self):
+//      return self.x
+//    an_attribute : Tensor
+//)JIT";
 //        constexpr c10::string_view testSource = R"JIT(
 //  class FooTest:
 //    def __init__(self):
@@ -222,6 +242,20 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 //    def forward(self, input):
 //      return input
 //)JIT";
+//    constexpr c10::string_view testSource = R"JIT(
+//class FooTest:
+//  def __init__(self):
+//    bias = torch.Tensor([0.])
+//    self.bias = torch.nn.Parameter(bias)
+//  def forward(self, input):
+//    return input + self.bias
+//)JIT";
+
+    constexpr c10::string_view testSource = R"JIT(
+class FooTest:
+  def forward(self, input):
+    return input[0,:]
+)JIT";
 
         torch::jit::Parser p(std::make_shared<torch::jit::Source>(std::string(testSource).c_str()));
         std::vector<Def>      definitions;
@@ -235,8 +269,8 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
         //(Def(classDef.body()[0]).name().name(), "__init__");
         //(Def(classDef.body()[1*/]).name().name(), "get_x");
 
-        //AddDllDirectory(L"c:\\Python39");
-
+        AddDllDirectory(L"C:\\Python39");
+        //py::gil_scoped_acquire acquire;
         auto cu        = torch::jit::get_python_cu();
         auto className = c10::QualifiedName("MyName");
         auto classType = torch::jit::ClassType::create(className, cu,
@@ -259,7 +293,11 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 
     const auto  name       = Ident::create(_sourceRange, "MyModule");
     Maybe<Expr> superclass = Maybe<Expr>::create(_sourceRange);
-    const auto  statements = parseFunction(L, /*in_class=*/true);
+    auto  statements = parseFunction(L, /*in_class=*/true);
+
+    // make the init function
+    const auto init_statements = makeInitFunction();
+    statements = makeList( _sourceRange, TreeList({statements, init_statements}));
 
     std::cerr << "ClassDef::create1" << std::endl;
     std::cerr << "statements kind: " << torch::jit::kindToString(statements->kind()) << std::endl;
@@ -296,7 +334,6 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 
     //tracer_state->graph->print(fout);
     
-
     //auto cu        = get_python_cu();
     //auto className = c10::QualifiedName("MyName");
     //auto classType = torch::jit::ClassType::create(className, cu,
@@ -348,7 +385,7 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
             std::cerr << "getUserData2(" << std::endl;
             stmts.push_back(parseStmt(b, in_class));
         }
-        return create_compound(TK_LIST, _sourceRange, std::move(stmts));
+        return makeList(_sourceRange, std::move(stmts));
     } else if (isSigInt(sig, &i)) {
         std::cerr << "isSigInt(" << std::endl;
         return Const::create(_sourceRange, std::to_string(i));
@@ -535,14 +572,31 @@ Signal2Torch::parseStmt(Tree sig, bool in_class)
         //return;
     } else if (isSigHSlider(sig, label, c, x, y, z)) {
         // todo: do what here?
-        // torch.nn.Parameter
-        //self(c);
-        
-        return Select::create(_sourceRange, Var::create(_sourceRange, Ident::create(_sourceRange, "self")),
-                       Ident::create(_sourceRange, "hSlider")); // todo
+
+        auto torchNode     = Var::create(_sourceRange, Ident::create(_sourceRange, "torch"));
+        auto nnNode        = Select::create(_sourceRange, Expr(torchNode), Ident::create(_sourceRange, "nn"));
+        auto parameterNode = Select::create(_sourceRange, Expr(nnNode), Ident::create(_sourceRange, "Parameter"));
+
+        auto tensorNode = Select::create(_sourceRange, Expr(torchNode), Ident::create(_sourceRange, "Tensor"));
+        auto numberStmt = parseStmt(c, false);
+        auto numberList = ListLiteral::create(_sourceRange, List<Expr>::create(_sourceRange, {Expr(numberStmt)}));
+
+        auto completedTensor = Apply::create(_sourceRange, tensorNode, List<Expr>::create(_sourceRange, {numberList}), List<Attribute>({}));
+
+        auto rhs = Apply::create(_sourceRange, parameterNode, List<Expr>::create(_sourceRange, {completedTensor}), List<Attribute>({}));
+
+        auto lhs = Select::create(_sourceRange, Var::create(_sourceRange, Ident::create(_sourceRange, "self")),
+                                  Ident::create(_sourceRange, tree2str(label)));
+
+        auto assignment = Assign::create(_sourceRange, List<Expr>::create(_sourceRange, {lhs}),
+                                         Maybe<Expr>::create(_sourceRange, rhs), Maybe<Expr>::create(_sourceRange));
+
+        _init_statements.push_back(assignment);
+
         // todo: use the min, max, step
-        //self(x), self(y), self(z);
-        //return;
+        //parseStmt(x), parseStmt(y), parseStmt(z);
+
+        return lhs;
     } else if (isSigNumEntry(sig, label, c, x, y, z)) {
         //self(c), self(x), self(y), self(z);
         //return;

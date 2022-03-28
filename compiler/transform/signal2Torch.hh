@@ -49,7 +49,9 @@
 //#include <c10/util/irange.h>
 // using torch::jit::get_python_cu;
 
+using torch::jit::Apply;
 using torch::jit::Assign;
+using torch::jit::Attribute;
 //using torch::jit::BinOp;
 using torch::jit::ClassDef;
 // using torch::jit::ClassType;
@@ -121,10 +123,10 @@ private:
     {
         return Compound::create(kind, range, std::move(trees));
     }
-    //TreeRef makeList(const SourceRange& range, TreeList&& trees)
-    //{
-    //    return create_compound(TK_LIST, range, std::move(trees));
-    //}
+    TreeRef makeList(const SourceRange& range, TreeList&& trees)
+    {
+        return create_compound(TK_LIST, range, std::move(trees));
+    }
     SourceRange _sourceRange = SourceRange();
 
     List<Param> parseFormalParams();
@@ -134,6 +136,10 @@ private:
     TreeRef parseFunction(Tree L, bool is_method);
 
     Ident parseIdent();
+
+    TreeList _init_statements;
+
+    TreeRef makeInitFunction();
 };
 
 #endif
