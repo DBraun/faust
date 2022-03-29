@@ -219,7 +219,10 @@ std::vector<std::string> getUnresolvedClassAttributes1(const ClassDef& def)
 }
 
 //#include <WinBase.h>
+#include <pybind11/embed.h> // everything needed for embedding
 #include <windows.h>
+
+#include <torch/csrc/jit/serialization/python_print.cpp>
 
 void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 {
@@ -227,14 +230,14 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
     std::cerr << "sig2Torch(" << std::endl;
 
     {
-//        constexpr c10::string_view testSource = R"JIT(
-//  class FooTest:
-//    def __init__(self, x):
-//      self.x = x
-//    def get_x(self):
-//      return self.x
-//    an_attribute : Tensor
-//)JIT";
+        constexpr c10::string_view testSource = R"JIT(
+  class FooTest:
+    def __init__(self, x):
+      self.x = x
+    def get_x(self):
+      return self.x
+    an_attribute : Tensor
+)JIT";
 //        constexpr c10::string_view testSource = R"JIT(
 //  class FooTest:
 //    def __init__(self):
@@ -250,14 +253,45 @@ void Signal2Torch::sig2Torch(Tree L, ofstream& fout)
 //  def forward(self, input):
 //    return input + self.bias
 //)JIT";
+//
+//    constexpr c10::string_view testSource = R"JIT(
+//class FooTest:
+//  def forward(self, input):
+//    return input[0,:]
+//)JIT";
 
-    constexpr c10::string_view testSource = R"JIT(
-class FooTest:
-  def forward(self, input):
-    return input[0,:]
-)JIT";
+        // 
+        // AddDllDirectory(L"C:\\Python39");
+        //AddDllDirectory(L"C:\\Python39\\Lib\\site-packages\\torch\\lib");
+        //Py_SetPythonHome(L"C:\\Python39");
+        wstring  ws(Py_GetPath());
+        string str(ws.begin(), ws.end());
+        std::cerr << "Py_GetPath: " << str << std::endl;
 
-        torch::jit::Parser p(std::make_shared<torch::jit::Source>(std::string(testSource).c_str()));
+        // AddDllDirectory/*(L"C:\\Python39\\Lib");
+        // AddDllDirectory(L"C:\\Python39\\Lib\\site-packages");
+        // AddDllDirectory(L"C:\\Python39\\Lib\\site-packages\\torch");
+        // AddDllDirectory(L*/"C:\\Python39\\Lib\\site-packages\\torch\\lib");
+        // py::gil_scoped_acquire acquire;
+        // if (!Py_IsInitialized()) {
+        //    Py_Initialize();
+        //}
+        // if (!Py_IsInitialized()) {
+        //    std::cerr << "Python not initialized!" << std::endl;
+        //}
+        // pybind11::gil_scoped_release scope;
+        py::scoped_interpreter guard{};
+        py::module::import("math");
+        py::module::import("itertools");
+        //PyObject* obj = PyImport_ImportModule("torch.jit._state");
+        //PyErr_Print();
+        auto cu = torch::jit::get_python_cu();
+        
+        std::cerr << "get_python_cu()!!!!!!" << std::endl;
+        //py::module::import("torch.jit._state");
+        // py::module::import("pytest"); // try some other non-default module
+
+        torch::jit::Parser p(std::make_shared<torch::jit::Source>(testSource));
         std::vector<Def>      definitions;
         //std::vector<torch::jit::Resolver> resolvers;
 
@@ -269,26 +303,24 @@ class FooTest:
         //(Def(classDef.body()[0]).name().name(), "__init__");
         //(Def(classDef.body()[1*/]).name().name(), "get_x");
 
-        AddDllDirectory(L"C:\\Python39");
-        //py::gil_scoped_acquire acquire;
-        auto cu        = torch::jit::get_python_cu();
         auto className = c10::QualifiedName("MyName");
         auto classType = torch::jit::ClassType::create(className, cu,
-                                                       /* is_module = */ false,
+                                                       /* is_module = */ true,
                                                        /* doc_string = */ "", getUnresolvedClassAttributes1(classDef)
         );
+        cu->register_type(classType);
 
-        auto module = Module(cu, classType);
+        auto myModule = Module(cu, classType);
         std::vector<at::IValue> constants;
         torch::jit::PrintDepsTable deps;
         torch::jit::PythonPrint pp(constants, deps);
-        pp.printNamedType(module.type());
-        std::cerr << "Python code:" << std::endl;
+        pp.printNamedType(myModule.type());
+        std::cerr << "Python code: " << std::endl;
         std::cerr << pp.str() << std::endl;
 
     }
 
-    auto source  = std::make_shared<torch::jit::Source>("");
+    auto source  = std::make_shared<torch::jit::Source>(std::string(""));
     _sourceRange = SourceRange(source, 0, 0);
 
     const auto  name       = Ident::create(_sourceRange, "MyModule");
@@ -333,6 +365,7 @@ class FooTest:
     }
 
     //tracer_state->graph->print(fout);
+    torch::jit::PythonPrintImpl pImpl;
     
     //auto cu        = get_python_cu();
     //auto className = c10::QualifiedName("MyName");
