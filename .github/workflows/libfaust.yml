@@ -103,7 +103,7 @@ jobs:
     - name: Make distribution
       # We make a zip ourself because of a possible issue with upload-artifact on ubuntu
       run: |
-        yum install zip
+        yum install zip -y
         strip --strip-unneeded build/lib/libfaust.so
         mkdir libfaust
         cp -v -r build/lib/libfaust.so libfaust
