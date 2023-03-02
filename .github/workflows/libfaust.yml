@@ -110,7 +110,8 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: my-artifact-${{ matrix.name }}
-        path: libfaust
+        path: libfaust/*.so
+        if-no-files-found: error
 
   build-macos:
     strategy:
@@ -220,6 +221,7 @@ jobs:
       with:
         name: my-artifact-${{ matrix.name }}
         path: libfaust
+        if-no-files-found: error
 
   build-windows:
     runs-on: ${{ matrix.os }}
@@ -318,3 +320,4 @@ jobs:
       with:
         name: my-artifact-${{ matrix.name }}
         path: build/lib/Release
+        if-no-files-found: error
