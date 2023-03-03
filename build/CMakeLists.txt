@@ -38,7 +38,6 @@ option ( INCLUDE_HTTP    	"Include Faust HTTPD library"	on )
 option ( INCLUDE_ITP    	"Include Faust Machine library"	off )
 option ( INCLUDE_EMCC    	"Include emcc targets"	on )
 option ( INCLUDE_WASM_GLUE  "Include wasm glue targets"	on )
-option ( INCLUDE_SNDFILE    "Include Sndfile library"	off )
 option ( MSVC_STATIC		"Use static runtimes with MSVC" off)
 option ( SELF_CONTAINED_LIBRARY	"Don't search system architecture files." off)
 
@@ -101,11 +100,6 @@ if (NOT MSVC)
 	set_property(SOURCE ${TMP}/llvm_dsp_aux.cpp ${TMP}/llvm_dynamic_dsp_aux.cpp APPEND_STRING PROPERTY COMPILE_FLAGS "-fno-rtti ${LLVM_DEFINITIONS}")
 	set_property(SOURCE ${TMP}/llvm_dsp_aux.cpp ${TMP}/llvm_dynamic_dsp_aux.cpp APPEND_STRING PROPERTY CMAKE_CXX_FLAGS "-fno-rtti ${LLVM_DEFINITIONS}")
 endif()
-
-	if (INCLUDE_SNDFILE)
-		find_package(SndFile REQUIRED)
-		set (FAUST_LIBS ${FAUST_LIBS} SndFile::sndfile)
-	endif()
 
 	set (FAUST_LIBS ${FAUST_LIBS} ${LLVM_LD_FLAGS} ${LLVM_LIBS})
 	
