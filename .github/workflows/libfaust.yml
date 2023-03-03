@@ -170,12 +170,12 @@ jobs:
         path: libsndfile
 
     - name: Install (x86) libsndfile MacOS dependencies
-      if: contains(matrix.os,'x86')
+      if: contains(matrix.name,'x86')
       run: |
         brew install automake autogen speex mpg123 lame flac libogg
 
     - name: Install (arm64) libsndfile MacOS dependencies
-      if: contains(matrix.os,'arm64')
+      if: contains(matrix.name,'arm64')
       run: |
         mkdir -p ~/arm-target/bin
         mkdir -p ~/arm-target/brew-cache
