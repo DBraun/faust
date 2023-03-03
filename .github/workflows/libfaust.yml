@@ -23,6 +23,7 @@ jobs:
               -DLLVM_DEFAULT_TARGET_TRIPLE="x86_64-linux-gnu"
               -DLLVM_ENABLE_ZLIB=off
               -DLLVM_OPTIMIZED_TABLEGEN=ON
+              -DLLVM_INCLUDE_TESTS=OFF
 
     runs-on: ${{ matrix.os }}
     container:
@@ -132,6 +133,21 @@ jobs:
               -DLLVM_ENABLE_ZLIB=off
               -DLLVM_OPTIMIZED_TABLEGEN=ON
               -DCMAKE_INSTALL_PREFIX="./llvm"
+              -DLLVM_INCLUDE_TESTS=OFF
+          - name: macos-arm64
+            os: macos-11
+            cmake-options: >-
+              -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_VERBOSE_MAKEFILE=ON
+              -DCMAKE_OSX_ARCHITECTURES="arm64"
+              -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
+            llvm-options: >-
+              -DLLVM_DEFAULT_TARGET_TRIPLE="arm64-apple-darwin19.6.0"
+              -DLLVM_TARGETS_TO_BUILD="AArch64"
+              -DLLVM_ENABLE_ZLIB=off
+              -DLLVM_OPTIMIZED_TABLEGEN=ON
+              -DCMAKE_INSTALL_PREFIX="./llvm"
+              -DLLVM_INCLUDE_TESTS=OFF
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -239,11 +255,11 @@ jobs:
               -Thost=x64
               -DLLVM_USE_CRT_DEBUG=MDd
               -DLLVM_USE_CRT_RELEASE=MD
-              -DLLVM_BUILD_TESTS=Off
               -DCMAKE_INSTALL_PREFIX="./llvm"
               -DLLVM_ENABLE_ZLIB=off
               -DLLVM_OPTIMIZED_TABLEGEN=ON
               -DLLVM_TARGETS_TO_BUILD="X86;ARM"
+              -DLLVM_INCLUDE_TESTS=OFF
 
     steps:
     - uses: actions/checkout@v3
