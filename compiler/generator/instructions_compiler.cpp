@@ -652,14 +652,6 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
     // Apply FIR to FIR transformations
     fContainer->processFIR();
     
-    // Check FIR code
-    if (global::isDebug("FIR_CHECKER")) {
-        startTiming("FIR checker");
-        FIRChecker fir_checker;
-        fContainer->flattenFIR()->accept(&fir_checker);
-        endTiming("FIR checker");
-    }
-
     endTiming("compileMultiSignal");
 }
 
@@ -704,9 +696,10 @@ ValueInst* InstructionsCompiler::generateCode(Tree sig)
         return code;
     }
 
-    int    i;
-    double r;
-    Tree   c, sel, x, y, z, label, id, ff, largs, type, name, file, sf;
+    int     i;
+    int64_t i64;
+    double  r;
+    Tree    c, sel, x, y, z, label, id, ff, largs, type, name, file, sf;
 
     // printf("compilation of %p : ", sig); print(sig); printf("\n");
 
@@ -714,6 +707,8 @@ ValueInst* InstructionsCompiler::generateCode(Tree sig)
         return generateXtended(sig);
     } else if (isSigInt(sig, &i)) {
         return generateIntNumber(sig, i);
+    } else if (isSigInt64(sig, &i64)) {
+        return generateInt64Number(sig, i64);
     } else if (isSigReal(sig, &r)) {
         return generateRealNumber(sig, r);
     } else if (isSigWaveform(sig)) {
@@ -758,6 +753,8 @@ ValueInst* InstructionsCompiler::generateCode(Tree sig)
 
     else if (isSigIntCast(sig, x)) {
         return generateIntCast(sig, x);
+    } else if (isSigBitCast(sig, x)) {
+        return generateBitCast(sig, x);
     } else if (isSigFloatCast(sig, x)) {
         return generateFloatCast(sig, x);
     }
@@ -793,19 +790,11 @@ ValueInst* InstructionsCompiler::generateCode(Tree sig)
     else if (isSigAttach(sig, x, y)) {
         CS(y);
         return generateCacheCode(sig, CS(x));
-       
     } else if (isSigControl(sig, x, y)) {
-        if (gGlobal->gVectorSwitch) {
-            throw faustexception("ERROR : 'control/enable' can only be used in scalar mode\n");
-        }
         return generateControl(sig, x, y);
-        
     } else if (isSigAssertBounds(sig, x, y, z)) {
         /* no debug option for the moment */
         return generateCode(z);
-    } else if (isSigLowest(sig, x) || isSigHighest(sig, x)) {
-        throw faustexception("ERROR : annotations should have been deleted in Simplification process\n");
-        
     /* we should not have any control at this stage*/
     } else {
         cerr << "ASSERT : when compiling, unrecognized signal : " << ppsig(sig, MAX_ERROR_SIZE) << endl;
@@ -832,6 +821,22 @@ ValueInst* InstructionsCompiler::generateIntNumber(Tree sig, int num)
 
     // No cache for numbers
     return InstBuilder::genInt32NumInst(num);
+}
+
+ValueInst* InstructionsCompiler::generateInt64Number(Tree sig, int64_t num)
+{
+    Occurrences* o = fOccMarkup->retrieve(sig);
+    
+    // Check for number occuring in delays
+    if (o->getMaxDelay() > 0) {
+        Typed::VarType ctype;
+        string         vname;
+        getTypedNames(getCertifiedSigType(sig), "Vec", ctype, vname);
+        generateDelayVec(sig, InstBuilder::genInt64NumInst(num), ctype, vname, o->getMaxDelay());
+    }
+    
+    // No cache for numbers
+    return InstBuilder::genInt64NumInst(num);
 }
 
 ValueInst* InstructionsCompiler::generateRealNumber(Tree sig, double num)
@@ -1192,6 +1197,12 @@ ValueInst* InstructionsCompiler::generateVariableStore(Tree sig, ValueInst* exp)
 ValueInst* InstructionsCompiler::generateIntCast(Tree sig, Tree x)
 {
     return generateCacheCode(sig, InstBuilder::genCastInt32Inst(CS(x)));
+}
+
+ValueInst* InstructionsCompiler::generateBitCast(Tree sig, Tree x)
+{
+    BasicTyped* type = (gGlobal->gFloatSize == 2) ? InstBuilder::genInt64Typed() : InstBuilder::genInt32Typed();
+    return generateCacheCode(sig, InstBuilder::genBitcastInst(CS(x), type));
 }
 
 ValueInst* InstructionsCompiler::generateFloatCast(Tree sig, Tree x)

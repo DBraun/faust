@@ -29,8 +29,26 @@
 #include "signals.hh"
 #include "sigtyperules.hh"
 #include "xtended.hh"
+#include "floats.hh"
 
 using namespace std;
+
+SignalTypePrinter::SignalTypePrinter(Tree L)
+{
+    // Check that the root tree is properly type annotated
+    getCertifiedSigType(L);
+    visitRoot(L);
+    /*
+     HACK: since the signal tree shape is still not deterministic,
+     we sort the list to be sure it stays the same.
+     To be removed if the tree shape becomes deterministic.
+     */
+    std::sort(fPrinted.begin(), fPrinted.end());
+    std::cout << "Size = " << fPrinted.size() << std::endl;
+    for (const auto& it : fPrinted) {
+        std::cout << it;
+    }
+}
 
 void SignalTypePrinter::visit(Tree sig)
 {
@@ -40,6 +58,21 @@ void SignalTypePrinter::visit(Tree sig)
     
     // Default case and recursion
     SignalVisitor::visit(sig);
+}
+
+void SignalChecker::isRange(Tree sig, Tree init_aux, Tree min_aux, Tree max_aux)
+{
+    std::stringstream error;
+    double init = tree2float(init_aux);
+    double min = tree2float(min_aux);
+    double max = tree2float(max_aux);
+    if (min > max) {
+        error << "ERROR : min = " << min << " should be less than max = " << max << " in '" << ppsig(sig) << "'\n";
+        throw faustexception(error.str());
+    } else if (init < min || init > max) {
+        error << "ERROR : init = " << init << " outside of [" << min << " " << max << "] range in '" << ppsig(sig) << "'\n";
+        throw faustexception(error.str());
+    }
 }
 
 void SignalChecker::visit(Tree sig)
@@ -100,10 +133,16 @@ void SignalChecker::visit(Tree sig)
             faustassert(false);
         }
 
-        // Int and Float Cast
+        // Int, Bit and Float Cast
     } else if (isSigIntCast(sig, x)) {
         if (getCertifiedSigType(x)->nature() == kInt) {
             cerr << "ASSERT : isSigIntCast of a kInt signal : " << ppsig(sig, MAX_ERROR_SIZE) << endl;
+            faustassert(false);
+        }
+        
+    } else if (isSigBitCast(sig, x)) {
+        if (getCertifiedSigType(x)->nature() == kInt) {
+            cerr << "ASSERT : isSigBitCast of a kInt signal : " << ppsig(sig, MAX_ERROR_SIZE) << endl;
             faustassert(false);
         }
 
@@ -153,7 +192,7 @@ void SignalChecker::visit(Tree sig)
             faustassert(false);
         }
         
-        // Sliders and Numentry
+        // Sliders and nentry
     } else if (isSigVSlider(sig, label, init, min, max, step)
                || isSigHSlider(sig, label, init, min, max, step)
                || isSigNumEntry(sig, label, init, min, max, step)) {
@@ -171,6 +210,15 @@ void SignalChecker::visit(Tree sig)
             cerr << "ASSERT : isSigVBargraph of a kInt signal : " << ppsig(sig, MAX_ERROR_SIZE) << endl;
             faustassert(false);
         }
+        
+        // signal bounds
+    } else if (isSigLowest(sig, x) || isSigHighest(sig, x)) {
+        cerr << "ASSERT : annotations should have been deleted in Simplification process" << endl;
+        faustassert(false);
+        
+        // enable/control
+    } else if (isSigControl(sig, x, y) && gGlobal->gVectorSwitch) {
+        throw faustexception("ERROR : 'control/enable' can only be used in scalar mode\n");
     }
 
     // Default case and recursion
@@ -196,7 +244,6 @@ Tree SignalPromotion::transformation(Tree sig)
             vt.push_back(getCertifiedSigType(b));
         }
         Type tr = p->infereSigType(vt);
-
         vector<Tree> new_branches;
         for (Tree b : sig->branches()) {
             new_branches.push_back(smartCast(tr, getCertifiedSigType(b), self(b)));
@@ -297,9 +344,11 @@ Tree SignalPromotion::transformation(Tree sig)
         }
     }
 
-    // Int and Float Cast
+    // Int, Bit and Float Cast
     else if (isSigIntCast(sig, x)) {
         return smartIntCast(getCertifiedSigType(x), self(x));
+    } else if (isSigBitCast(sig, x)) {
+        return sigBitCast(self(x));
     } else if (isSigFloatCast(sig, x)) {
         return smartFloatCast(getCertifiedSigType(x), self(x));
     }
@@ -540,6 +589,26 @@ Tree SignalUIFreezePromotion::transformation(Tree sig)
     }
 }
 
+Tree SignalFTZPromotion::selfRec(Tree l)
+{
+    // Recursion here
+    l = self(l);
+    
+    // Add FTZ on real signals only
+    if (getCertifiedSigType(l)->nature() == kReal) {
+        if (gGlobal->gFTZMode == 1) {
+            return sigSelect2(sigGT(sigAbs(l), sigReal(inummin())), sigReal(0.0), l);
+        } else if (gGlobal->gFTZMode == 2) {
+            if (gGlobal->gFloatSize == 1) {
+                return sigSelect2(sigAND(sigBitCast(l), sigInt(inummax())), sigReal(0.0), l);
+            } else if (gGlobal->gFloatSize == 2) {
+                return sigSelect2(sigAND(sigBitCast(l), sigInt64(inummax())), sigReal(0.0), l);
+            }
+        }
+    }
+    
+    return l;
+}
 
 // Public API
 Tree signalPromote(Tree sig, bool trace)
@@ -603,5 +672,14 @@ Tree signalUIFreezePromote(Tree sig)
     getCertifiedSigType(sig);
     
     SignalUIFreezePromotion SP;
+    return SP.mapself(sig);
+}
+
+Tree signalFTZPromotion(Tree sig)
+{
+    // Check that the root tree is properly type annotated
+    getCertifiedSigType(sig);
+    
+    SignalFTZPromotion SP;
     return SP.mapself(sig);
 }

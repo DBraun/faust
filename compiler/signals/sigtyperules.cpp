@@ -173,8 +173,8 @@ static interval arithmetic(int opcode, const interval& x, const interval& y)
  * @param inter if set to false, the interval of the new type is the union of the old one and the computed one,
  * otherwise it is the intersection
  */
-void updateRecTypes(vector<Tree>& vrec, const vector<Tree>& vdef, const vector<int>& vdefSizes, vector<Type>& vtype,
-                    const bool inter)
+static void updateRecTypes(vector<Tree>& vrec, const vector<Tree>& vdef, const vector<int>& vdefSizes, vector<Type>& vtype,
+                         const bool inter)
 {
     Type         newType;
     vector<Type> newTuplet;
@@ -445,6 +445,7 @@ static void checkPartInterval(Tree s, Type t)
 static Type infereSigType(Tree sig, Tree env)
 {
     int    i;
+    int64_t i64;
     double r;
     Tree   sel, s1, s2, s3, ff, id, ls, l, x, y, z, part, u, var, body, type, name, file, sf;
     Tree   label, cur, min, max, step;
@@ -455,6 +456,11 @@ static Type infereSigType(Tree sig, Tree env)
         return infereXType(sig, env);
 
     else if (isSigInt(sig, &i)) {
+        Type t = makeSimpleType(kInt, kKonst, kComp, kVect, kNum, interval(i));
+        /*sig->setType(t);*/ return t;
+    }
+    
+    else if (isSigInt64(sig, &i64)) {
         Type t = makeSimpleType(kInt, kKonst, kComp, kVect, kNum, interval(i));
         /*sig->setType(t);*/ return t;
     }
@@ -534,6 +540,9 @@ static Type infereSigType(Tree sig, Tree env)
 
     else if (isSigIntCast(sig, s1))
         return intCast(T(s1, env));
+
+    else if (isSigBitCast(sig, s1))
+        return bitCast(T(s1, env));
 
     else if (isSigFloatCast(sig, s1))
         return floatCast(T(s1, env));
