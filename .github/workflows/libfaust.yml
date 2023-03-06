@@ -189,32 +189,37 @@ jobs:
 
     - name: prepare
       run: |
-        # This is a bit tricky since we want to cross-compile for arm64 on
-        # an x86_64 Big Sur runner using the llvm@14 arm64 homebrew package.
-        # Here is a suitable snapshot of the package that we borrow from pd-faustgen
-        curl -L https://github.com/agraef/pd-faustgen/releases/download/llvm-14-homebrew/llvm-14.0.6-homebrew-macos11-arm64.zip -o llvm.zip
+        # Libfaust will need to link against LLVM.
+        # Since we're using an x86_64 GitHub actions runner, we're unable to build LLVM for arm64.
+        # To get around this, we download a macOS arm64 LLVM build that we've built in advance.
+        curl -L https://github.com/DBraun/TD-Faust/releases/download/llvm-15.0.7-macos/llvm-15.0.7-macos10.15-arm64.zip -o llvm.zip
         unzip llvm.zip
 
     - name: Build libfaust
       run: |
+        export LLVM_PACKAGE_VERSION="15.0.7"
+        export LLVM_DIR=$PWD/llvm/lib/cmake/llvm
+        export LLVM_LIB_DIR=$PWD/llvm/lib
+        export LLVM_INCLUDE_DIRS=$PWD/llvm/include
+        export LLVM_LIBS=$(ls $LLVM_LIB_DIR/lib*.a | sed "s|$LLVM_LIB_DIR/lib\(.*\)\.a|-l\1|g" | tr '\n' ' ')
+        export LLVM_LIBS="-lm -lcurses -lxml2 $LLVM_LIBS"
+        export LLVM_DEFINITIONS="-D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS"
         cd build
-        cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=off -DCMAKE_PREFIX_PATH="$LLVM_DIR"
+        cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=off -DCMAKE_PREFIX_PATH="$LLVM_DIR" -DLLVM_LIBS="$LLVM_LIBS" -DLLVM_LIB_DIR="$LLVM_LIB_DIR" -DLLVM_INCLUDE_DIRS="$LLVM_INCLUDE_DIRS" -DLLVM_PACKAGE_VERSION=$LLVM_PACKAGE_VERSION -DLLVM_DEFINITIONS="$LLVM_DEFINITIONS"
         cmake --build build --config Release
-      env:
-        LLVM_DIR: ${{ github.workspace }}/llvm/lib/cmake/llvm
    
     - name: Make distribution
       run: |
-        ls -r build/lib/*
-        mkdir libfaust
-        cp build/lib/libfaust.2.dylib libfaust/libfaust.2.dylib
-        cp -v -r build/lib/*.a libfaust
+        cd build/lib
+        rm -f libfaust.dylib libfaust.2.dylib
+        newest=$(ls -1 libfaust.*.dylib | tail -n1)
+        mv "$newest" libfaust.2.dylib
    
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
         name: libfaust-${{ matrix.name }}
-        path: libfaust
+        path: build/lib
         if-no-files-found: error
 
   # build-windows:
