@@ -241,14 +241,12 @@ jobs:
     - name: prepare
       run: |
         # Libfaust will need to link against LLVM.
-        # Since we're using an x86_64 GitHub actions runner, we're unable to build LLVM for arm64.
-        # To get around this, we download a macOS arm64 LLVM build that we've built in advance.
+        # We download a windows x86_64 LLVM build that we've built in advance.
         curl -L https://github.com/DBraun/TD-Faust/releases/download/llvm-15.0.7-win11-x86_64/llvm-15.0.7-win11-x86_64.zip -o llvm.zip
-        7z x llvm.zip -ollvm
+        7z x llvm.zip
 
     - name: Build libfaust
       run: |
-        set LLVM_PACKAGE_VERSION="15.0.7"
         cd build
         cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=off -DCMAKE_PREFIX_PATH="%LLVM_DIR%" -DLLVM_LIB_DIR="%LLVM_LIB_DIR%" -DLLVM_INCLUDE_DIRS="%LLVM_INCLUDE_DIRS%" -DLLVM_PACKAGE_VERSION=%LLVM_PACKAGE_VERSION%
         cmake --build build --config Release
@@ -256,6 +254,7 @@ jobs:
         LLVM_DIR: ${{ github.workspace }}/llvm/lib/cmake/llvm
         LLVM_LIB_DIR: ${{ github.workspace }}/llvm/lib
         LLVM_INCLUDE_DIRS: ${{ github.workspace }}/llvm/include
+        LLVM_PACKAGE_VERSION: 15.0.7
    
     - name: Upload artifact
       uses: actions/upload-artifact@v3
