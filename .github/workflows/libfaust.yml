@@ -246,9 +246,10 @@ jobs:
         7z x llvm.zip
 
     - name: Build libfaust
+      shell: cmd
       run: |
         cd build
-        cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=off -DCMAKE_PREFIX_PATH="$LLVM_DIR" -DLLVM_LIB_DIR="$LLVM_LIB_DIR" -DLLVM_INCLUDE_DIRS="$LLVM_INCLUDE_DIRS" -DLLVM_PACKAGE_VERSION=$LLVM_PACKAGE_VERSION
+        cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=off -DCMAKE_PREFIX_PATH="%LLVM_DIR%" -DLLVM_LIB_DIR="%LLVM_LIB_DIR%" -DLLVM_INCLUDE_DIRS="%LLVM_INCLUDE_DIRS%" -DLLVM_PACKAGE_VERSION=%LLVM_PACKAGE_VERSION%
         cmake --build build --config Release
       env:
         LLVM_DIR: ${{ github.workspace }}/llvm/lib/cmake/llvm
