@@ -109,7 +109,7 @@ jobs:
               -DCMAKE_VERBOSE_MAKEFILE=ON
               -DCMAKE_OSX_ARCHITECTURES="x86_64"
               -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
-            llvm-url: https://github.com/DBraun/TD-Faust/releases/download/llvm-15.0.7-win11-x86_64/llvm-15.0.7-win11-x86_64.zip
+            llvm-url: https://github.com/DBraun/TD-Faust/releases/download/llvm-15.0.7-macos10.15-x86_64/llvm-15.0.7-macos10.15-x86_64.zip
 
     runs-on: ${{ matrix.os }}
 
