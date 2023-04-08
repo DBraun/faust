@@ -13,7 +13,7 @@ FAUST  ?= faust
 JOBS   ?= 
 GENERATOR ?= 
 CMAKEOPT ?= -DCMAKE_BUILD_TYPE=Release
-MAXSDK ?= $(PARENT_DIR)../../max-sdk/source/max-sdk-base/c74support
+MAXSDK ?= $(ROOT)/max-sdk-7.3.3/source/c74support
 USE_STATIC_SNDFILE ?= 0
 FAUST_PATH_IS_ABSOLUTE ?= 0
 

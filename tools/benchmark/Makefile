@@ -1,6 +1,5 @@
 STRIP =
 
-version := 2.58.13
 FAUST 	?= faust
 system := $(shell uname -s)
 
