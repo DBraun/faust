@@ -14,8 +14,9 @@ system := $(shell uname -s)
 
 ifeq ($(system), Darwin)
 NCURSES_PRIMARY_PREFIX := /usr/local/Cellar/ncurses
-NCURSES_BACKUP_PREFIX := /opt/homebrew/Cellar/ncurses
-LIBNCURSES_PATH ?= $(shell find $(NCURSES_PRIMARY_PREFIX) -name libncurses.a 2>/dev/null || find $(NCURSES_BACKUP_PREFIX) -name libncurses.a 2>/dev/null)
+NCURSES_BACKUP1_PREFIX := /opt/homebrew/Cellar/ncurses
+NCURSES_BACKUP2_PREFIX := /opt/local
+LIBNCURSES_PATH ?= $(shell find $(NCURSES_PRIMARY_PREFIX) -name libncurses.a 2>/dev/null || find $(NCURSES_BACKUP1_PREFIX) -name libncurses.a 2>/dev/null || find $(NCURSES_BACKUP2_PREFIX) -name libncurses.a 2>/dev/null)
 else
 LIBNCURSES_PATH ?= $(shell find /usr -name libncurses.a)
 endif
