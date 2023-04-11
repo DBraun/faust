@@ -96,8 +96,17 @@ if (WIN32)
 else()
 
 	set (MACLIBS "-framework CoreServices -framework IOKit")
-	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+	set (CMAKE_CXX_FLAGS_RELEASE "-O3")
+	
+	if(DEFINED FAUST_PATH_IS_ABSOLUTE AND FAUST_PATH_IS_ABSOLUTE MATCHES "1")
 	set (FAUSTLIBS ${FAUSTLIB}/libfaustwithllvm.a ${FAUSTLIB}/libOSCFaust.a)
+	else()
+	execute_process( COMMAND faust-config --system-libs OUTPUT_VARIABLE FC_OUTPUT RESULT_VARIABLE FC_RESULT)
+	string(REPLACE " " ";" FC_OUTPUT ${FC_OUTPUT})
+	string(STRIP "${FC_OUTPUT}" FC_OUTPUT)
+	set (FAUSTLIBS ${FAUSTLIB}/libfaustwithllvm.a ${FC_OUTPUT} ${FAUSTLIB}/libOSCFaust.a)
+	message("faust-config output: ${FAUSTLIBS}")
+	endif()
 
 endif()
 
