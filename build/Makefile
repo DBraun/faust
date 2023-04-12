@@ -101,6 +101,7 @@ full:
 
 clean:
 	$(CMAKE) --build $(FAUSTDIR) --target clean
+	rm -f lib/libfaustwithllvm.a
 
 distclean:
 	rm -rf $(FAUSTDIR)

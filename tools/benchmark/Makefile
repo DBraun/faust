@@ -128,8 +128,8 @@ install:
 	cp faust2object $(prefix)/bin
 	cp faustbench-wasm $(prefix)/bin
 	cp faust2benchwasm $(prefix)/bin
-	cp faust-tester $(prefix)/bin	
-	cp -r iOS-bench $(FARCH)
+	cp faust-tester $(prefix)/bin
+	cp -r iOS-bench $(prefix)/share/faust
 
 install-package:
 	cp $(TARGETS) $(prefix)/bin

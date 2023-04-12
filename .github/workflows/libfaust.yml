@@ -260,7 +260,7 @@ jobs:
       if: ${{ endsWith( matrix.name, 'arm64') }}
       uses: actions/upload-artifact@v3
       with:
-        name: faust-${{env.FAUST_VERSION}}-${{ matrix.name }}.tar.gz
+        name: faust-${{env.FAUST_VERSION}}.tar.gz
         path: build/Release-${{env.FAUST_VERSION}}/faust-${{env.FAUST_VERSION}}.tar.gz
         if-no-files-found: error
 
