@@ -1,7 +1,7 @@
 name: libfaust
 
 env:
-  FAUST_VERSION: 2.58.18
+  FAUST_VERSION: 2.59.1
   FAUSTGEN_VERSION: 1.64
   LLVM_PACKAGE_VERSION: 15.0.7
   CMAKE_OSX_DEPLOYMENT_TARGET: 10.15
@@ -318,12 +318,6 @@ jobs:
       run: |
         cd build
         call MakeRelease.bat
-
-    - name: Cleanup libfaust
-      shell: cmd
-      run: |
-        rm build/build/faust/lib/libfaustwithllvm.lib
-        rm build/lib/libfaustwithllvm.lib
 
     - name: Upload Faust installer
       uses: actions/upload-artifact@v3
