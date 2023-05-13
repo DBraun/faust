@@ -48,9 +48,9 @@ jobs:
       with:
         submodules: true
 
-    - name: Install ncurses and zip
+    - name: Install zip
       run: |
-        yum install -y ncurses ncurses-devel ncurses-libs ncurses-static zip
+        yum install -y zip
 
     - name: Restore LLVM
       id: cache-llvm-restore
@@ -81,6 +81,19 @@ jobs:
       with:
         path: llvm-project
         key: ${{ steps.cache-llvm-restore.outputs.cache-primary-key }}
+
+    - name: Checkout ncurses
+      uses: actions/checkout@v2
+      with:
+        repository: mirror/ncurses
+        path: ncurses
+
+    - name: ncurses install
+      run: |
+        cd ncurses
+        ./configure --prefix=/usr/local/ncurses/6_3 --with-shared --with-pkg-config-libdir=/usr/local/ncurses/6_3/lib/pkgconfig --enable-pc-files
+        make
+        make install
 
     - name: Build libfaust
       run: |
