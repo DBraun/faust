@@ -90,6 +90,7 @@ jobs:
 
     - name: ncurses install
       run: |
+        apt-get install libtinfo-dev 
         cd ncurses
         ./configure --prefix=/usr/local/ncurses/6_3 --with-shared --with-pkg-config-libdir=/usr/local/ncurses/6_3/lib/pkgconfig --enable-pc-files
         make
