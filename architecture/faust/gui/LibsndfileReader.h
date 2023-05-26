@@ -35,11 +35,11 @@
 
 #include "faust/gui/Soundfile.h"
 
-#if __has_include(<filesystem>)
+#if __has_include(<filesystem>) && __cplusplus >= 201703L
     #define HAS_FILESYSTEM
     #include <filesystem>
     namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
+#elif __has_include(<experimental/filesystem>) && __cplusplus >= 201103L
     #define HAS_FILESYSTEM
     #include <experimental/filesystem>
     namespace fs = std::experimental::filesystem;
