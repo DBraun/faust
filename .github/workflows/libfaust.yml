@@ -44,7 +44,7 @@ jobs:
               -DLLVM_INCLUDE_TESTS=OFF
           - name: ubuntu-aarch64
             theContainer: docker://quay.io/pypa/manylinux2014_x86_64
-            os: ubuntu-20.04
+            os: ubuntu-latest
             cmake-options: >-
               -DCMAKE_BUILD_TYPE=Release
               -DCMAKE_VERBOSE_MAKEFILE=ON
@@ -67,7 +67,7 @@ jobs:
       if: ${{ matrix.name == 'ubuntu-aarch64' }} 
       uses: docker/setup-qemu-action@v3
       with:
-        platforms: arm64
+        platforms: all
 
     - name: Install zip
       run: |
