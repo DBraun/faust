@@ -42,6 +42,17 @@ jobs:
               -DLLVM_DEFAULT_TARGET_TRIPLE="x86_64-linux-gnu"
               -DLLVM_ENABLE_ZLIB=off
               -DLLVM_INCLUDE_TESTS=OFF
+          - name: ubuntu-aarch64
+            theContainer: docker://quay.io/pypa/manylinux2014_aarch64
+            os: ubuntu-20.04
+            cmake-options: >-
+              -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_VERBOSE_MAKEFILE=ON
+            llvm-options: >-
+              -DLLVM_TARGETS_TO_BUILD="AArch64"
+              -DLLVM_DEFAULT_TARGET_TRIPLE="aarch64-linux-gnu"
+              -DLLVM_ENABLE_ZLIB=off
+              -DLLVM_INCLUDE_TESTS=OFF
 
     runs-on: ${{ matrix.os }}
     container:
@@ -93,6 +104,14 @@ jobs:
         cmake --build build --config Release
         cmake --build build --target install
 
+    - name: Upload llvm artifact
+      if: ${{ !inputs.use_llvm_cache || steps.cache-llvm-restore.outputs.cache-hit != 'true'}}
+      uses: actions/upload-artifact@v3
+      with:
+        name: llvm-15.0.7-${{ matrix.name }}.zip
+        path: llvm-project/llvm/llvm
+        if-no-files-found: error
+
     - name: Cache LLVM output
       id: cache-llvm-save
       uses: actions/cache/save@v3
@@ -102,13 +121,30 @@ jobs:
 
     - name: Build libfaust
       run: |
-        export PATH="${{ github.workspace }}/llvm-project/llvm/build/bin:$PATH"
+        export PATH="${{ github.workspace }}/llvm-project/llvm/llvm/bin:$PATH"
+
+        export LLVM_DIR=$PWD/llvm-project/llvm/llvm/lib/cmake/llvm
+        export LLVM_LIB_DIR=$PWD/llvm-project/llvm/llvm/lib
+        export LLVM_INCLUDE_DIRS=$PWD/llvm-project/llvm/llvm/include
+        export LLVM_LIBS=$(ls $LLVM_LIB_DIR/lib*.a | sed "s|$LLVM_LIB_DIR/lib\(.*\)\.a|-l\1|g" | tr '\n' ' ')
+        export LLVM_LIBS="-lrt -ldl -lm $LLVM_LIBS"
+        export LLVM_LIBS="$(echo "$LLVM_LIBS" | sed 's/[[:space:]]*$//')"
+        export LLVM_DEFINITIONS="-D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS"
+        export LLVM_LD_FLAGS="-L$LLVM_LIB_DIR -Wl,-search_paths_first -Wl,-headerpad_max_install_names"
+        export LLVM="$LLVM_LD_FLAGS $LLVM_LIBS"
+
+        export FAUSTLIVE=$PWD/faustlive
+        export BUILD_HTTP_STATIC=ON
+        export USE_STATIC_SNDFILE=1
+        export CMAKEOPT="-DCMAKE_BUILD_TYPE=Release"
+        export INCLUDE_LLVM=ON
+        export USE_LLVM_CONFIG=off
+
         cd build
-        cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_STATIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=ON -DLLVM_CONFIG=$LLVM_CONFIG -DCMAKE_PREFIX_PATH="$LLVM_DIR"
+        cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_STATIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=$USE_LLVM_CONFIG -DCMAKE_PREFIX_PATH="$LLVM_DIR"
         cmake --build build --config Release
       env:
-        LLVM_DIR: ${{ github.workspace }}/llvm-project/llvm/build/lib/cmake/llvm
-        LLVM_CONFIG: ${{ github.workspace }}/llvm-project/llvm/build/bin/llvm-config
+        LLVM_DIR: ${{ github.workspace }}/llvm-project/llvm/llvm/lib/cmake/llvm
    
     - name: Make distribution
       run: |
