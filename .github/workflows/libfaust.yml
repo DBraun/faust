@@ -148,6 +148,7 @@ jobs:
         export CMAKEOPT="-DCMAKE_BUILD_TYPE=Release"
         export INCLUDE_LLVM=ON
         export USE_LLVM_CONFIG=off
+        export NCURSES_PRIMARY_PREFIX=${{ github.workspace }}/ncurses/ncurses_install
 
         cd build
         cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_STATIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=$USE_LLVM_CONFIG -DCMAKE_PREFIX_PATH="$LLVM_DIR"

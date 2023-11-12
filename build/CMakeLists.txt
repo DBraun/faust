@@ -221,7 +221,11 @@ if (INCLUDE_STATIC)
 		if (WIN32)
 			set (MAKELIBCMD Make.llvm.static.bat) 
 		else()
-			set (MAKELIBCMD make -f Make.llvm.static) 
+			if(APPLE)
+			set (MAKELIBCMD make -f Make.llvm.static)
+			else()
+			set (MAKELIBCMD NCURSES_PRIMARY_PREFIX=${CMAKE_CURRENT_SOURCE_DIR}/../ncurses/ncurses_install make -f Make.llvm.static)
+			endif()
 		endif()
 		add_custom_command(TARGET staticlib POST_BUILD
                    COMMAND ${MAKELIBCMD}
