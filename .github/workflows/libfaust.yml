@@ -43,7 +43,7 @@ jobs:
               -DLLVM_ENABLE_ZLIB=off
               -DLLVM_INCLUDE_TESTS=OFF
           - name: ubuntu-aarch64
-            theContainer: docker://quay.io/pypa/manylinux2014_x86_64
+            theContainer: docker://quay.io/pypa/manylinux_2_24_aarch64
             os: ubuntu-latest
             cmake-options: >-
               -DCMAKE_BUILD_TYPE=Release
