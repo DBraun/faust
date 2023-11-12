@@ -149,7 +149,7 @@ jobs:
         export LLVM_LIBS="-lrt -ldl -lm $LLVM_LIBS"
         export LLVM_LIBS="$(echo "$LLVM_LIBS" | sed 's/[[:space:]]*$//')"
         export LLVM_DEFINITIONS="-D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS"
-        export LLVM_LD_FLAGS="-L$LLVM_LIB_DIR -Wl,-search_paths_first -Wl,-headerpad_max_install_names"
+        export LLVM_LD_FLAGS="-L$LLVM_LIB_DIR"
         export LLVM="$LLVM_LD_FLAGS $LLVM_LIBS"
 
         export FAUSTLIVE=$PWD/faustlive
