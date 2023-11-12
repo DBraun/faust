@@ -44,7 +44,7 @@ jobs:
               -DLLVM_INCLUDE_TESTS=OFF
           - name: ubuntu-aarch64
             theContainer: docker://quay.io/pypa/manylinux2014_x86_64
-            os: ubuntu-latest
+            os: ubuntu-20.04
             cmake-options: >-
               -DCMAKE_BUILD_TYPE=Release
               -DCMAKE_VERBOSE_MAKEFILE=ON
@@ -70,6 +70,7 @@ jobs:
         platforms: all
 
     - name: Install zip
+      if: ${{ matrix.name == 'ubuntu-x86_64' }}
       run: |
         yum install -y zip
 
