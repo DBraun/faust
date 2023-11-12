@@ -64,7 +64,7 @@ jobs:
         submodules: true
 
     - name: Set up QEMU
-      if: ${{ matrix.name == "ubuntu-aarch64"}} 
+      if: ${{ matrix.name == 'ubuntu-aarch64' }} 
       uses: docker/setup-qemu-action@v3
       with:
         platforms: arm64
