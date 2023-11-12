@@ -161,7 +161,7 @@ jobs:
         export NCURSES_PRIMARY_PREFIX=${{ github.workspace }}/ncurses/ncurses_install
 
         cd build
-        cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_STATIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=$USE_LLVM_CONFIG -DCMAKE_PREFIX_PATH="$LLVM_DIR"
+        cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_STATIC=ON -DCMAKE_PREFIX_PATH="$LLVM_DIR" -DINCLUDE_LLVM=$INCLUDE_LLVM -DUSE_LLVM_CONFIG=$USE_LLVM_CONFIG -DLLVM_PACKAGE_VERSION=$LLVM_PACKAGE_VERSION -DLLVM_LIBS="$LLVM_LIBS" -DLLVM_LIB_DIR="$LLVM_LIB_DIR" -DLLVM_INCLUDE_DIRS="$LLVM_INCLUDE_DIRS" -DLLVM_DEFINITIONS="$LLVM_DEFINITIONS" -DLLVM_LD_FLAGS="$LLVM_LD_FLAGS"
         cmake --build build --config Release
       env:
         LLVM_ROOT: ${{ github.workspace }}/llvm
