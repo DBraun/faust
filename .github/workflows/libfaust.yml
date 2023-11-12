@@ -37,6 +37,7 @@ jobs:
             cmake-options: >-
               -DCMAKE_BUILD_TYPE=Release
               -DCMAKE_VERBOSE_MAKEFILE=ON
+            llvm-url: https://github.com/grame-cncm/faust/releases/download/2.59.5-llvm/llvm-15.0.7-ubuntu-x86_64.zip
             llvm-options: >-
               -DLLVM_TARGETS_TO_BUILD="X86"
               -DLLVM_DEFAULT_TARGET_TRIPLE="x86_64-linux-gnu"
@@ -48,6 +49,7 @@ jobs:
             cmake-options: >-
               -DCMAKE_BUILD_TYPE=Release
               -DCMAKE_VERBOSE_MAKEFILE=ON
+            llvm-url: https://github.com/grame-cncm/faust/releases/download/2.59.5-llvm/llvm-15.0.7-ubuntu-aarch64.zip
             llvm-options: >-
               -DLLVM_TARGETS_TO_BUILD="AArch64"
               -DLLVM_DEFAULT_TARGET_TRIPLE="aarch64-linux-gnu"
@@ -87,54 +89,62 @@ jobs:
         make
         make install
 
-    - name: Restore LLVM
-      if: ${{ inputs.use_llvm_cache }}
-      id: cache-llvm-restore
-      uses: actions/cache/restore@v3
-      with:
-        path: llvm-project
-        key: cache-llvm-${{env.LLVM_PACKAGE_VERSION}}-${{ matrix.name }}
+    # - name: Restore LLVM
+    #   if: ${{ inputs.use_llvm_cache }}
+    #   id: cache-llvm-restore
+    #   uses: actions/cache/restore@v3
+    #   with:
+    #     path: llvm-project
+    #     key: cache-llvm-${{env.LLVM_PACKAGE_VERSION}}-${{ matrix.name }}
 
-    - name: Clone LLVM
-      if: ${{ !inputs.use_llvm_cache || steps.cache-llvm-restore.outputs.cache-hit != 'true'}}
-      uses: actions/checkout@v3
-      with:
-        repository: llvm/llvm-project
-        path: llvm-project
-        ref: ${{ env.LLVM_COMMIT }}
+    # - name: Clone LLVM
+    #   if: ${{ !inputs.use_llvm_cache || steps.cache-llvm-restore.outputs.cache-hit != 'true'}}
+    #   uses: actions/checkout@v3
+    #   with:
+    #     repository: llvm/llvm-project
+    #     path: llvm-project
+    #     ref: ${{ env.LLVM_COMMIT }}
 
-    - name: Build LLVM
-      if: ${{ !inputs.use_llvm_cache || steps.cache-llvm-restore.outputs.cache-hit != 'true'}}
+    # - name: Build LLVM
+    #   if: ${{ !inputs.use_llvm_cache || steps.cache-llvm-restore.outputs.cache-hit != 'true'}}
+    #   run: |
+    #     cd llvm-project/llvm
+    #     cmake -Bbuild -DCMAKE_INSTALL_PREFIX="./llvm" -DCMAKE_PREFIX_PATH="$NCURSES_INSTALL/lib/pkgconfig" ${{matrix.cmake-options}} ${{matrix.llvm-options}}
+    #     cmake --build build --config Release
+    #     cmake --build build --target install
+    #   env:
+    #     NCURSES_INSTALL: ${{ github.workspace }}/ncurses/ncurses_install
+
+    # - name: Upload llvm artifact
+    #   if: ${{ !inputs.use_llvm_cache || steps.cache-llvm-restore.outputs.cache-hit != 'true'}}
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: llvm-15.0.7-${{ matrix.name }}
+    #     path: llvm-project/llvm/llvm
+    #     if-no-files-found: error
+
+    # - name: Cache LLVM output
+    #   id: cache-llvm-save
+    #   uses: actions/cache/save@v3
+    #   with:
+    #     path: llvm-project
+    #     key: ${{ steps.cache-llvm-restore.outputs.cache-primary-key }}
+
+    - name: Download LLVM
       run: |
-        cd llvm-project/llvm
-        cmake -Bbuild -DCMAKE_INSTALL_PREFIX="./llvm" -DCMAKE_PREFIX_PATH="$NCURSES_INSTALL/lib/pkgconfig" ${{matrix.cmake-options}} ${{matrix.llvm-options}}
-        cmake --build build --config Release
-        cmake --build build --target install
-      env:
-        NCURSES_INSTALL: ${{ github.workspace }}/ncurses/ncurses_install
-
-    - name: Upload llvm artifact
-      if: ${{ !inputs.use_llvm_cache || steps.cache-llvm-restore.outputs.cache-hit != 'true'}}
-      uses: actions/upload-artifact@v3
-      with:
-        name: llvm-15.0.7-${{ matrix.name }}.zip
-        path: llvm-project/llvm/llvm
-        if-no-files-found: error
-
-    - name: Cache LLVM output
-      id: cache-llvm-save
-      uses: actions/cache/save@v3
-      with:
-        path: llvm-project
-        key: ${{ steps.cache-llvm-restore.outputs.cache-primary-key }}
+        # Libfaust will need to link against LLVM.
+        # Since we're using an x86_64 GitHub actions runner, we're unable to build arm64 LLVM on-demand.
+        # To get around this, we download a compatible LLVM build that we've built in advance.
+        curl -L ${{ matrix.llvm-url }} -o llvm.zip
+        unzip -o llvm.zip
 
     - name: Build libfaust
       run: |
         export PATH="${{ github.workspace }}/llvm-project/llvm/llvm/bin:$PATH"
 
-        export LLVM_DIR=$PWD/llvm-project/llvm/llvm/lib/cmake/llvm
-        export LLVM_LIB_DIR=$PWD/llvm-project/llvm/llvm/lib
-        export LLVM_INCLUDE_DIRS=$PWD/llvm-project/llvm/llvm/include
+        export LLVM_DIR=$LLVM_ROOT/lib/cmake/llvm
+        export LLVM_LIB_DIR=$LLVM_ROOT/lib
+        export LLVM_INCLUDE_DIRS=$LLVM_ROOT/include
         export LLVM_LIBS=$(ls $LLVM_LIB_DIR/lib*.a | sed "s|$LLVM_LIB_DIR/lib\(.*\)\.a|-l\1|g" | tr '\n' ' ')
         export LLVM_LIBS="-lrt -ldl -lm $LLVM_LIBS"
         export LLVM_LIBS="$(echo "$LLVM_LIBS" | sed 's/[[:space:]]*$//')"
@@ -154,7 +164,7 @@ jobs:
         cmake  -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_STATIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=$USE_LLVM_CONFIG -DCMAKE_PREFIX_PATH="$LLVM_DIR"
         cmake --build build --config Release
       env:
-        LLVM_DIR: ${{ github.workspace }}/llvm-project/llvm/llvm/lib/cmake/llvm
+        LLVM_ROOT: ${{ github.workspace }}/llvm
    
     - name: Make distribution
       run: |
