@@ -83,7 +83,7 @@ jobs:
     - name: ncurses install
       run: |
         cd ncurses
-        ./configure --prefix=/usr/local/ncurses/6_4 --with-shared --with-pkg-config-libdir=/usr/local/ncurses/6_4/lib/pkgconfig --enable-pc-files
+        ./configure --prefix=$PWD/ncurses_install --with-shared --with-pkg-config-libdir=$PWD/ncurses_install/lib/pkgconfig --enable-pc-files
         make
         make install
 
@@ -107,9 +107,11 @@ jobs:
       if: ${{ !inputs.use_llvm_cache || steps.cache-llvm-restore.outputs.cache-hit != 'true'}}
       run: |
         cd llvm-project/llvm
-        cmake -Bbuild -DCMAKE_INSTALL_PREFIX="./llvm" -DCMAKE_PREFIX_PATH="/usr/local/ncurses/6_4/lib/pkgconfig" ${{matrix.cmake-options}} ${{matrix.llvm-options}}
+        cmake -Bbuild -DCMAKE_INSTALL_PREFIX="./llvm" -DCMAKE_PREFIX_PATH="$NCURSES_INSTALL/lib/pkgconfig" ${{matrix.cmake-options}} ${{matrix.llvm-options}}
         cmake --build build --config Release
         cmake --build build --target install
+      env:
+        NCURSES_INSTALL: ${{ github.workspace }}/ncurses/ncurses_install
 
     - name: Upload llvm artifact
       if: ${{ !inputs.use_llvm_cache || steps.cache-llvm-restore.outputs.cache-hit != 'true'}}
