@@ -140,7 +140,7 @@ jobs:
 
     - name: Build libfaust
       run: |
-        export PATH="${{ github.workspace }}/llvm-project/llvm/llvm/bin:$PATH"
+        export PATH="${{ github.workspace }}/llvm/bin:$PATH"
 
         export LLVM_DIR=$LLVM_ROOT/lib/cmake/llvm
         export LLVM_LIB_DIR=$LLVM_ROOT/lib
