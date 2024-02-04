@@ -127,7 +127,7 @@ jobs:
       run: |
         export NCURSES_INSTALL_DIR=$PWD/build/ncurses_install 
         cd ncurses
-        ./configure --prefix=$NCURSES_INSTALL_DIR --host=aarch64-linux --with-shared --with-pkg-config-libdir=$NCURSES_INSTALL_DIR/lib/pkgconfig --enable-pc-files
+        ./configure --prefix=$NCURSES_INSTALL_DIR --host=aarch64-linux --with-shared --without-progs --without-manpages --without-tack --without-tests --with-pkg-config-libdir=$NCURSES_INSTALL_DIR/lib/pkgconfig --enable-pc-files
         make
         make install
       env:
