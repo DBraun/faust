@@ -125,8 +125,9 @@ jobs:
 
     - name: ncurses install
       run: |
+        export NCURSES_INSTALL_DIR=$PWD/build/ncurses_install 
         cd ncurses
-        ./configure --prefix=/usr/local/ncurses/6_4 --host=aarch64-linux --with-shared --with-pkg-config-libdir=/usr/local/ncurses/6_4/lib/pkgconfig --enable-pc-files
+        ./configure --prefix=$NCURSES_INSTALL_DIR --host=aarch64-linux --with-shared --with-pkg-config-libdir=$NCURSES_INSTALL_DIR/lib/pkgconfig --enable-pc-files
         make
         make install
       env:
@@ -135,6 +136,7 @@ jobs:
 
     - name: build Libfaust
       run: |
+        export NCURSES_INSTALL_DIR=$PWD/build/ncurses_install 
         export LLVM_ROOT=${{ github.workspace }}/llvm
         export LLVM_DIR=$LLVM_ROOT/lib/cmake/llvm
         export LLVM_LIB_DIR=$LLVM_ROOT/lib
@@ -147,7 +149,7 @@ jobs:
         export INCLUDE_LLVM=ON
         export USE_LLVM_CONFIG=off
         cd build
-        cmake -C ./backends/all.cmake . -Bbuild -DCMAKE_TOOLCHAIN_FILE=aarch64-toolchain.cmake -DCMAKE_PREFIX_PATH="$LLVM_ROOT/lib/cmake/llvm:/usr/local/ncurses/6_4/lib/pkgconfig" ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_STATIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=OFF -DLLVM_CONFIG=$LLVM_CONFIG -DLLVM_PACKAGE_VERSION=$LLVM_PACKAGE_VERSION -DLLVM_LIBS="$LLVM_LIBS" -DLLVM_LIB_DIR="$LLVM_LIB_DIR" -DLLVM_INCLUDE_DIRS="$LLVM_INCLUDE_DIRS" -DLLVM_DEFINITIONS="$LLVM_DEFINITIONS" -DLLVM_LD_FLAGS="$LLVM_LD_FLAGS"
+        cmake -C ./backends/all.cmake . -Bbuild -DCMAKE_TOOLCHAIN_FILE=aarch64-toolchain.cmake -DCMAKE_PREFIX_PATH="$LLVM_ROOT/lib/cmake/llvm:$NCURSES_INSTALL_DIR/lib/pkgconfig" ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_STATIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=OFF -DLLVM_CONFIG=$LLVM_CONFIG -DLLVM_PACKAGE_VERSION=$LLVM_PACKAGE_VERSION -DLLVM_LIBS="$LLVM_LIBS" -DLLVM_LIB_DIR="$LLVM_LIB_DIR" -DLLVM_INCLUDE_DIRS="$LLVM_INCLUDE_DIRS" -DLLVM_DEFINITIONS="$LLVM_DEFINITIONS" -DLLVM_LD_FLAGS="$LLVM_LD_FLAGS"
         cmake --build build --config Release
       env:
         LLVM_PACKAGE_VERSION: 17.0.6
