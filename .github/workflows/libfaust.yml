@@ -126,7 +126,7 @@ jobs:
     - name: ncurses install
       run: |
         cd ncurses
-        ./configure --prefix=/usr/local/ncurses/6_4 --with-shared --with-pkg-config-libdir=/usr/local/ncurses/6_4/lib/pkgconfig --enable-pc-files
+        ./configure --prefix=/usr/local/ncurses/6_4 --host=aarch64-linux --with-shared --with-pkg-config-libdir=/usr/local/ncurses/6_4/lib/pkgconfig --enable-pc-files
         make
         make install
       env:
