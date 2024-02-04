@@ -142,7 +142,7 @@ jobs:
         export LLVM_LIB_DIR=$LLVM_ROOT/lib
         export LLVM_INCLUDE_DIRS=$LLVM_ROOT/include
         export LLVM_LIBS=$(ls $LLVM_LIB_DIR/lib*.a | sed "s|$LLVM_LIB_DIR/lib\(.*\)\.a|-l\1|g" | tr '\n' ' ')
-        export LLVM_LIBS="-lrt -ldl -lm -lz -lcurses $LLVM_LIBS"
+        export LLVM_LIBS="-lrt -ldl -lm $LLVM_LIBS"
         export LLVM_LIBS="$(echo "$LLVM_LIBS" | sed 's/[[:space:]]*$//')"
         export LLVM_DEFINITIONS="-D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS"
         export LLVM_LD_FLAGS="-L$LLVM_LIB_DIR"
