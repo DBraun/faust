@@ -39,7 +39,9 @@ jobs:
     container:
       image: ${{matrix.theContainer}}
     steps:
-    - uses: actions/checkout@v4
+      # why we use v3:
+      # https://github.blog/changelog/2024-03-07-github-actions-all-actions-will-run-on-node20-instead-of-node16-by-default
+    - uses: actions/checkout@v3
       with:
         submodules: true
 
