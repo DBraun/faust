@@ -1,7 +1,7 @@
 name: libfaust
 
 env:
-  FAUST_VERSION: 2.75.5
+  FAUST_VERSION: "2.75.5"
   FAUSTGEN_VERSION: "1.71"   
   LLVM_PACKAGE_VERSION: "15.0.7"
   CMAKE_OSX_DEPLOYMENT_TARGET: "10.15"
@@ -26,13 +26,15 @@ jobs:
       matrix:
         include:
           - name: ubuntu-x86_64
-            os: ubuntu-22.04
+            theContainer: docker://quay.io/pypa/manylinux2014_x86_64
+            os: ubuntu-20.04
             cmake-options: >-
               -DCMAKE_BUILD_TYPE=Release
               -DCMAKE_VERBOSE_MAKEFILE=ON
 
     runs-on: ${{ matrix.os }}
-
+    container:
+      image: ${{matrix.theContainer}}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -40,16 +42,39 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get install -y zstd libncurses-dev libxml2-dev
+        sudo yum install -y zip zstd ncurses-devel libxml2-devel
 
     - name: Install dependencies
       run: |
-        sudo apt-get install -y libllvm15 llvm-15 llvm-15-dev
+        sudo yum install -y llvm llvm-devel
 
     - name: Build libfaust
       run: |
-        find /usr -name llvm-config
-        export PATH="/usr/lib/llvm-15/bin:$PATH"
+        LLVM_CONFIG_PATH=$(find /usr /usr/local -name llvm-config 2>/dev/null | head -n 1)
+
+        # Check if llvm-config was found
+        if [ -z "$LLVM_CONFIG_PATH" ]; then
+            echo "llvm-config not found on the system."
+            exit 1
+        else
+            # Extract directory from llvm-config path
+            LLVM_CONFIG_DIR=$(dirname "$LLVM_CONFIG_PATH")
+            
+            # Add the directory to the PATH if it's not already in it
+            if [[ ":$PATH:" != *":$LLVM_CONFIG_DIR:"* ]]; then
+                export PATH="$LLVM_CONFIG_DIR:$PATH"
+                echo "Added $LLVM_CONFIG_DIR to PATH."
+            else
+                echo "$LLVM_CONFIG_DIR is already in PATH."
+            fi
+
+            # Verify that llvm-config is accessible
+            if command -v llvm-config >/dev/null 2>&1; then
+                echo "llvm-config version: $(llvm-config --version)"
+            else
+                echo "llvm-config could not be added to PATH."
+                exit 1
+
         export LLVM_ROOT=$(llvm-config --prefix | tr '\n' ' ')
         echo "LLVM_ROOT: " $LLVM_ROOT
         cd build
