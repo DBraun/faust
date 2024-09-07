@@ -79,9 +79,12 @@ jobs:
             else
                 echo "llvm-config could not be added to PATH."
                 exit 1
+            fi
 
-        export LLVM_ROOT=$(llvm-config --prefix | tr '\n' ' ')
-        echo "LLVM_ROOT: " $LLVM_ROOT
+            # Set LLVM_ROOT environment variable
+            export LLVM_ROOT=$(llvm-config --prefix | tr '\n' ' ')
+            echo "LLVM_ROOT: $LLVM_ROOT"
+        fi
         cd build
         cmake -C ./backends/all.cmake . -Bbuild ${{matrix.cmake-options}} -DINCLUDE_DYNAMIC=ON -DINCLUDE_STATIC=ON -DINCLUDE_LLVM=ON -DUSE_LLVM_CONFIG=ON
         cmake --build build --config Release
