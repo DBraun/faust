@@ -47,11 +47,11 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo yum install -y zip zstd ncurses-devel libxml2-devel
+        yum install -y zip zstd ncurses-devel libxml2-devel
 
     - name: Install dependencies
       run: |
-        sudo yum install -y llvm llvm-devel
+        yum install -y llvm llvm-devel
 
     - name: Build libfaust
       run: |
