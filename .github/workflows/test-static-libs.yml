@@ -3,6 +3,13 @@ name: test-static-libs
 # Test workflow to validate libfaustwithllvm.a creation
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - libfaust.from.cmajor
+    paths:
+      - '.github/workflows/libfaust-simplified.yml'
+      - '.github/workflows/test-static-libs.yml'
+      - 'build/**'
   pull_request:
     paths:
       - '.github/workflows/libfaust-simplified.yml'
