@@ -183,7 +183,7 @@ class SubClass(mydsp):
 		state = self.initialize(x, T)
 		state = self.build_interface(state, x, T)
 		# convert numpy array to jax numpy array
-		state = jax.tree_map(jnp.array, state)
+		state = jax.tree.map(jnp.array, state)
 
 		# impulse all the buttons
 		for key in state:
