@@ -111,7 +111,8 @@ jobs:
         export CMAKEOPT="-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 -DCMAKE_BUILD_TYPE=Release"
 
         cd build
-        make developer
+        make cmake BACKENDS=all.cmake TARGETS=all.cmake
+        make staticlib
 
     - name: Verify static libraries
       run: |
