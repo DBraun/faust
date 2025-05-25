@@ -9,7 +9,8 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "Bash(g++:*)",
-      "Bash(../../build/bin/faust:*)"
+      "Bash(../../build/bin/faust:*)",
+      "Bash(python test_types_fixed.py:*)"
     ],
     "deny": []
   }

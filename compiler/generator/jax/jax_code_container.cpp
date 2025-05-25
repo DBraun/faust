@@ -160,11 +160,15 @@ void JAXCodeContainer::produceClass()
         tab(n, *fOut);
         *fOut << "FAUSTFLOAT = jnp.float64";
         tab(n, *fOut);
+        *fOut << "FAUSTINT = jnp.int64";
+        tab(n, *fOut);
     } else {
         tab(n, *fOut);
         *fOut << "# enable single precision";
         tab(n, *fOut);
         *fOut << "FAUSTFLOAT = jnp.float32";
+        tab(n, *fOut);
+        *fOut << "FAUSTINT = jnp.int32";
         tab(n, *fOut);
     }
 

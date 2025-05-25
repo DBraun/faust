@@ -151,6 +151,9 @@ class JAXInstVisitor : public TextInstVisitor {
     // This bool is not related to fIsStoringLhs or fWillSetArray.
     // It is used so that we don't cast to integers in the condition of a while (cond) loop.
     bool fIsDoingWhile = false;
+    
+    // Track when we're in array index context to avoid wrapping integers
+    bool fIsArrayIndex = false;
 
     std::set<std::string> fLogSet;  // set of widget zone having a log UI scale
     std::set<std::string> fExpSet;  // set of widget zone having an exp UI scale
@@ -455,9 +458,33 @@ class JAXInstVisitor : public TextInstVisitor {
         EndLine(' ');
     }
 
-    virtual void visit(Int32NumInst* inst) { *fOut << inst->fNum; }
+    virtual void visit(Int32NumInst* inst) 
+    { 
+        if (fIsArrayIndex) {
+            *fOut << inst->fNum;
+        } else {
+            *fOut << "jnp.int32(" << inst->fNum << ")";
+        }
+    }
 
-    virtual void visit(Int64NumInst* inst) { *fOut << inst->fNum; }
+    virtual void visit(Int64NumInst* inst) 
+    { 
+        if (fIsArrayIndex) {
+            *fOut << inst->fNum;
+        } else {
+            *fOut << "jnp.int64(" << inst->fNum << ")";
+        }
+    }
+
+    virtual void visit(FloatNumInst* inst) 
+    { 
+        *fOut << "jnp.float32(" << checkFloat(inst->fNum) << ")";
+    }
+
+    virtual void visit(DoubleNumInst* inst) 
+    { 
+        *fOut << "jnp.float64(" << checkDouble(inst->fNum) << ")";
+    }
 
     virtual void visit(Int32ArrayNumInst* inst)
     {
@@ -677,7 +704,9 @@ class JAXInstVisitor : public TextInstVisitor {
                     *fOut << "[" << field_index->fNum << "]";
                 } else {
                     *fOut << "[";
+                    fIsArrayIndex = true;
                     indexed->getIndex()->accept(this);
+                    fIsArrayIndex = false;
                     *fOut << "]";
                 }
             }
@@ -704,7 +733,9 @@ class JAXInstVisitor : public TextInstVisitor {
                     *fOut << "[" << field_index->fNum << "]";
                 } else {
                     *fOut << "[";
+                    fIsArrayIndex = true;
                     indexed->getIndex()->accept(this);
+                    fIsArrayIndex = false;
                     *fOut << "]";
                 }
             }
