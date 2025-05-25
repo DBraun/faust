@@ -94,17 +94,53 @@ except ImportError:
 	def add_checkbox(self, state, zone: str, ui_path: list[str], label: str):
 		self.add_button(state, zone, ui_path, label)
 	
-	def add_nentry(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, step_size: float, scale_mode='linear'):
-		label = "/".join(ui_path+[label])
-		num_steps = int(round((a_max-a_min)/step_size))+1
-		init_unit = int(round(init-a_min)/step_size)
-		param = jnp.ones((num_steps,))
-		param = param.at[init_unit].set(2)
-		param = nn.softmax(param)
-		param = self.param("_"+label, (lambda key, shape: param), None)
-		param = jnp.argmax(param, axis=-1)*step_size+a_min
-		self.sow('intermediates', label, param)
-		state[zone] = param
+	def add_nentry(
+		self, state, zone: str, ui_path: List[str], label: str,
+		init: float, a_min: float, a_max: float, step_size: float,
+		scale_mode: str = "linear",
+	):
+		"""
+		Gumbel-Softmax version of a FAUST nentry:
+			* logits param  (num_steps,)
+			* learnable temperature τ
+			* optional Gumbel noise from self.make_rng("gumbel")
+		Returns a *soft* value in the physical range.
+
+		todo: this implementation may be problematic for custom value nentry like:
+		`foo = nentry("foo[style:menu{'low':0;'mid':5;'high':7}]",0,0,7,1)`
+		"""
+		# ---------- set up grid ----------
+		label = "/".join(ui_path + [label])
+		num_steps  = int(round((a_max - a_min) / step_size)) + 1
+		init_step  = int(round((init - a_min) / step_size))
+		step_values = jnp.arange(num_steps, dtype=jnp.float32) * step_size + a_min
+
+		# ---------- parameters ----------
+		# (1) logits, initialised to favour the initial step
+		def init_logits(key, shape):
+			logits = jnp.zeros(shape)
+			return logits.at[init_step].set(5.0)        # bias ≈ exp(5) ≈ 148
+		logits = self.param("_" + label, init_logits, (num_steps,))
+
+		# temperature (optional learnable scalar)
+		# tau = self.param(f"_{label}_tau", nn.initializers.constant(1.0), ())
+		tau = 1.0  # todo: user should be able to configure via UI Label metadata:
+		# https://faustdoc.grame.fr/manual/syntax/#ui-label-metadata
+
+		# At train-time pass rngs={"gumbel": key} to model.apply
+		if self.has_rng("gumbel"):
+			gumbel_noise = -jnp.log(-jnp.log(
+				random.uniform(self.make_rng("gumbel"), shape=logits.shape) + 1e-10
+			) + 1e-10)
+			probs = nn.softmax((logits + gumbel_noise) / jnp.clip(tau, 1e-3))
+		else:  # deterministic fallback (e.g. evaluation)
+			probs = nn.softmax(logits / jnp.clip(tau, 1e-3))
+
+		param_value = jnp.sum(probs * step_values)
+
+		self.sow("intermediates", label + ":probs", probs)
+		self.sow("intermediates", label, param_value)
+		state[zone] = param_value
 	
 	def add_slider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode='linear'):
 		label = "/".join(ui_path+[label])
@@ -157,7 +193,6 @@ except ImportError:
 		state = self.build_interface(state, x, T)
 		# convert numpy array to jax numpy array
 		state = jax.tree.map(jnp.array, state)
-		# Use nn.scan to properly handle instance methods and parameters
 
 		def tick(module, carry, *xs):
 			return module.tick(carry, *xs)
