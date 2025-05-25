@@ -151,13 +151,9 @@ ValueInst* InstructionsCompilerJAX::generateSoundfile(Tree sig, Tree path)
             block, IB::genBlockInst()));
     }
 
-    if (gGlobal->gOneSample >= 0) {
-        pushDeclare(IB::genDecStructVar(SFcache, IB::genBasicTyped(Typed::kSound_ptr)));
-        pushComputeBlockMethod(IB::genStoreStructVar(SFcache, IB::genLoadStructVar(varname)));
-    } else {
-        pushComputeBlockMethod(IB::genDecStackVar(SFcache, IB::genBasicTyped(Typed::kSound_ptr),
-                                                  IB::genLoadStructVar(varname)));
-    }
+    // In JAX, always use struct variables (state dictionary) instead of stack variables
+    pushDeclare(IB::genDecStructVar(SFcache, IB::genBasicTyped(Typed::kSound_ptr)));
+    pushComputeBlockMethod(IB::genStoreStructVar(SFcache, IB::genLoadStructVar(varname)));
 
     return IB::genLoadStructVar(varname);
 }
