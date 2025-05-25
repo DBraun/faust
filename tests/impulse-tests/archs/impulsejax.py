@@ -132,7 +132,7 @@ def remainder(x, y):
 		state = self.initialize(x, T)
 		state = self.build_interface(state, x, T)
 		# convert numpy array to jax numpy array
-		state = jax.tree_map(jnp.array, state)
+		state = jax.tree.map(jnp.array, state)
 		return jnp.transpose(jax.lax.scan(self.tick, state, jnp.transpose(x, axes=(1, 0)))[1], axes=(1,0))
 
 
@@ -154,7 +154,7 @@ class SubClass(mydsp):
 		state = self.initialize(x, T)
 		state = self.build_interface(state, x, T)
 		# convert numpy array to jax numpy array
-		state = jax.tree_map(jnp.array, state)
+		state = jax.tree.map(jnp.array, state)
 		
 		# impulse all the buttons
 		for key in state:
