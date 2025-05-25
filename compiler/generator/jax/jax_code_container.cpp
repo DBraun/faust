@@ -154,9 +154,9 @@ void JAXCodeContainer::produceClass()
                  "https://jax.readthedocs.io/en/latest/notebooks/"
                  "Common_Gotchas_in_JAX.html#double-64bit-precision";
         tab(n, *fOut);
-        *fOut << "from jax.config import config";
+        *fOut << "import jax";
         tab(n, *fOut);
-        *fOut << "config.update(\"jax_enable_x64\", True)";
+        *fOut << "jax.config.update(\"jax_enable_x64\", True)";
         tab(n, *fOut);
         *fOut << "FAUSTFLOAT = jnp.float64";
         tab(n, *fOut);

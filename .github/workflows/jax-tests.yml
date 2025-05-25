@@ -1,0 +1,70 @@
+name: JAX Tests
+
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches: [ master-dev ]
+
+jobs:
+  test-jax:
+    # Uncomment the line below to restrict to grame-cncm repository only
+    # if: github.repository_owner == 'grame-cncm' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+    
+    steps:
+    - uses: actions/checkout@v3
+    - name: Checkout submodules
+      run: git submodule update --init --recursive
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y build-essential cmake pkg-config
+
+    - name: Build Faust with JAX backend
+      run: |
+        cd build
+        rm -rf faustdir
+        mkdir faustdir && cd faustdir
+        cmake -C ../backends/regular.cmake -C ../targets/regular.cmake \
+              -DCMAKE_BUILD_TYPE=Release -DINCLUDE_HTTP=OFF -DINCLUDE_OSC=OFF ..
+        make -j$(nproc)
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        cd tests/impulse-tests
+        pip install -r requirements.txt
+        # Install JAX ecosystem
+        pip install jax-ai-stack
+
+    - name: Build test tools
+      run: |
+        cd tests/impulse-tests
+        make filesCompare
+
+    - name: Run JAX tests
+      run: |
+        cd tests/impulse-tests
+        make jax
+
+    - name: Test JAX code generation examples
+      run: |
+        # Test basic oscillator
+        ./build/bin/faust -lang jax -I libraries examples/generator/osc.dsp > /tmp/test_osc.py
+        python -c "import sys; sys.path.insert(0, '/tmp'); import test_osc; print('Oscillator JAX module imported successfully')"
+        
+        # Test filter
+        ./build/bin/faust -lang jax -I libraries examples/filtering/moogLadder.dsp > /tmp/test_filter.py
+        python -c "import sys; sys.path.insert(0, '/tmp'); import test_filter; print('Filter JAX module imported successfully')"

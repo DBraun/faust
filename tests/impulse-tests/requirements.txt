@@ -2,3 +2,8 @@ librosa
 pytest
 scipy
 numpy
+
+# For JAX backend tests, also install:
+# pip install jax-ai-stack
+# or minimally:
+# pip install jax jaxlib flax
