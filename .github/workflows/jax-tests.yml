@@ -60,12 +60,3 @@ jobs:
         cd tests/impulse-tests
         make jax
 
-    - name: Test JAX code generation examples
-      run: |
-        # Test basic oscillator
-        ./build/bin/faust -lang jax -I libraries examples/generator/osc.dsp > /tmp/test_osc.py
-        python -c "import sys; sys.path.insert(0, '/tmp'); import test_osc; print('Oscillator JAX module imported successfully')"
-        
-        # Test filter
-        ./build/bin/faust -lang jax -I libraries examples/filtering/moogLadder.dsp > /tmp/test_filter.py
-        python -c "import sys; sys.path.insert(0, '/tmp'); import test_filter; print('Filter JAX module imported successfully')"

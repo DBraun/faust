@@ -55,7 +55,7 @@ key = random.PRNGKey(0)
 
 # Create input (channels x samples)
 n_samples = 48000  # 1 second
-input_audio = jnp.zeros((model.getNumInputs(), n_samples))
+input_audio = jnp.zeros((model.num_inputs, n_samples))
 input_audio = input_audio.at[:, 0].set(1.0)  # impulse
 
 # Initialize and run the model
@@ -177,7 +177,8 @@ The JAX backend generates:
      - `T`: Number of samples to process (used when `x is None`)
    - `initialize()` method for state initialization
    - Static `tick()` method for DSP computation
-   - `getNumInputs()` and `getNumOutputs()` methods
+   - `num_inputs` and `num_outputs` properties (Pythonic style)
+   - `getNumInputs()` and `getNumOutputs()` methods (for backward compatibility)
    - `getJSON()` method returning DSP metadata
 
 2. Efficient JAX operations using `jnp` (JAX numpy)

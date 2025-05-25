@@ -305,6 +305,42 @@ void JAXCodeContainer::generateSR()
         IB::genStoreStructVar("fSampleRate", IB::genLoadFunArgsVar("self.sample_rate")));
 }
 
+void JAXCodeContainer::produceInfoFunctions(int tabs, const string& classname, const string& obj,
+                                           bool ismethod, FunTyped::FunAttribute funtype,
+                                           TextInstVisitor* producer, const string& in_fun,
+                                           const string& out_fun)
+{
+    // Generate as properties instead of methods for JAX/Flax
+    tab(tabs, *fOut);
+    *fOut << "@property";
+    tab(tabs, *fOut);
+    *fOut << "def num_inputs(self):";
+    tab(tabs + 1, *fOut);
+    *fOut << "return " << fNumInputs;
+    tab(tabs, *fOut);
+    
+    tab(tabs, *fOut);
+    *fOut << "@property";
+    tab(tabs, *fOut);
+    *fOut << "def num_outputs(self):";
+    tab(tabs + 1, *fOut);
+    *fOut << "return " << fNumOutputs;
+    tab(tabs, *fOut);
+    
+    // Keep the old methods for backward compatibility
+    tab(tabs, *fOut);
+    *fOut << "def getNumInputs(self):";
+    tab(tabs + 1, *fOut);
+    *fOut << "return self.num_inputs";
+    tab(tabs, *fOut);
+    
+    tab(tabs, *fOut);
+    *fOut << "def getNumOutputs(self):";
+    tab(tabs + 1, *fOut);
+    *fOut << "return self.num_outputs";
+    tab(tabs, *fOut);
+}
+
 // Scalar
 JAXScalarCodeContainer::JAXScalarCodeContainer(const string& name, int numInputs, int numOutputs,
                                                std::ostream* out, int sub_container_type)
