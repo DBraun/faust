@@ -65,8 +65,8 @@ You should run `make tools` before first run of `tests.sh`.
 - `faust` must be available from the `../../build/bin` folder. It must be compiled with the JAX backend
 - install the python requirements: `pip install -r requirements.txt`
 - install [JAX](https://jax.readthedocs.io/en/latest/) and [Flax](https://flax.readthedocs.io/en/latest/):
-  - Preferred: `pip install jax-ai-stack` (includes JAX, Flax, and other useful libraries)
-  - Minimal: `pip install jax jaxlib flax`
+  - For new environments: `pip install jax-ai-stack` (includes JAX, Flax, and other useful libraries with pinned versions)
+  - For CI/existing environments: `pip install --upgrade jax jaxlib flax` (installs latest versions)
 
 ### TODO
 

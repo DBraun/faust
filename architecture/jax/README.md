@@ -13,16 +13,17 @@ The JAX backend allows Faust to generate Python code that uses JAX and Flax for 
 
 JAX and its ecosystem can be installed in two ways:
 
-**Recommended - [JAX AI Stack](https://github.com/jax-ml/jax-ai-stack):**
+**Option 1 - [JAX AI Stack](https://github.com/jax-ml/jax-ai-stack) (for new environments):**
 ```bash
 pip install jax-ai-stack
 ```
-This installs JAX, Flax, Optax, and other useful libraries for machine learning applications.
+This installs JAX, Flax, Optax, and other useful libraries with pinned compatible versions.
 
-**Minimal Installation:**
+**Option 2 - Minimal Installation (recommended for CI/existing environments):**
 ```bash
-pip install jax jaxlib flax
+pip install --upgrade jax jaxlib flax
 ```
+This installs the latest versions of core dependencies.
 
 For GPU support, see the [JAX installation guide](https://github.com/google/jax#installation).
 

@@ -46,8 +46,9 @@ jobs:
         python -m pip install --upgrade pip
         cd tests/impulse-tests
         pip install -r requirements.txt
-        # Install JAX ecosystem
-        pip install jax-ai-stack
+        # Install JAX and Flax separately to avoid version conflicts
+        pip install --upgrade jax jaxlib
+        pip install --upgrade flax
 
     - name: Build test tools
       run: |
