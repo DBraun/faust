@@ -210,7 +210,7 @@ void JAXCodeContainer::produceClass()
         tab(n + 2, *fOut);
         tab(n + 2, *fOut);
         *fOut << "# global declarations:";
-        JAXInitFieldsVisitor initializer(fOut, n + 2);
+        JAXInitFieldsVisitor initializer(fOut, n + 2, &(static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fNoiseVars));
         generateDeclarations(&initializer);
         // Generate global variables initialisation
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
@@ -277,9 +277,7 @@ void JAXCodeContainer::generateCompute(int n)
 {
     // Generates declaration
     tab(n, *fOut);
-    *fOut << "@staticmethod";
-    tab(n, *fOut);
-    *fOut << "def tick(state: dict, inputs: jnp.array):";
+    *fOut << "def tick(self, state: dict, inputs: jnp.array):";
     tab(n + 1, *fOut);
 
     tab(n + 1, *fOut);
