@@ -1,6 +1,6 @@
 # ************************************************************************
 # FAUST Architecture File
-# Copyright (C) 2022 GRAME, Centre National de Creation Musicale
+# Copyright (C) 2025 GRAME, Centre National de Creation Musicale
 # ---------------------------------------------------------------------
 
 # This is sample code. This file is provided as an example of minimal
@@ -15,31 +15,36 @@
 # ************************************************************************
 
 import json
-import re
 import dataclasses
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
-from typing import List
-
 import numpy as np
-import librosa
 import jax
 import jax.numpy as jnp
+from jax import random
 from flax import linen as nn
 
-def remainder(x, y):
-	a = jnp.remainder(x, y)
-	return a - y*((a > y/2).astype(jnp.int32))
+try:
+	import librosa
+except ImportError:
+	print("Warning: librosa not installed. Soundfile loading will return dummy data.")
+	print("Install with: pip install librosa")
+	librosa = None
 
 # Generated code
 <<includeIntrinsic>>
 <<includeclass>>
 	
 	def load_soundfile(self, filepath: str):
+		if librosa is None:
+			return np.zeros((1, 1024)), self.sample_rate
+		
 		# soundfile_dirs should always include at least "".
 		soundfile_dirs = [""] + list(self.soundfile_dirs)
 		# Create a list of potential filepaths to check
 		potential_paths = [Path(filepath)] if Path(filepath).is_absolute() else [Path(d) / filepath for d in soundfile_dirs]
-
+		
 		# Loop through potential paths and try to load the audio file
 		for full_path in potential_paths:
 			try:
@@ -54,7 +59,7 @@ def remainder(x, y):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, state, zone: str, ui_path: List[str], label: str, url: str, x):
+	def add_soundfile(self, state, zone: str, ui_path: list[str], label: str, url: str, x):
 		# example url: {'tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -78,15 +83,18 @@ def remainder(x, y):
 			label = "/".join(ui_path+[label])
 		self.sow('intermediates', label, fBuffers)
 		state[zone] = {'fLength': fLength, 'fOffset': fOffset, 'fBuffers': fBuffers, 'fSR': fSR}
-
-	def add_button(self, state, zone: str, ui_path: List[str], label: str):
+	
+	def add_button(self, state, zone: str, ui_path: list[str], label: str):
 		label = "/".join(ui_path+[label])
 		param = self.param("_"+label, nn.initializers.constant(0.), ())
 		param = jnp.where(param>0., 1., 0.)
 		self.sow('intermediates', label, param)
 		state[zone] = param
 	
-	def add_nentry(self, state, zone: str, ui_path: List[str], label: str, init: float, a_min: float, a_max: float, step_size: float, scale_mode='linear'):
+	def add_checkbox(self, state, zone: str, ui_path: list[str], label: str):
+		self.add_button(state, zone, ui_path, label)
+	
+	def add_nentry(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, step_size: float, scale_mode='linear'):
 		label = "/".join(ui_path+[label])
 		num_steps = int(round((a_max-a_min)/step_size))+1
 		init_unit = int(round(init-a_min)/step_size)
@@ -98,7 +106,7 @@ def remainder(x, y):
 		self.sow('intermediates', label, param)
 		state[zone] = param
 	
-	def add_slider(self, state, zone: str, ui_path: List[str], label: str, init: float, a_min: float, a_max: float, scale_mode='linear'):
+	def add_slider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode='linear'):
 		label = "/".join(ui_path+[label])
 		init, a_min, a_max = float(init), float(a_min), float(a_max)
 		if scale_mode == 'linear':
@@ -126,18 +134,39 @@ def remainder(x, y):
 			raise ValueError(f"Unknown scale '{scale_mode}'.")
 		self.sow('intermediates', label, param)
 		state[zone] = param
-		
+	
+	def add_hslider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, step_size: float):
+		self.add_slider(state, zone, ui_path, label, init, a_min, a_max, 'linear')
+	
+	def add_vslider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, step_size: float):
+		self.add_slider(state, zone, ui_path, label, init, a_min, a_max, 'linear')
+	
+	def add_hbargraph(self, state, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+		pass
+	
+	def add_vbargraph(self, state, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+		pass
+	
 	@nn.compact
 	def __call__(self, x, T: int) -> jnp.array:
+		# Handle generators (no input case)
+		if x is None or (hasattr(x, 'shape') and x.shape[0] == 0):
+			x = jnp.zeros((self.num_inputs, T))
+		
 		state = self.initialize(x, T)
 		state = self.build_interface(state, x, T)
 		# convert numpy array to jax numpy array
 		state = jax.tree.map(jnp.array, state)
-		return jnp.transpose(jax.lax.scan(self.tick, state, jnp.transpose(x, axes=(1, 0)))[1], axes=(1,0))
+
+		def tick(module, carry, *xs):
+			return module.tick(carry, *xs)
+
+		scan_fn = nn.scan(tick, variable_broadcast="params", split_rngs={'rng_stream': True}, length=T)
+		_, outputs = scan_fn(self, state, jnp.transpose(x, axes=(1, 0)))
+		return jnp.transpose(outputs, axes=(1,0))
 
 
 class SubClass(mydsp):
-
 	"""
 	We need to subclass for two reasons:
 	* We re-implement load_soundfile so that we can pretend an audio file exists.
@@ -154,18 +183,16 @@ class SubClass(mydsp):
 		state = self.initialize(x, T)
 		state = self.build_interface(state, x, T)
 		# convert numpy array to jax numpy array
-		state = jax.tree.map(jnp.array, state)
-		
+		state = jax.tree_map(jnp.array, state)
+
 		# impulse all the buttons
 		for key in state:
 			if key.startswith('fButton'):
 				state[key] = 1.
 
 		state['COUNTER'] = 64
-
 		def tick2(state: dict, inputs: jnp.array):
 			state, out = self.tick(state, inputs)
-
 			state['COUNTER'] -= 1
 
 			# zero all the buttons
@@ -178,7 +205,9 @@ class SubClass(mydsp):
 		x = jnp.transpose(x, axes=(1, 0))
 		state, y = jax.lax.scan(tick2, state, x)
 		y = jnp.transpose(y, axes=(1, 0))
+
 		return y
+
 
 def test(args, N_SAMPLES, OFFSET, print_header=True):
 
@@ -194,7 +223,7 @@ def test(args, N_SAMPLES, OFFSET, print_header=True):
 
 	key = random.PRNGKey(0)
 
-	N_CHANNELS = model.getNumInputs()
+	N_CHANNELS = model.num_inputs
 
 	if args.random:
 		input_audio = -1.+2.*random.uniform(key, shape=(N_CHANNELS, N_SAMPLES), dtype=FAUSTFLOAT)
@@ -202,11 +231,11 @@ def test(args, N_SAMPLES, OFFSET, print_header=True):
 		input_audio = jnp.zeros((N_CHANNELS, N_SAMPLES), dtype=FAUSTFLOAT)
 		input_audio = input_audio.at[:,0].set(1.)
 
-	variables = model.init({'params': key}, input_audio, N_SAMPLES)  
-	y, mod_vars = model.apply(variables, input_audio, N_SAMPLES, mutable='intermediates')
+	variables = model.init({'params': key, "rng_stream": key}, input_audio, N_SAMPLES)  
+	y, mod_vars = model.apply(variables, input_audio, N_SAMPLES, mutable='intermediates', rngs={"rng_stream": key})
 
 	assert y.ndim == 2
-	assert y.shape[0] == model.getNumOutputs()
+	assert y.shape[0] == model.num_outputs
 	assert y.shape[1] == input_audio.shape[1]
 	assert y.shape[1] == N_SAMPLES
 
@@ -218,9 +247,9 @@ def test(args, N_SAMPLES, OFFSET, print_header=True):
 	
 	# print the header
 	if print_header:
-		print(f"number_of_inputs  :   {model.getNumInputs()}")
-		print(f"number_of_outputs :   {model.getNumOutputs()}")
-		print(f"number_of_frames  :   {N_SAMPLES*4}")
+		print(f"number_of_inputs  : {model.num_inputs}")
+		print(f"number_of_outputs : {model.num_outputs}")
+		print(f"number_of_frames  : {N_SAMPLES*4}")
 
 	# print the samples
 	for i, frame in enumerate(output_audio):

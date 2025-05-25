@@ -37,6 +37,21 @@ dspfiles := $(filter-out dsp/bells.dsp,$(dspfiles))
 # the state dictionary prefix after being assigned from state["fSoundfile0"]
 dspfiles := $(filter-out dsp/sound.dsp,$(dspfiles))
 
+# ignore noise files because we use jax.random.PRNG instead of a linear congruential generator (LCG) method
+dspfiles := $(filter-out dsp/noise*.dsp,$(dspfiles))
+
+# todo: also ignore files which use various noise functions.
+dspfiles := $(filter-out dsp/karplus.dsp,$(dspfiles))
+dspfiles := $(filter-out dsp/karplus32.dsp,$(dspfiles))
+dspfiles := $(filter-out dsp/grain3.dsp,$(dspfiles))
+dspfiles := $(filter-out dsp/harpe.dsp,$(dspfiles))
+dspfiles := $(filter-out dsp/echo_bug.dsp,$(dspfiles))
+dspfiles := $(filter-out dsp/combo_bug_exp.dsp,$(dspfiles))
+dspfiles := $(filter-out dsp/table.dsp,$(dspfiles))
+dspfiles := $(filter-out dsp/tester.dsp,$(dspfiles))
+dspfiles := $(filter-out dsp/tester2.dsp,$(dspfiles))
+dspfiles := $(filter-out dsp/reverb_designer.dsp,$(dspfiles))
+
 listfiles = $(dspfiles:dsp/%.dsp=ir/$1/%.ir) 
 
 SRCDIR := tools

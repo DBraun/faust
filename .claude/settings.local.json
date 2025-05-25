@@ -7,7 +7,9 @@
       "Bash(cat:*)",
       "Bash(python3:*)",
       "Bash(find:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(g++:*)",
+      "Bash(../../build/bin/faust:*)"
     ],
     "deny": []
   }

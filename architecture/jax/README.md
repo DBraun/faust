@@ -254,8 +254,7 @@ The JAX backend generates:
      - `T`: Number of samples to process (used when `x is None`)
    - `initialize()` method for state initialization
    - Static `tick()` method for DSP computation
-   - `num_inputs` and `num_outputs` properties (Pythonic style)
-   - `getNumInputs()` and `getNumOutputs()` methods (for backward compatibility)
+   - `num_inputs` and `num_outputs` properties
    - `getJSON()` method returning DSP metadata
 
 2. Efficient JAX operations using `jnp` (JAX numpy)
@@ -263,7 +262,7 @@ The JAX backend generates:
 3. Support for both single and double precision (controlled by `-single` or `-double` flags)
 
 4. Automatic handling of generators vs processors:
-   - When `getNumInputs() == 0`, the module works as a generator
+   - When `.num_inputs == 0`, the module works as a generator
    - The module creates zero inputs internally when needed
    - `T` parameter determines output length for generators
 
@@ -327,6 +326,8 @@ Run the JAX backend tests:
 cd tests/impulse-tests
 make jax
 ```
+
+There are several todo items marked in `tests/impulse-tests/Make.jax`.
 
 ## Polyphony Support
 
