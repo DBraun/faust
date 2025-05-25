@@ -194,6 +194,7 @@ jobs:
         export LLVM_LD_FLAGS="-L$LLVM_LIB_DIR -Wl,-search_paths_first -Wl,-headerpad_max_install_names"
         export LLVM="$LLVM_LD_FLAGS $LLVM_LIBS"
 
+        export LLVM_PACKAGE_VERSION=${{env.LLVM_PACKAGE_VERSION}}
         export FAUSTLIVE=$PWD/faustlive
         export BUILD_HTTP_STATIC=ON
         export USE_STATIC_SNDFILE=1

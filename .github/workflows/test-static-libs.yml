@@ -105,6 +105,8 @@ jobs:
         export LLVM_LD_FLAGS="-L$LLVM_LIB_DIR -Wl,-search_paths_first -Wl,-headerpad_max_install_names"
         export LLVM="$LLVM_LD_FLAGS $LLVM_LIBS"
 
+        # Set LLVM version for cmajor-lang/llvm (version 18.1.8)
+        export LLVM_PACKAGE_VERSION=18.1.8
         export BUILD_HTTP_STATIC=OFF
         export INCLUDE_LLVM=ON
         export USE_LLVM_CONFIG=off
