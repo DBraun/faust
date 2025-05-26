@@ -1,4 +1,4 @@
-FROM quay.io/pypa/manylinux2014_x86_64
+FROM quay.io/pypa/manylinux_2_28_x86_64
 
 RUN mkdir /faust
 WORKDIR /faust
@@ -6,6 +6,7 @@ COPY . /faust
 
 # need ncurses-devel for `tinfo` -ltinfo
 RUN yum install -y libxml2-devel ncurses-devel libmicrohttpd-devel git cmake pkgconfig
+RUN yum update -y cmake
 
 # build ncurses because we need libncurses.a in `Make.llvm.static`,
 # and the yum package `ncurses-devel` may not have it
@@ -15,21 +16,22 @@ RUN ./configure --prefix=/usr/local/ncurses/6_4 --with-shared --with-pkg-config-
 RUN make && make install
 
 WORKDIR /faust
-# Set up LLVM - prefer pre-built, fallback to system
+# Check if pre-built LLVM exists, otherwise use system packages
 RUN if [ -d "/faust/llvm" ]; then \
         echo "Using pre-built LLVM"; \
         chmod u+x /faust/llvm/bin/llvm-config; \
+        export LLVM_CONFIG="/faust/llvm/bin/llvm-config"; \
     else \
-        echo "Pre-built LLVM not found, installing system LLVM (manylinux2014 compatible)"; \
+        echo "No pre-built LLVM found, installing system LLVM"; \
         yum install -y llvm-devel; \
-    fi
+        export LLVM_CONFIG="llvm-config"; \
+    fi && \
+    echo "LLVM_CONFIG=$LLVM_CONFIG" > /tmp/llvm_config.env
 
 WORKDIR /faust/build
-RUN if [ -d "/faust/llvm" ]; then \
-        LLVM_CONFIG="/faust/llvm/bin/llvm-config"; \
-    else \
-        LLVM_CONFIG="llvm-config"; \
-    fi && \
+RUN source /tmp/llvm_config.env && \
+    echo "Using LLVM_CONFIG: $LLVM_CONFIG" && \
+    $LLVM_CONFIG --version && \
     cmake -C ./backends/all.cmake . -Bbuild \
         -DCMAKE_PREFIX_PATH="/usr/local/ncurses/6_4/lib/pkgconfig" \
         -DCMAKE_BUILD_TYPE=Release \
@@ -38,7 +40,7 @@ RUN if [ -d "/faust/llvm" ]; then \
         -DINCLUDE_STATIC=ON \
         -DINCLUDE_LLVM=ON \
         -DUSE_LLVM_CONFIG=ON \
-        -DLLVM_CONFIG=$LLVM_CONFIG
+        -DLLVM_CONFIG="$LLVM_CONFIG"
 RUN cmake --build build --config Release
 
 WORKDIR /faust/build/lib

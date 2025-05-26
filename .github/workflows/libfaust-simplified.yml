@@ -50,11 +50,15 @@ jobs:
     - name: Download LLVM
       run: |
         # Try to download pre-built LLVM for manylinux compatibility
-        # If it doesn't exist, the Docker build will handle LLVM compilation
-        curl -L ${{ matrix.llvm-url }} -o llvm.zip || echo "Pre-built LLVM not available, will build in container"
-        if [ -f llvm.zip ]; then
+        echo "Attempting to download LLVM from: ${{ matrix.llvm-url }}"
+        if curl -L ${{ matrix.llvm-url }} -o llvm.zip; then
+          echo "LLVM downloaded successfully"
           unzip -o llvm.zip
           rm llvm.zip
+          ls -la llvm/ || echo "No llvm directory found after extraction"
+        else
+          echo "Pre-built LLVM not available for x86_64, continuing without it"
+          echo "The Docker build will need to use system LLVM or handle this case"
         fi
 
     - name: Set up Docker Buildx
