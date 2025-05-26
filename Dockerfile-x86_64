@@ -1,4 +1,4 @@
-FROM quay.io/pypa/manylinux_2_28_x86_64
+FROM quay.io/pypa/manylinux2014_x86_64
 
 RUN mkdir /faust
 WORKDIR /faust
@@ -16,11 +16,19 @@ RUN ./configure --prefix=/usr/local/ncurses/6_4 --with-shared --with-pkg-config-
 RUN make && make install
 
 WORKDIR /faust
-# Check if pre-built LLVM exists, otherwise use system packages
+# Test if pre-built LLVM is compatible with this container, otherwise use system LLVM
 RUN if [ -d "/faust/llvm" ]; then \
-        echo "Using pre-built LLVM"; \
+        echo "Testing pre-built LLVM compatibility..."; \
         chmod u+x /faust/llvm/bin/llvm-config; \
-        export LLVM_CONFIG="/faust/llvm/bin/llvm-config"; \
+        if /faust/llvm/bin/llvm-config --version >/dev/null 2>&1; then \
+            echo "Pre-built LLVM is compatible"; \
+            export LLVM_CONFIG="/faust/llvm/bin/llvm-config"; \
+        else \
+            echo "Pre-built LLVM is incompatible with this container (glibc version mismatch)"; \
+            echo "Installing system LLVM instead"; \
+            yum install -y llvm-devel; \
+            export LLVM_CONFIG="llvm-config"; \
+        fi; \
     else \
         echo "No pre-built LLVM found, installing system LLVM"; \
         yum install -y llvm-devel; \
