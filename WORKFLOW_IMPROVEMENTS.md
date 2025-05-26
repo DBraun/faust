@@ -25,12 +25,12 @@ GitHub Actions doesn't provide native ARM64 Ubuntu runners. The Docker/QEMU appr
 - name: Build and push (Docker)
 ```
 
-**Ubuntu x86_64 (unchanged):**
+**Ubuntu x86_64 (Fixed for manylinux2014):**
 ```yaml
-# Already simple, no changes needed
-- name: Install dependencies  
-- name: Install LLVM (apt)
-- name: Build libfaust (cmake)
+# CRITICAL FIX: Changed to Docker approach for manylinux2014 compatibility
+- name: Download LLVM (pre-built for compatibility)
+- name: Set up Docker Buildx
+- name: Build inside manylinux2014 container
 ```
 
 **Before (macOS LLVM):**
@@ -66,8 +66,8 @@ Added documentation for new workflows and testing approach.
 ### Immediate Impact
 1. **macOS ARM64 native builds**: No more complex universal binary slimming (~100 lines simplified)
 2. **Streamlined macOS LLVM**: Uses proven cmajor-lang/llvm but simplified extraction
-3. **Better maintainability**: Reduces complexity while keeping working solutions
-4. **Ubuntu builds preserved**: Kept Docker/QEMU approach for manylinux2014 compatibility
+3. **Ubuntu manylinux2014 compatibility**: Both x86_64 and aarch64 use Docker approach for proper glibc/ABI compatibility
+4. **Better maintainability**: Consistent Docker approach for Ubuntu, simplified macOS
 
 ### For Python Library Users (like DawDreamer)
 1. **manylinux2014 compatibility**: Ubuntu builds preserve proper glibc/ABI compatibility
