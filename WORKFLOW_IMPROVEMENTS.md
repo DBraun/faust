@@ -111,7 +111,13 @@ Added documentation for new workflows and testing approach.
 - **manylinux_2_28**: Only 20% of systems can't support, based on RHEL 8 (glibc 2.28)
 - **DawDreamer compatibility**: Uses cibuildwheel which commonly targets manylinux2014
 
-**Decision:** Use manylinux2014 for broadest compatibility with Python ecosystem.
+**Decision:** Use manylinux_2_28 for LLVM 17 compatibility.
+
+**Trade-off Analysis:**
+- manylinux2014 + LLVM 3.4: Maximum compatibility (70% systems) but ancient LLVM with missing features
+- manylinux_2_28 + LLVM 17: Slightly less compatibility (80% systems) but modern LLVM with full Faust support
+
+**Final choice:** manylinux_2_28 because Faust requires modern LLVM features that don't exist in LLVM 3.4.
 
 ## Benefits
 

@@ -58,18 +58,19 @@ RUN if [ -d "/faust/llvm" ]; then \
 
 ## manylinux Standards
 
-### manylinux2014 (Used for x86_64)
-- **Base**: CentOS 7
-- **glibc**: 2.17
-- **Compatibility**: ~70% of Linux systems
-- **Python wheels**: Widely supported by cibuildwheel
-- **Use case**: Maximum compatibility for projects like DawDreamer
-
-### manylinux_2_28 (Used for aarch64)
+### manylinux_2_28 (Used for x86_64 and aarch64)
 - **Base**: RHEL 8  
 - **glibc**: 2.28
 - **Compatibility**: ~80% of Linux systems (20% can't support)
-- **Trade-off**: Newer features vs. compatibility
+- **LLVM support**: Compatible with LLVM 17+ (requires glibc 2.28+)
+- **Trade-off**: Modern LLVM features vs. maximum compatibility
+
+### manylinux2014 (Previously considered)
+- **Base**: CentOS 7
+- **glibc**: 2.17
+- **Compatibility**: ~70% of Linux systems
+- **LLVM limitation**: Only supports LLVM 3.4, missing modern Faust requirements
+- **Why not used**: Faust's LLVM backend requires features not available in LLVM 3.4
 
 ## Build Process
 
