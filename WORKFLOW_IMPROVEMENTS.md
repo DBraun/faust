@@ -117,7 +117,13 @@ Added documentation for new workflows and testing approach.
 - manylinux2014 + LLVM 3.4: Maximum compatibility (70% systems) but ancient LLVM with missing features
 - manylinux_2_28 + LLVM 17: Slightly less compatibility (80% systems) but modern LLVM with full Faust support
 
-**Final choice:** manylinux_2_28 because Faust requires modern LLVM features that don't exist in LLVM 3.4.
+**Final choice:** manylinux_2_28 with cmajor-lang/llvm static libraries.
+
+**Latest solution:** Use cmajor-lang/llvm Linux x64 build which provides:
+- **LLVM 18.1** with all modern features Faust needs
+- **GLIBC_2.15 compatibility** (works with both manylinux2014 and manylinux_2_28)
+- **Static libraries** (.a files) for reliable linking
+- **Proven compatibility** from Cmajor project's extensive testing
 
 ## Benefits
 
