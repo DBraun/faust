@@ -30,8 +30,9 @@ Faust (Functional Audio Stream) is a functional programming language for real-ti
 - `make -C tests/interp-tests` - Interpreter backend tests
 
 ### GitHub Actions Workflows
-- `libfaust.yml` - Production workflow (complex, legacy Docker/QEMU for aarch64)
-- `libfaust-simplified.yml` - Simplified workflow using native aarch64 runners
+- `libfaust.yml` - Production workflow (Docker/QEMU for Ubuntu aarch64 manylinux compatibility)
+- `libfaust-simplified.yml` - Improved workflow with simplified macOS ARM64 builds
+- `test-static-libs.yml` - Validation workflow for static library creation
 
 ## Architecture
 

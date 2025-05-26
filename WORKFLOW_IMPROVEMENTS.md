@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the simplification of the `libfaust.yml` GitHub Actions workflow to take advantage of native aarch64 macOS runners and eliminate legacy workarounds from ~3 years ago.
+This document outlines the simplification of the `libfaust.yml` GitHub Actions workflow, focusing on macOS ARM64 improvements while preserving Ubuntu manylinux2014 compatibility for Python wheel projects.
 
 ## Changes Made
 
@@ -67,13 +67,13 @@ Added documentation for new workflows and testing approach.
 1. **macOS ARM64 native builds**: No more complex universal binary slimming (~100 lines simplified)
 2. **Streamlined macOS LLVM**: Uses proven cmajor-lang/llvm but simplified extraction
 3. **Better maintainability**: Reduces complexity while keeping working solutions
-4. **Ubuntu ARM64**: Still requires Docker/QEMU (GitHub Actions limitation)
+4. **Ubuntu builds preserved**: Kept Docker/QEMU approach for manylinux2014 compatibility
 
 ### For Python Library Users (like DawDreamer)
-1. **Consistent artifacts**: Same `libfaustwithllvm.a` output with simpler build
-2. **Better ABI compatibility**: Native builds vs cross-compiled
-3. **Predictable releases**: Standard GitHub release artifacts
-4. **Faster CI**: Reduced build times for dependent projects
+1. **manylinux2014 compatibility**: Ubuntu builds preserve proper glibc/ABI compatibility
+2. **Improved macOS artifacts**: Native ARM64 builds for better performance
+3. **Predictable releases**: Standard GitHub release artifacts maintained
+4. **Faster macOS CI**: Reduced build times for macOS builds
 
 ## Preserved Functionality
 

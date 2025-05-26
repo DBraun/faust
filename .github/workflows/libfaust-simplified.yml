@@ -36,9 +36,6 @@ jobs:
             cmake-options: >-
               -DCMAKE_BUILD_TYPE=Release
               -DCMAKE_VERBOSE_MAKEFILE=ON
-          # Note: GitHub Actions doesn't provide native ARM64 Ubuntu runners
-          # ARM64 Ubuntu builds would still require Docker/QEMU emulation
-          # Removing this from simplified workflow for now
 
     runs-on: ${{ matrix.os }}
 
@@ -83,6 +80,82 @@ jobs:
       with:
         name: libfaust-${{ matrix.name }}.zip
         path: build/libfaust-${{ matrix.name }}.zip
+        if-no-files-found: error
+
+  build-ubuntu-aarch64:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu-aarch64
+            os: ubuntu-22.04
+            llvm-url: https://github.com/grame-cncm/faust/releases/download/2.59.5-llvm/llvm-17.0.6-ubuntu-aarch64.zip
+            cmake-options: >-
+              -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_VERBOSE_MAKEFILE=ON
+              
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Download LLVM
+      run: |
+        # Libfaust will need to link against LLVM.
+        # Since we're using an x86_64 GitHub actions runner, we're unable to build arm64 LLVM on-demand.
+        # To get around this, we download a compatible LLVM build that we've built in advance.
+        curl -L ${{ matrix.llvm-url }} -o llvm.zip
+        unzip -o llvm.zip
+        rm llvm.zip
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
+      with:
+        # this might remove tools that are actually needed,
+        # if set to "true" but frees about 6 GB
+        tool-cache: false
+        
+        # all of these default to true, but feel free to set to
+        # "false" if necessary for your workflow
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: true
+
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: Dockerfile-aarch64
+        tags: mylibrary-builder:latest
+        platforms: linux/arm64
+        load: true
+
+    - name: Create Container from Image
+      run: docker create --name mylib-container mylibrary-builder:latest
+
+    - name: Copy Compiled Library from Container
+      run: |
+        docker cp mylib-container:/faust/build/libfaust-${{ matrix.name }}.zip libfaust-${{ matrix.name }}.zip
+        docker rm mylib-container
+        
+    - name: Upload libfaust artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: libfaust-${{ matrix.name }}.zip
+        path: libfaust-${{ matrix.name }}.zip
         if-no-files-found: error
 
   build-macos:
@@ -296,7 +369,7 @@ jobs:
 
   create-release:
     if: ${{ inputs.create_release }} 
-    needs: [build-ubuntu, build-macos, build-windows]
+    needs: [build-ubuntu, build-ubuntu-aarch64, build-macos, build-windows]
     runs-on: ubuntu-latest
     name: "Create Release on GitHub"
     permissions:
