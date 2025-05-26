@@ -17,44 +17,49 @@ Builds libfaust for ARM64 architecture using manylinux_2_28 (RHEL 8 base, glibc 
 ## LLVM Compatibility System
 
 ### The Challenge
-Pre-built LLVM binaries from cmajor-lang/llvm are built on modern Ubuntu systems with newer glibc versions:
+Different LLVM builds have varying glibc requirements:
+
+**Previous Ubuntu build:**
 - Built on: Ubuntu 22.04 (glibc 2.35)
 - Requires: `GLIBC_2.32`, `GLIBC_2.33`, `GLIBC_2.34`, `GLIBCXX_3.4.29`
+- **Incompatible** with manylinux containers
 
-But manylinux containers use older base systems:
+**cmajor-lang/llvm Linux x64 build (SOLUTION):**
+- Built for: GNU/Linux 3.2.0 
+- Requires: `GLIBC_2.15`, `GLIBCXX_3.4.21`
+- **Compatible** with both manylinux2014 and manylinux_2_28
+
+**manylinux containers:**
 - manylinux2014: CentOS 7 (glibc 2.17, GLIBCXX_3.4.19)
 - manylinux_2_28: RHEL 8 (glibc 2.28, GLIBCXX_3.4.25)
 
 ### The Solution
-Automatic compatibility testing with graceful fallback:
+Use cmajor-lang/llvm static libraries with manual cmake configuration:
 
 ```dockerfile
-RUN if [ -d "/faust/llvm" ]; then \
-        echo "Testing pre-built LLVM compatibility..."; \
-        chmod u+x /faust/llvm/bin/llvm-config; \
-        if /faust/llvm/bin/llvm-config --version >/dev/null 2>&1; then \
-            echo "Pre-built LLVM is compatible"; \
-            LLVM_CONFIG="/faust/llvm/bin/llvm-config"; \
-        else \
-            echo "Pre-built LLVM is incompatible (glibc version mismatch)"; \
-            echo "Installing system LLVM instead"; \
-            yum install -y llvm-devel; \
-            LLVM_CONFIG="llvm-config"; \
-        fi; \
+RUN if [ -d "/faust/llvm" ] && [ -d "/faust/llvm/lib" ]; then \
+        echo "Using cmajor-lang/llvm static libraries (GLIBC_2.15 compatible)"; \
+        LLVM_DIR="/faust/llvm"; \
+        LLVM_INCLUDE_DIR="$LLVM_DIR/include"; \
+        LLVM_LIB_DIR="$LLVM_DIR/lib"; \
+        cmake ... \
+            -DUSE_LLVM_CONFIG=OFF \
+            -DLLVM_DIR="$LLVM_DIR" \
+            -DLLVM_INCLUDE_DIRS="$LLVM_INCLUDE_DIR" \
+            -DLLVM_LIBRARY_DIRS="$LLVM_LIB_DIR"; \
     else \
-        echo "No pre-built LLVM found, installing system LLVM"; \
-        yum install -y llvm-devel; \
-        LLVM_CONFIG="llvm-config"; \
-    fi && \
-    # Use LLVM_CONFIG immediately in same RUN step
-    cmake ... -DLLVM_CONFIG="$LLVM_CONFIG"
+        echo "Fallback: installing system LLVM"; \
+        yum install -y llvm-devel clang-devel && \
+        cmake ... -DUSE_LLVM_CONFIG=ON -DLLVM_CONFIG="llvm-config"; \
+    fi
 ```
 
 ### Key Features
-1. **Automatic detection**: Tests if pre-built LLVM works in the container
-2. **Graceful fallback**: Uses system LLVM if pre-built version is incompatible  
-3. **Single RUN step**: Ensures environment variables persist correctly
-4. **Clear logging**: Shows which LLVM version is being used and why
+1. **Better compatibility**: cmajor-lang/llvm requires only GLIBC_2.15 
+2. **Static libraries**: Reliable linking with .a files instead of dynamic libraries
+3. **Manual configuration**: Direct cmake setup instead of llvm-config dependency
+4. **Proven solution**: Used successfully by Cmajor project across platforms
+5. **Graceful fallback**: Uses system LLVM if cmajor build unavailable
 
 ## manylinux Standards
 
