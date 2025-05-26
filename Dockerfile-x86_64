@@ -1,4 +1,4 @@
-FROM quay.io/pypa/manylinux2014_x86_64
+FROM quay.io/pypa/manylinux_2_28_x86_64
 
 RUN mkdir /faust
 WORKDIR /faust
@@ -16,22 +16,16 @@ RUN ./configure --prefix=/usr/local/ncurses/6_4 --with-shared --with-pkg-config-
 RUN make && make install
 
 WORKDIR /faust/build
-# Test if pre-built LLVM is compatible with this container, otherwise use system LLVM
+# Use pre-built LLVM 17 which should be compatible with manylinux_2_28 (RHEL 8)
 RUN if [ -d "/faust/llvm" ]; then \
-        echo "Testing pre-built LLVM compatibility..."; \
+        echo "Using pre-built LLVM 17..."; \
         chmod u+x /faust/llvm/bin/llvm-config; \
-        if /faust/llvm/bin/llvm-config --version >/dev/null 2>&1; then \
-            echo "Pre-built LLVM is compatible"; \
-            LLVM_CONFIG="/faust/llvm/bin/llvm-config"; \
-        else \
-            echo "Pre-built LLVM is incompatible with this container (glibc version mismatch)"; \
-            echo "Installing system LLVM instead"; \
-            yum install -y llvm-devel; \
-            LLVM_CONFIG="llvm-config"; \
-        fi; \
+        LLVM_CONFIG="/faust/llvm/bin/llvm-config"; \
     else \
-        echo "No pre-built LLVM found, installing system LLVM"; \
-        yum install -y llvm-devel; \
+        echo "No pre-built LLVM found, installing newer system LLVM"; \
+        yum install -y dnf-plugins-core && \
+        yum config-manager --set-enabled powertools && \
+        yum install -y llvm-devel clang-devel; \
         LLVM_CONFIG="llvm-config"; \
     fi && \
     echo "Using LLVM_CONFIG: $LLVM_CONFIG" && \
