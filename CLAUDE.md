@@ -30,9 +30,29 @@ Faust (Functional Audio Stream) is a functional programming language for real-ti
 - `make -C tests/interp-tests` - Interpreter backend tests
 
 ### GitHub Actions Workflows
-- `libfaust.yml` - Production workflow (Docker/QEMU for Ubuntu aarch64 manylinux compatibility)
-- `libfaust-simplified.yml` - Improved workflow with simplified macOS ARM64 builds
+
+**Production Workflows:**
+- `libfaust.yml` - Legacy production workflow with Docker/QEMU complexity
+- `libfaust-simplified.yml` - **Improved workflow** with simplified macOS ARM64 builds and robust LLVM handling
 - `test-static-libs.yml` - Validation workflow for static library creation
+
+**libfaust-simplified.yml Key Improvements:**
+- **macOS ARM64**: Native builds on macOS-15 runners (no more complex universal binary workarounds)
+- **LLVM Compatibility**: Automatic fallback from pre-built LLVM to system LLVM when glibc versions mismatch
+- **manylinux2014**: Uses broadest-compatible Python wheel standard for DawDreamer integration
+- **Robust Docker builds**: Ubuntu builds use manylinux containers with automatic LLVM compatibility testing
+
+**LLVM Compatibility System:**
+The workflow handles LLVM incompatibilities between build environments:
+1. Downloads pre-built LLVM from cmajor-lang/llvm (built on Ubuntu 22.04 with glibc 2.35)
+2. Tests compatibility in manylinux2014 container (glibc 2.17)
+3. Automatically falls back to system LLVM when pre-built version requires newer glibc
+4. Ensures libfaustwithllvm.a works with DawDreamer's cibuildwheel Python wheels
+
+**Trigger Paths:**
+- Workflow file changes: `.github/workflows/libfaust-simplified.yml`
+- Build system changes: `build/**`
+- Docker changes: `Dockerfile-*`
 
 ## Architecture
 

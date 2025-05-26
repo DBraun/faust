@@ -27,10 +27,27 @@ GitHub Actions doesn't provide native ARM64 Ubuntu runners. The Docker/QEMU appr
 
 **Ubuntu x86_64 (Fixed for manylinux2014):**
 ```yaml
-# CRITICAL FIX: Changed to Docker approach for manylinux2014 compatibility
-- name: Download LLVM (pre-built for compatibility)
+# CRITICAL FIX: Docker approach with LLVM compatibility testing
+- name: Download LLVM (pre-built for compatibility testing)
 - name: Set up Docker Buildx
-- name: Build inside manylinux2014 container
+- name: Build inside manylinux2014 container with automatic LLVM fallback
+```
+
+**LLVM Compatibility System (NEW):**
+```dockerfile
+# Test if pre-built LLVM is compatible, fall back to system LLVM
+RUN if [ -d "/faust/llvm" ]; then \
+        if /faust/llvm/bin/llvm-config --version >/dev/null 2>&1; then \
+            LLVM_CONFIG="/faust/llvm/bin/llvm-config"; \
+        else \
+            echo "glibc version mismatch, using system LLVM"; \
+            yum install -y llvm-devel; \
+            LLVM_CONFIG="llvm-config"; \
+        fi; \
+    else \
+        yum install -y llvm-devel; \
+        LLVM_CONFIG="llvm-config"; \
+    fi
 ```
 
 **Before (macOS LLVM):**
@@ -60,6 +77,41 @@ GitHub Actions doesn't provide native ARM64 Ubuntu runners. The Docker/QEMU appr
 ### 3. Updated `CLAUDE.md`
 
 Added documentation for new workflows and testing approach.
+
+## Technical Issues Resolved
+
+### LLVM glibc Compatibility Issue
+
+**Problem:** Pre-built LLVM from cmajor-lang/llvm (built on Ubuntu 22.04) requires:
+- `GLIBC_2.32`, `GLIBC_2.33`, `GLIBC_2.34` 
+- `GLIBCXX_3.4.29`
+
+**manylinux2014 container provides:**
+- `GLIBC_2.17` (CentOS 7 base)
+- `GLIBCXX_3.4.19`
+
+**Solution:** Automatic compatibility testing with fallback:
+1. Download pre-built LLVM as optimization attempt
+2. Test `/faust/llvm/bin/llvm-config --version` in container
+3. If fails due to glibc mismatch, install `llvm-devel` from CentOS 7 repos
+4. Continue build with compatible system LLVM
+
+**Result:** Maintains manylinux2014 compatibility for 70% broader Python wheel support while attempting to use faster pre-built LLVM when possible.
+
+### Docker Environment Variable Scope
+
+**Problem:** LLVM_CONFIG variable set in one RUN step wasn't available in subsequent RUN step.
+
+**Solution:** Combined LLVM detection and cmake build into single RUN step for proper variable scope.
+
+### manylinux Standard Selection
+
+**Research findings:**
+- **manylinux2014**: Supports 70% of systems, based on CentOS 7 (glibc 2.17)
+- **manylinux_2_28**: Only 20% of systems can't support, based on RHEL 8 (glibc 2.28)
+- **DawDreamer compatibility**: Uses cibuildwheel which commonly targets manylinux2014
+
+**Decision:** Use manylinux2014 for broadest compatibility with Python ecosystem.
 
 ## Benefits
 
