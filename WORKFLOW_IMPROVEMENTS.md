@@ -13,25 +13,24 @@ This document outlines the simplification of the `libfaust.yml` GitHub Actions w
 - **Simplified macOS LLVM**: Uses `brew install llvm@18` instead of universal binary slimming
 - **Eliminated complexity**: Removed 50+ lines of Docker setup and 100+ lines of LLVM workarounds
 
+**Ubuntu aarch64 Status:**
+GitHub Actions doesn't provide native ARM64 Ubuntu runners. The Docker/QEMU approach remains necessary for ARM64 Ubuntu builds. However, the main simplification comes from macOS ARM64 native runners.
+
 **Before (Ubuntu aarch64):**
 ```yaml
-# Complex Docker/QEMU setup (lines 95-150)
+# Complex Docker/QEMU setup (lines 95-150) - STILL REQUIRED
 - name: Download LLVM (pre-built)
 - name: Set up QEMU 
 - name: Set up Docker Buildx
-- name: Free Disk Space
 - name: Build and push (Docker)
-- name: Create Container from Image
-- name: Copy Compiled Library from Container
 ```
 
-**After (Ubuntu aarch64):**
+**Ubuntu x86_64 (unchanged):**
 ```yaml
-# Simple native build (6 steps vs 12)
-- name: Install dependencies
-- name: Install LLVM (native apt)
-- name: Build libfaust (native cmake)
-- name: Make distribution
+# Already simple, no changes needed
+- name: Install dependencies  
+- name: Install LLVM (apt)
+- name: Build libfaust (cmake)
 ```
 
 **Before (macOS LLVM):**
@@ -65,10 +64,10 @@ Added documentation for new workflows and testing approach.
 ## Benefits
 
 ### Immediate Impact
-1. **Faster builds**: Native runners vs Docker emulation (~3-5x speedup expected)
-2. **Reduced complexity**: ~50 lines removed from Ubuntu workflow, ~50 lines simplified for macOS
-3. **Better maintainability**: Eliminates Docker/QEMU complexity while keeping proven LLVM approach
-4. **Native toolchains**: Proper aarch64 compilation without emulation
+1. **macOS ARM64 native builds**: No more complex universal binary slimming (~100 lines simplified)
+2. **Streamlined macOS LLVM**: Uses proven cmajor-lang/llvm but simplified extraction
+3. **Better maintainability**: Reduces complexity while keeping working solutions
+4. **Ubuntu ARM64**: Still requires Docker/QEMU (GitHub Actions limitation)
 
 ### For Python Library Users (like DawDreamer)
 1. **Consistent artifacts**: Same `libfaustwithllvm.a` output with simpler build

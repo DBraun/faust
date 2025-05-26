@@ -18,7 +18,7 @@ on:
 
 jobs:
   test-ubuntu-static:
-    runs-on: ubuntu-22.04-arm64
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
       with:
@@ -118,7 +118,7 @@ jobs:
 
         cd build
         make cmake BACKENDS=all.cmake TARGETS=all.cmake
-        make staticlib
+        make staticlib faust
 
     - name: Debug ncurses and LLVM setup
       run: |

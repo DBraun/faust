@@ -36,11 +36,9 @@ jobs:
             cmake-options: >-
               -DCMAKE_BUILD_TYPE=Release
               -DCMAKE_VERBOSE_MAKEFILE=ON
-          - name: ubuntu-aarch64
-            os: ubuntu-22.04-arm64
-            cmake-options: >-
-              -DCMAKE_BUILD_TYPE=Release
-              -DCMAKE_VERBOSE_MAKEFILE=ON
+          # Note: GitHub Actions doesn't provide native ARM64 Ubuntu runners
+          # ARM64 Ubuntu builds would still require Docker/QEMU emulation
+          # Removing this from simplified workflow for now
 
     runs-on: ${{ matrix.os }}
 
