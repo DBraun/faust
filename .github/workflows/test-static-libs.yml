@@ -77,6 +77,10 @@ jobs:
       with:
         submodules: true
 
+    - name: Install dependencies
+      run: |
+        brew install ncurses
+
     - name: Checkout LLVM universal binaries
       run: |
         git clone --depth 1 --filter=blob:none --sparse https://github.com/cmajor-lang/llvm.git llvm-universal
@@ -116,6 +120,14 @@ jobs:
         make cmake BACKENDS=all.cmake TARGETS=all.cmake
         make staticlib
 
+    - name: Debug ncurses and LLVM setup
+      run: |
+        echo "=== Debugging ncurses location ==="
+        find /opt/homebrew -name "libncurses.a" 2>/dev/null || echo "No libncurses.a found in /opt/homebrew"
+        find /usr -name "libncurses.a" 2>/dev/null || echo "No libncurses.a found in /usr"
+        echo "LLVM_LIB_DIR contents:"
+        ls -la $PWD/slim-llvm-libs/ | head -10
+
     - name: Verify static libraries
       run: |
         cd build
@@ -123,14 +135,25 @@ jobs:
         ls -la lib/libfaust.a
         echo "libfaust.a size: $(stat -f%z lib/libfaust.a) bytes"
         
-        # Check if Make.llvm.static creates libfaustwithllvm.a
+        # Debug Make.llvm.static before running it
         if [ -f Make.llvm.static ]; then
-          make -f Make.llvm.static
-          ls -la lib/libfaustwithllvm.a
-          echo "libfaustwithllvm.a size: $(stat -f%z lib/libfaustwithllvm.a) bytes"
+          echo "=== Make.llvm.static exists, checking ncurses path ==="
+          make -f Make.llvm.static -n | head -20 || echo "Dry run failed"
           
-          # Verify it contains LLVM symbols
-          nm lib/libfaustwithllvm.a | grep -i llvm | head -5 || echo "No LLVM symbols found"
+          echo "=== Attempting to create libfaustwithllvm.a ==="
+          make -f Make.llvm.static 2>&1 | tee make-llvm-static.log || echo "Make.llvm.static failed"
+          
+          if [ -f lib/libfaustwithllvm.a ]; then
+            ls -la lib/libfaustwithllvm.a
+            echo "libfaustwithllvm.a size: $(stat -f%z lib/libfaustwithllvm.a) bytes"
+            
+            # Verify it contains LLVM symbols
+            nm lib/libfaustwithllvm.a | grep -i llvm | head -5 || echo "No LLVM symbols found"
+          else
+            echo "libfaustwithllvm.a was not created"
+            echo "=== Make output ==="
+            cat make-llvm-static.log
+          fi
         else
           echo "Make.llvm.static not found"
         fi
