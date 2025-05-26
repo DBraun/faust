@@ -16,39 +16,42 @@ RUN ./configure --prefix=/usr/local/ncurses/6_4 --with-shared --with-pkg-config-
 RUN make && make install
 
 WORKDIR /faust/build
-# Test pre-built LLVM compatibility, fallback to system LLVM from manylinux_2_28
-RUN if [ -d "/faust/llvm" ]; then \
-        echo "Testing pre-built LLVM 17 compatibility..."; \
-        chmod u+x /faust/llvm/bin/llvm-config; \
-        if /faust/llvm/bin/llvm-config --version >/dev/null 2>&1; then \
-            echo "Pre-built LLVM 17 is compatible"; \
-            LLVM_CONFIG="/faust/llvm/bin/llvm-config"; \
-        else \
-            echo "Pre-built LLVM 17 incompatible (requires glibc 2.32+)"; \
-            echo "Installing system LLVM from manylinux_2_28 (RHEL 8)"; \
-            yum install -y dnf-plugins-core && \
-            yum config-manager --set-enabled powertools && \
-            yum install -y llvm-devel clang-devel && \
-            LLVM_CONFIG="llvm-config"; \
-        fi; \
+# Use cmajor-lang/llvm static libraries (compatible with GLIBC_2.15)
+RUN if [ -d "/faust/llvm" ] && [ -d "/faust/llvm/lib" ]; then \
+        echo "Using cmajor-lang/llvm static libraries (GLIBC_2.15 compatible)"; \
+        # Set up LLVM paths for manual configuration \
+        LLVM_DIR="/faust/llvm"; \
+        LLVM_INCLUDE_DIR="$LLVM_DIR/include"; \
+        LLVM_LIB_DIR="$LLVM_DIR/lib"; \
+        echo "LLVM_DIR: $LLVM_DIR"; \
+        echo "LLVM libraries available: $(ls $LLVM_LIB_DIR/libLLVM*.a | wc -l)"; \
+        # Use cmake with manual LLVM configuration \
+        cmake -C ./backends/all.cmake . -Bbuild \
+            -DCMAKE_PREFIX_PATH="/usr/local/ncurses/6_4/lib/pkgconfig" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DINCLUDE_DYNAMIC=ON \
+            -DINCLUDE_STATIC=ON \
+            -DINCLUDE_LLVM=ON \
+            -DUSE_LLVM_CONFIG=OFF \
+            -DLLVM_DIR="$LLVM_DIR" \
+            -DLLVM_INCLUDE_DIRS="$LLVM_INCLUDE_DIR" \
+            -DLLVM_LIBRARY_DIRS="$LLVM_LIB_DIR"; \
     else \
-        echo "No pre-built LLVM found, installing system LLVM"; \
+        echo "No compatible LLVM found, installing system LLVM"; \
         yum install -y dnf-plugins-core && \
         yum config-manager --set-enabled powertools && \
         yum install -y llvm-devel clang-devel && \
-        LLVM_CONFIG="llvm-config"; \
-    fi && \
-    echo "Using LLVM_CONFIG: $LLVM_CONFIG" && \
-    $LLVM_CONFIG --version && \
-    cmake -C ./backends/all.cmake . -Bbuild \
-        -DCMAKE_PREFIX_PATH="/usr/local/ncurses/6_4/lib/pkgconfig" \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_VERBOSE_MAKEFILE=ON \
-        -DINCLUDE_DYNAMIC=ON \
-        -DINCLUDE_STATIC=ON \
-        -DINCLUDE_LLVM=ON \
-        -DUSE_LLVM_CONFIG=ON \
-        -DLLVM_CONFIG="$LLVM_CONFIG"
+        cmake -C ./backends/all.cmake . -Bbuild \
+            -DCMAKE_PREFIX_PATH="/usr/local/ncurses/6_4/lib/pkgconfig" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DINCLUDE_DYNAMIC=ON \
+            -DINCLUDE_STATIC=ON \
+            -DINCLUDE_LLVM=ON \
+            -DUSE_LLVM_CONFIG=ON \
+            -DLLVM_CONFIG="llvm-config"; \
+    fi
 RUN cmake --build build --config Release
 
 WORKDIR /faust/build/lib

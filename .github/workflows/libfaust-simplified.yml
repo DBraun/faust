@@ -48,19 +48,17 @@ jobs:
       with:
         submodules: true
 
-    - name: Download LLVM
+    - name: Download LLVM  
       run: |
-        # Try to download pre-built LLVM for manylinux compatibility
-        echo "Attempting to download LLVM from: ${{ matrix.llvm-url }}"
-        if curl -L ${{ matrix.llvm-url }} -o llvm.zip; then
-          echo "LLVM downloaded successfully"
-          unzip -o llvm.zip
-          rm llvm.zip
-          ls -la llvm/ || echo "No llvm directory found after extraction"
-        else
-          echo "Pre-built LLVM not available for x86_64, continuing without it"
-          echo "The Docker build will need to use system LLVM or handle this case"
-        fi
+        # Download cmajor-lang/llvm which has better compatibility (GLIBC_2.15)
+        echo "Downloading cmajor-lang/llvm for better manylinux compatibility..."
+        curl -L https://github.com/cmajor-lang/llvm/archive/refs/heads/main.zip -o llvm-cmajor.zip
+        unzip -o llvm-cmajor.zip
+        # Extract the Linux x64 build which requires only GLIBC_2.15
+        mkdir -p llvm
+        cp -r llvm-main/release/linux/x64/* llvm/
+        rm -rf llvm-main llvm-cmajor.zip
+        ls -la llvm/
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
