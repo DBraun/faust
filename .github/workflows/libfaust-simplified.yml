@@ -48,17 +48,11 @@ jobs:
       with:
         submodules: true
 
-    - name: Download LLVM  
+    - name: Skip LLVM download (using system LLVM)
       run: |
-        # Download cmajor-lang/llvm which has better compatibility (GLIBC_2.15)
-        echo "Downloading cmajor-lang/llvm for better manylinux compatibility..."
-        curl -L https://github.com/cmajor-lang/llvm/archive/refs/heads/main.zip -o llvm-cmajor.zip
-        unzip -o llvm-cmajor.zip
-        # Extract the Linux x64 build which requires only GLIBC_2.15
-        mkdir -p llvm
-        cp -r llvm-main/release/linux/x64/* llvm/
-        rm -rf llvm-main llvm-cmajor.zip
-        ls -la llvm/
+        # Use system LLVM from manylinux_2_28 which provides modern LLVM
+        echo "Will use system LLVM from manylinux_2_28 container"
+        echo "This provides a modern LLVM version compatible with Faust requirements"
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
