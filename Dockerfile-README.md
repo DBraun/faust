@@ -17,49 +17,42 @@ Builds libfaust for ARM64 architecture using manylinux_2_28 (RHEL 8 base, glibc 
 ## LLVM Compatibility System
 
 ### The Challenge
-Different LLVM builds have varying glibc requirements:
+Different LLVM sources have varying compatibility and complexity:
 
-**Previous Ubuntu build:**
+**Previous Ubuntu build issues:**
 - Built on: Ubuntu 22.04 (glibc 2.35)
 - Requires: `GLIBC_2.32`, `GLIBC_2.33`, `GLIBC_2.34`, `GLIBCXX_3.4.29`
 - **Incompatible** with manylinux containers
 
-**cmajor-lang/llvm Linux x64 build (SOLUTION):**
-- Built for: GNU/Linux 3.2.0 
-- Requires: `GLIBC_2.15`, `GLIBCXX_3.4.21`
-- **Compatible** with both manylinux2014 and manylinux_2_28
+**manylinux2014 system LLVM issues:**
+- Provides: LLVM 3.4 (ancient, missing modern features)
+- **Incompatible** with Faust's LLVM backend requirements
 
 **manylinux containers:**
-- manylinux2014: CentOS 7 (glibc 2.17, GLIBCXX_3.4.19)
-- manylinux_2_28: RHEL 8 (glibc 2.28, GLIBCXX_3.4.25)
+- manylinux2014: CentOS 7 (glibc 2.17, LLVM 3.4)
+- manylinux_2_28: RHEL 8 (glibc 2.28, LLVM 10-15)
 
 ### The Solution
-Use cmajor-lang/llvm static libraries with manual cmake configuration:
+Use system LLVM from manylinux_2_28 for optimal balance:
 
 ```dockerfile
-RUN if [ -d "/faust/llvm" ] && [ -d "/faust/llvm/lib" ]; then \
-        echo "Using cmajor-lang/llvm static libraries (GLIBC_2.15 compatible)"; \
-        LLVM_DIR="/faust/llvm"; \
-        LLVM_INCLUDE_DIR="$LLVM_DIR/include"; \
-        LLVM_LIB_DIR="$LLVM_DIR/lib"; \
-        cmake ... \
-            -DUSE_LLVM_CONFIG=OFF \
-            -DLLVM_DIR="$LLVM_DIR" \
-            -DLLVM_INCLUDE_DIRS="$LLVM_INCLUDE_DIR" \
-            -DLLVM_LIBRARY_DIRS="$LLVM_LIB_DIR"; \
-    else \
-        echo "Fallback: installing system LLVM"; \
-        yum install -y llvm-devel clang-devel && \
-        cmake ... -DUSE_LLVM_CONFIG=ON -DLLVM_CONFIG="llvm-config"; \
-    fi
+RUN echo "Installing system LLVM from manylinux_2_28 (RHEL 8)..." && \
+    yum install -y dnf-plugins-core && \
+    yum config-manager --set-enabled powertools && \
+    yum install -y llvm-devel clang-devel && \
+    llvm-config --version && \
+    cmake -C ./backends/all.cmake . -Bbuild \
+        -DINCLUDE_LLVM=ON \
+        -DUSE_LLVM_CONFIG=ON \
+        -DLLVM_CONFIG="llvm-config"
 ```
 
 ### Key Features
-1. **Better compatibility**: cmajor-lang/llvm requires only GLIBC_2.15 
-2. **Static libraries**: Reliable linking with .a files instead of dynamic libraries
-3. **Manual configuration**: Direct cmake setup instead of llvm-config dependency
-4. **Proven solution**: Used successfully by Cmajor project across platforms
-5. **Graceful fallback**: Uses system LLVM if cmajor build unavailable
+1. **Modern LLVM**: RHEL 8 provides LLVM 10-15 with all Faust requirements
+2. **Native compatibility**: Built specifically for manylinux_2_28 environment
+3. **Standard integration**: Uses normal cmake find_package(LLVM) and llvm-config
+4. **Proven reliability**: System packages tested to work together
+5. **Simple build**: No manual configuration or static library handling needed
 
 ## manylinux Standards
 

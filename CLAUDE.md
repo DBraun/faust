@@ -38,16 +38,16 @@ Faust (Functional Audio Stream) is a functional programming language for real-ti
 
 **libfaust-simplified.yml Key Improvements:**
 - **macOS ARM64**: Native builds on macOS-15 runners (no more complex universal binary workarounds)
-- **LLVM Compatibility**: Automatic fallback from pre-built LLVM to system LLVM when glibc versions mismatch
-- **manylinux2014**: Uses broadest-compatible Python wheel standard for DawDreamer integration
-- **Robust Docker builds**: Ubuntu builds use manylinux containers with automatic LLVM compatibility testing
+- **Modern LLVM**: Uses system LLVM from manylinux_2_28 providing LLVM 10-15 with full Faust support
+- **manylinux_2_28**: Optimal balance of compatibility (80% systems) with modern features
+- **Simplified builds**: Ubuntu builds use straightforward system package installation
 
-**LLVM Compatibility System:**
-The workflow handles LLVM incompatibilities between build environments:
-1. Downloads pre-built LLVM from cmajor-lang/llvm (built on Ubuntu 22.04 with glibc 2.35)
-2. Tests compatibility in manylinux2014 container (glibc 2.17)
-3. Automatically falls back to system LLVM when pre-built version requires newer glibc
-4. Ensures libfaustwithllvm.a works with DawDreamer's cibuildwheel Python wheels
+**LLVM Solution:**
+The workflow uses a proven approach for LLVM compatibility:
+1. Uses manylinux_2_28 (RHEL 8) as base which provides modern LLVM 10-15
+2. Installs system LLVM packages with full cmake and llvm-config integration
+3. Builds libfaustwithllvm.a using standard cmake find_package(LLVM) approach
+4. Ensures compatibility with DawDreamer's cibuildwheel Python wheels (80% system support)
 
 **Trigger Paths:**
 - Workflow file changes: `.github/workflows/libfaust-simplified.yml`

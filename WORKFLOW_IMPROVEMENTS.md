@@ -111,19 +111,20 @@ Added documentation for new workflows and testing approach.
 - **manylinux_2_28**: Only 20% of systems can't support, based on RHEL 8 (glibc 2.28)
 - **DawDreamer compatibility**: Uses cibuildwheel which commonly targets manylinux2014
 
-**Decision:** Use manylinux_2_28 for LLVM 17 compatibility.
+**Decision:** Use manylinux_2_28 with system LLVM for optimal compatibility.
 
 **Trade-off Analysis:**
 - manylinux2014 + LLVM 3.4: Maximum compatibility (70% systems) but ancient LLVM with missing features
-- manylinux_2_28 + LLVM 17: Slightly less compatibility (80% systems) but modern LLVM with full Faust support
+- manylinux_2_28 + System LLVM: Good compatibility (80% systems) with modern LLVM and full Faust support
 
-**Final choice:** manylinux_2_28 with cmajor-lang/llvm static libraries.
+**Final working solution:** System LLVM from manylinux_2_28 (RHEL 8) which provides:
+- **Modern LLVM** (10-15 range) with all features Faust needs
+- **Native compatibility** built for manylinux_2_28 environment
+- **Complete cmake integration** with LLVMConfig.cmake and llvm-config
+- **Proven reliability** using standard system packages
+- **Simpler build process** without manual library configuration
 
-**Latest solution:** Use cmajor-lang/llvm Linux x64 build which provides:
-- **LLVM 18.1** with all modern features Faust needs
-- **GLIBC_2.15 compatibility** (works with both manylinux2014 and manylinux_2_28)
-- **Static libraries** (.a files) for reliable linking
-- **Proven compatibility** from Cmajor project's extensive testing
+**Note:** cmajor-lang/llvm was explored but lacks required cmake configuration files.
 
 ## Benefits
 
@@ -173,12 +174,28 @@ cmake --build build --config Release
 2. **Archive legacy workflow** as `libfaust-legacy.yml`
 3. **Update documentation** and release process
 
-## Next Steps
+## Final Results ✅
 
-1. **Immediate**: Run `test-static-libs.yml` to validate approach
-2. **Short-term**: Run `libfaust-simplified.yml` for full pipeline test
-3. **Medium-term**: Test with downstream Python projects
-4. **Long-term**: Consider additional optimizations (LLVM component selection, parallel builds)
+### Successful Implementation
+The `libfaust-simplified.yml` workflow is now **working successfully** on GitHub Actions with:
+
+1. **✅ Ubuntu x86_64**: Uses system LLVM from manylinux_2_28, builds libfaustwithllvm.a
+2. **✅ Ubuntu aarch64**: Docker/QEMU approach with ARM64 cross-compilation 
+3. **✅ macOS ARM64**: Native builds on macOS-15 runners with cmajor-lang/llvm
+4. **✅ macOS x86_64**: Builds on macOS-13 runners with proven LLVM approach
+5. **✅ Windows x64**: Standard build with pre-built LLVM
+
+### Key Achievements
+- **Simplified macOS builds**: Eliminated complex universal binary handling (~100 lines)
+- **Modern LLVM support**: All platforms now use LLVM 10+ with full Faust features
+- **Reliable Python compatibility**: manylinux_2_28 provides 80% system support for DawDreamer
+- **Maintainable codebase**: Clear, documented approach with proven reliability
+
+### Next Steps
+1. **Performance testing**: Validate build times and artifact quality
+2. **Downstream integration**: Test with DawDreamer and other Python projects  
+3. **Production migration**: Consider replacing legacy `libfaust.yml` workflow
+4. **Future optimizations**: Parallel builds, component selection, caching improvements
 
 ## Risk Mitigation
 
