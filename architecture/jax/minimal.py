@@ -213,8 +213,8 @@ def test(args):
 
 	logger = logging.getLogger(__name__)
 
-	logger.info(f"Number of input channels: {model.getNumInputs()}")
-	logger.info(f"Number of output channels: {model.getNumOutputs()}")
+	logger.info(f"Number of input channels: {model.num_inputs}")
+	logger.info(f"Number of output channels: {model.num_outputs}")
 
 	json_obj = model.getJSON()
 	logger.debug(f"JSON info: {json_obj}")
@@ -228,14 +228,14 @@ def test(args):
 
 		N_SAMPLES = input_audio.shape[1]
 		N_CHANNELS = input_audio.shape[0]
-		assert N_CHANNELS == model.getNumInputs()
+		assert N_CHANNELS == model.num_inputs
 
 		input_audio = FAUSTFLOAT(input_audio)
 	else:
 		duration_sec = args.duration or 1.  # default to 1 second when making noise.
 
 		N_SAMPLES = int(duration_sec*args.sample_rate)
-		N_CHANNELS = model.getNumInputs()
+		N_CHANNELS = model.num_inputs
 
 		if args.random:
 			input_audio = -1.+2.*random.uniform(key, shape=(N_CHANNELS, N_SAMPLES), dtype=FAUSTFLOAT)
@@ -247,7 +247,7 @@ def test(args):
 	y, mod_vars = model.apply(variables, input_audio, N_SAMPLES, mutable='intermediates')
 
 	assert y.ndim == 2
-	assert y.shape[0] == model.getNumOutputs()
+	assert y.shape[0] == model.num_outputs
 	assert y.shape[1] == input_audio.shape[1]
 	assert y.shape[1] == N_SAMPLES
 
