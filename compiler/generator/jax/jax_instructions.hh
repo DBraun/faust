@@ -76,12 +76,15 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
     {
         ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(typed);
         faustassert(array_type);
+
         if (isIntPtrType(typed->getType())) {
             *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
-        } else if (isFloatType(typed->getType())) {
-            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
-        } else {
-            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+        } else if (isRealPtrType(typed->getType())) {
+            if (gGlobal->gFloatSize == 1) {
+                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+            } else {
+                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+            }
         }
     }
 

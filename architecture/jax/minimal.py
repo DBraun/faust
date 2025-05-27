@@ -171,11 +171,11 @@ except ImportError:
 		self.sow('intermediates', label, param)
 		state[zone] = param
 	
-	def add_hslider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, step_size: float):
-		self.add_slider(state, zone, ui_path, label, init, a_min, a_max, 'linear')
+	def add_hslider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode: str):
+		self.add_slider(state, zone, ui_path, label, init, a_min, a_max, scale_mode)
 	
-	def add_vslider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, step_size: float):
-		self.add_slider(state, zone, ui_path, label, init, a_min, a_max, 'linear')
+	def add_vslider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode: str):
+		self.add_slider(state, zone, ui_path, label, init, a_min, a_max, scale_mode)
 	
 	def add_hbargraph(self, state, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
 		pass
@@ -244,7 +244,7 @@ def test(args):
 			input_audio = input_audio.at[:,0].set(1.)
 
 	variables = model.init({'params': key, "rng_stream": key}, input_audio, N_SAMPLES)  
-	y, mod_vars = model.apply(variables, input_audio, N_SAMPLES, mutable='intermediates')
+	y, mod_vars = model.apply(variables, input_audio, N_SAMPLES, mutable='intermediates', rngs={"rng_stream": key})
 
 	assert y.ndim == 2
 	assert y.shape[0] == model.num_outputs
