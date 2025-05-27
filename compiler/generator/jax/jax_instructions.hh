@@ -466,7 +466,11 @@ class JAXInstVisitor : public TextInstVisitor {
         if (fIsArrayIndex) {
             *fOut << inst->fNum;
         } else {
-            *fOut << "jnp.int32(" << inst->fNum << ")";
+            if (fUseNumpy) {
+                *fOut << "np.int32(" << inst->fNum << ")";
+            } else {
+                *fOut << "jnp.int32(" << inst->fNum << ")";
+            }
         }
     }
 
@@ -475,51 +479,63 @@ class JAXInstVisitor : public TextInstVisitor {
         if (fIsArrayIndex) {
             *fOut << inst->fNum;
         } else {
-            *fOut << "jnp.int64(" << inst->fNum << ")";
+            if (fUseNumpy) {
+                *fOut << "np.int64(" << inst->fNum << ")";
+            } else {
+                *fOut << "jnp.int64(" << inst->fNum << ")";
+            }
         }
     }
 
     virtual void visit(FloatNumInst* inst) 
     { 
-        *fOut << "jnp.float32(" << checkFloat(inst->fNum) << ")";
+        if (fUseNumpy) {
+            *fOut << "np.float32(" << checkFloat(inst->fNum) << ")";
+        } else {
+            *fOut << "jnp.float32(" << checkFloat(inst->fNum) << ")";
+        }
     }
 
     virtual void visit(DoubleNumInst* inst) 
     { 
-        *fOut << "jnp.float64(" << checkDouble(inst->fNum) << ")";
+        if (fUseNumpy) {
+            *fOut << "np.float64(" << checkDouble(inst->fNum) << ")";
+        } else {
+            *fOut << "jnp.float64(" << checkDouble(inst->fNum) << ")";
+        }
     }
 
     virtual void visit(Int32ArrayNumInst* inst)
     {
-        *fOut << "jnp.array(";
+        *fOut << (fUseNumpy ? "np.array(" : "jnp.array(");
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << inst->fNumTable[i];
             sep = ',';
         }
-        *fOut << "], dtype=jnp.int32)";
+        *fOut << "], dtype=" << (fUseNumpy ? "np.int32)" : "jnp.int32)");
     }
 
     virtual void visit(FloatArrayNumInst* inst)
     {
-        *fOut << "jnp.array(";
+        *fOut << (fUseNumpy ? "np.array(" : "jnp.array(");
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << checkFloat(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << "], dtype=jnp.float32)";
+        *fOut << "], dtype=" << (fUseNumpy ? "np.float32)" : "jnp.float32)");
     }
 
     virtual void visit(DoubleArrayNumInst* inst)
     {
-        *fOut << "jnp.array(";
+        *fOut << (fUseNumpy ? "np.array(" : "jnp.array(");
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << checkDouble(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << "], dtype=jnp.float64)";
+        *fOut << "], dtype=" << (fUseNumpy ? "np.float64)" : "jnp.float64)");
     }
 
     virtual void visit(BinopInst* inst)

@@ -207,6 +207,7 @@ void JAXCodeContainer::produceClass()
     tab(n + 1, *fOut);
     produceInfoFunctions(n + 1, "", "self", false, FunTyped::kDefault, gGlobal->gJAXVisitor);
 
+    tab(n + 1, *fOut);
     *fOut << "def initialize(self, x, T):";
     {
         tab(n + 2, *fOut);
@@ -227,6 +228,8 @@ void JAXCodeContainer::produceClass()
         *fOut << "# inline subcontainers:";
         tab(n + 2, *fOut);
         gGlobal->gJAXVisitor->Tab(n + 2);
+        // Ensure we use numpy in initialize method
+        static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fUseNumpy = true;
         inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
         tab(n + 2, *fOut);
         *fOut << "# init constants:";
@@ -313,7 +316,6 @@ void JAXCodeContainer::produceInfoFunctions(int tabs, const string& classname, c
                                            const string& out_fun)
 {
     // Generate as properties instead of methods for JAX/Flax
-    tab(tabs, *fOut);
     *fOut << "@property";
     tab(tabs, *fOut);
     *fOut << "def num_inputs(self):";

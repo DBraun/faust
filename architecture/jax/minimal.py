@@ -113,13 +113,13 @@ except ImportError:
 		label = "/".join(ui_path + [label])
 		num_steps  = int(round((a_max - a_min) / step_size)) + 1
 		init_step  = int(round((init - a_min) / step_size))
-		step_values = jnp.arange(num_steps, dtype=jnp.float32) * step_size + a_min
+		step_values = jnp.arange(num_steps, dtype=FAUSTFLOAT) * FAUSTFLOAT(step_size) + FAUSTFLOAT(a_min)
 
 		# ---------- parameters ----------
 		# (1) logits, initialised to favour the initial step
 		def init_logits(key, shape):
-			logits = jnp.zeros(shape)
-			return logits.at[init_step].set(5.0)        # bias ≈ exp(5) ≈ 148
+			logits = jnp.zeros(shape, dtype=FAUSTFLOAT)
+			return logits.at[init_step].set(FAUSTFLOAT(5.0))        # bias ≈ exp(5) ≈ 148
 		logits = self.param("_" + label, init_logits, (num_steps,))
 
 		# temperature (optional learnable scalar)
@@ -130,11 +130,11 @@ except ImportError:
 		# At train-time pass rngs={"gumbel": key} to model.apply
 		if self.has_rng("gumbel"):
 			gumbel_noise = -jnp.log(-jnp.log(
-				random.uniform(self.make_rng("gumbel"), shape=logits.shape) + 1e-10
-			) + 1e-10)
-			probs = nn.softmax((logits + gumbel_noise) / jnp.clip(tau, 1e-3))
+				random.uniform(self.make_rng("gumbel"), shape=logits.shape) + FAUSTFLOAT(1e-10)
+			) + FAUSTFLOAT(1e-10))
+			probs = nn.softmax((logits + gumbel_noise) / jnp.clip(tau, FAUSTFLOAT(1e-3)))
 		else:  # deterministic fallback (e.g. evaluation)
-			probs = nn.softmax(logits / jnp.clip(tau, 1e-3))
+			probs = nn.softmax(logits / jnp.clip(tau, FAUSTFLOAT(1e-3)))
 
 		param_value = jnp.sum(probs * step_values)
 
@@ -143,29 +143,30 @@ except ImportError:
 		state[zone] = param_value
 	
 	def add_slider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode='linear'):
-		label = "/".join(ui_path+[label])
-		init, a_min, a_max = float(init), float(a_min), float(a_max)
+		label = "/".join(ui_path + [label])
+		init, a_min, a_max = FAUSTFLOAT(init), FAUSTFLOAT(a_min), FAUSTFLOAT(a_max)
+		
 		if scale_mode == 'linear':
-			init = jnp.interp(init, jnp.array([a_min, a_max]), jnp.array([-1.,1.]))
-			param = self.param("_"+label, nn.initializers.constant(init), ())
-			param = jnp.clip(param, -1., 1.)
-			param = jnp.interp(param, jnp.array([-1., 1.]), jnp.array([a_min, a_max]))
+			init = jnp.interp(init, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+			param = self.param("_" + label, nn.initializers.constant(init, dtype=FAUSTFLOAT), ())
+			param = jnp.clip(param, FAUSTFLOAT(-1), FAUSTFLOAT(1))
+			param = jnp.interp(param, jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([a_min, a_max], dtype=FAUSTFLOAT))
 		elif scale_mode == 'exp':
-			init = jnp.interp(init, jnp.array([a_min, a_max]), jnp.array([1., jnp.e]))
+			init = jnp.interp(init, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT))
 			init = jnp.log(init)
-			init = jnp.interp(init, jnp.array([0., 1.]), jnp.array([-1.,1.]))
-			param = self.param("_"+label, nn.initializers.constant(init), ())
-			param = jnp.clip(param, -1., 1.)
-			param = jnp.interp(param, jnp.array([-1., 1.]), jnp.array([0., 1.]))
-			param = jnp.interp(jnp.exp(param), jnp.array([1., jnp.e]), jnp.array([a_min, a_max]))
+			init = jnp.interp(init, jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+			param = self.param("_" + label, nn.initializers.constant(init, dtype=FAUSTFLOAT), ())
+			param = jnp.clip(param, FAUSTFLOAT(-1), FAUSTFLOAT(1))
+			param = jnp.interp(param, jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+			param = jnp.interp(jnp.exp(param), jnp.array([1., jnp.e], dtype=FAUSTFLOAT), jnp.array([a_min, a_max], dtype=FAUSTFLOAT))
 		elif scale_mode == 'log':
-			init = jnp.interp(init, jnp.array([a_min, a_max]), jnp.array([-4., 0.]))
-			init = jnp.power(10., init)
-			init = jnp.interp(init, jnp.array([10.**-4., 1.]), jnp.array([-1.,1.]))
-			param = self.param("_"+label, nn.initializers.constant(init), ())
-			param = jnp.clip(param, -1., 1.)
-			param = jnp.interp(param, jnp.array([-1., 1.]), jnp.array([10.**-4., 1.]))
-			param = jnp.interp(jnp.log10(param), jnp.array([-4., 0.]), jnp.array([a_min, a_max]))
+			init = jnp.interp(init, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT))
+			init = jnp.power(FAUSTFLOAT(10), init)
+			init = jnp.interp(init, jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+			param = self.param("_" + label, nn.initializers.constant(init, dtype=FAUSTFLOAT), ())
+			param = jnp.clip(param, FAUSTFLOAT(-1), FAUSTFLOAT(1))
+			param = jnp.interp(param, jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+			param = jnp.interp(jnp.log10(param), jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT), jnp.array([a_min, a_max], dtype=FAUSTFLOAT))
 		else:
 			raise ValueError(f"Unknown scale '{scale_mode}'.")
 		self.sow('intermediates', label, param)
@@ -244,7 +245,20 @@ def test(args):
 			input_audio = input_audio.at[:,0].set(1.)
 
 	variables = model.init({'params': key, "rng_stream": key}, input_audio, N_SAMPLES)  
-	y, mod_vars = model.apply(variables, input_audio, N_SAMPLES, mutable='intermediates', rngs={"rng_stream": key})
+
+	def forward(x: jnp.ndarray):
+		y, mod_vars = model.apply(variables, x, N_SAMPLES, mutable='intermediates', rngs={"rng_stream": key})
+		return y, mod_vars
+	
+	if args.jit:
+		forward = jax.jit(forward)
+		import tqdm
+		for _ in range(3):
+			y, mod_vars = forward(input_audio)
+		for _ in tqdm.trange(1000):
+			y, mod_vars = forward(input_audio)
+
+	y, mod_vars = forward(input_audio)
 
 	assert y.ndim == 2
 	assert y.shape[0] == model.num_outputs
@@ -271,7 +285,13 @@ if __name__ == '__main__':
 	parser.add_argument('-o', '--output', type=str, default=None, help='Filepath for output audio WAV')
 	parser.add_argument('--log-level', default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], 
 						help='Set the logger level (default: INFO)')
+	parser.add_argument('--jit', default=False, action=argparse.BooleanOptionalAction,
+                        help="Whether to use JIT.")
+	parser.add_argument('--platform', default='gpu', choices=['cpu', 'gpu', 'tpu'])
 
 	args = parser.parse_args()
+	
+	# Global flag to set a specific platform, must be used at startup.
+	jax.config.update('jax_platform_name', args.platform)
 
 	test(args)
