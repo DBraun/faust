@@ -211,6 +211,8 @@ void JAXCodeContainer::produceClass()
     *fOut << "def initialize(self, x, T):";
     {
         tab(n + 2, *fOut);
+        *fOut << "fmt: off";
+        tab(n + 2, *fOut);
         *fOut << "state = {}";
         tab(n + 2, *fOut);
         tab(n + 2, *fOut);
@@ -242,6 +244,8 @@ void JAXCodeContainer::produceClass()
         generateClear(gGlobal->gJAXVisitor);
         tab(n + 2, *fOut);
         *fOut << "return state";
+        tab(n + 2, *fOut);
+        *fOut << "fmt: on";
         tab(n + 1, *fOut);
     }
     back(1, *fOut);

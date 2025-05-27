@@ -107,7 +107,7 @@ Generate JAX code from a Faust DSP file:
 faust -lang jax mydsp.dsp -cn MyDSP -o mydsp.py
 ```
 
-**Important**: If running Faust from the build directory, you need to specify the libraries path:
+**Important**: If running Faust from the project root directory, you need to specify the libraries path:
 
 ```bash
 ./build/bin/faust -lang jax -I libraries mydsp.dsp -cn MyDSP -o mydsp.py
@@ -272,11 +272,11 @@ The JAX backend generates:
 - **Automatic Differentiation**: Can be used with `jax.grad` and other JAX transformations
 - **Vectorization**: Compatible with `jax.vmap` for batch processing
 - **State Management**: Proper handling of delays and stateful operations
-- **RNG Support**: Compatible with Flax's RNG system via `self.make_rng('rng_stream')` for stochastic DSPs
+- **RNG Support**: Compatible with Flax's RNG system via `self.make_rng("rng_stream")` for stochastic DSPs
 
 ## Noise Generation and PRNG Support
 
-The JAX backend automatically detects and replaces Faust's Linear Congruential Generator (LCG) noise patterns with JAX's proper PRNG system. This ensures compatibility with JAX's functional programming model and `nn.scan`.
+The JAX backend automatically detects and replaces Faust's Linear Congruential Generator (LCG) noise patterns with JAX's proper PRNG system. This allows reproducibility and variation across JAX transformations such as `vmap`.
 
 ### Supported Patterns
 
