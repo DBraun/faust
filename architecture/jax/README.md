@@ -311,50 +311,6 @@ state["fVec0"] = input                 # Direct scalar update
 output = input - fVec0_temp            # Use previous value
 ```
 
-## Noise Generation and PRNG Support
-
-The JAX backend automatically detects and replaces Faust's Linear Congruential Generator (LCG) noise patterns with JAX's proper PRNG system. This allows reproducibility and variation across JAX transformations such as `vmap`.
-
-### Supported Patterns
-
-The backend detects and replaces:
-- Simple `no.noise` generators
-- Chained LCG patterns used in `no.noises(N,i)`
-- Complex noise generation involving temporary variables
-
-When detected, these patterns are replaced with stateless JAX PRNG calls:
-```python
-noise0 = jax.random.randint(self.make_rng("rng_stream"), (), 0, 2147483647, dtype=jnp.int32)
-```
-
-### Important Limitations
-
-**The noise pattern detection is fragile and depends on specific FIR patterns**:
-- Changes to the `noises.lib` implementation may break detection
-- Different compiler optimization levels may affect pattern recognition  
-- Custom LCG implementations might not be detected
-
-If noise generation appears to use state storage (e.g., `state["iRec0"]`), this indicates the pattern wasn't detected. In such cases:
-1. Check if the DSP uses a recognized pattern from `noises.lib`
-2. Consider simplifying the noise generation to use `no.noise` directly
-3. Report the issue with the FIR output for investigation
-
-### Example
-
-```faust
-import("stdfaust.lib");
-process = no.noise;  // Automatically uses JAX PRNG
-```
-
-Generated code will use:
-```python
-def tick(self, state: dict, inputs: jnp.array):
-    # JAX PRNG noise generation (replacing LCG)
-    iRec0 = jax.random.randint(self.make_rng("rng_stream"), (), 0, 2147483647, dtype=jnp.int32)
-    _result0 = (4.656613e-10 * iRec0)
-    return state, jnp.stack([_result0])
-```
-
 ## Testing
 
 Run the JAX backend tests:

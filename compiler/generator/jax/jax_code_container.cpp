@@ -219,7 +219,6 @@ void JAXCodeContainer::produceClass()
         tab(n + 2, *fOut);
         *fOut << "# global declarations:";
         JAXInitFieldsVisitor initializer(fOut, n + 2, 
-            &(static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fNoiseVars),
             &(static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fScalarDelayVars));
         generateDeclarations(&initializer);
         // Generate global variables initialisation

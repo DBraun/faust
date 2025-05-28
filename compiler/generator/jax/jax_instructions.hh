@@ -31,24 +31,13 @@
 struct JAXInitFieldsVisitor : public DispatchVisitor {
     std::ostream* fOut;
     int           fTab;
-    std::map<std::string, bool>* fNoiseVars;
     std::set<std::string>* fScalarDelayVars;
 
-    JAXInitFieldsVisitor(std::ostream* out, int tab = 0, std::map<std::string, bool>* noiseVars = nullptr,
-                        std::set<std::string>* scalarDelayVars = nullptr) 
-        : fOut(out), fTab(tab), fNoiseVars(noiseVars), fScalarDelayVars(scalarDelayVars) {}
+    JAXInitFieldsVisitor(std::ostream* out, int tab = 0, std::set<std::string>* scalarDelayVars = nullptr) 
+        : fOut(out), fTab(tab), fScalarDelayVars(scalarDelayVars) {}
 
     virtual void visit(DeclareVarInst* inst)
-    {
-        // Skip noise variables
-        if (fNoiseVars) {
-            if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
-                if (fNoiseVars->find(named->fName) != fNoiseVars->end()) {
-                    return;
-                }
-            }
-        }
-        
+    {        
         // Check if this is a scalar delay variable - skip if so (handled in StoreVarInst)
         if (fScalarDelayVars && inst->fAddress) {
             if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
@@ -169,8 +158,6 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
 
 class JAXInstVisitor : public TextInstVisitor {
    public:
-    // Member variables to track noise generation context  
-    std::map<std::string, bool> fNoiseVars;  // Track which variables are noise generators
     std::set<std::string> fScalarDelayVars;  // Track single-sample delay variables
     
    private:
@@ -612,28 +599,7 @@ class JAXInstVisitor : public TextInstVisitor {
     }
 
     virtual void visit(DeclareVarInst* inst)
-    {
-        // Check if we're declaring a variable with an LCG multiplication pattern
-        if (inst->fValue && isLCGMultiplication(inst->fValue)) {
-            // This is a temp variable storing intermediate LCG result
-            std::string varName = inst->getName();
-            std::string noiseVarName = "noise" + std::to_string(fNoiseCounter++);
-            fTempToNoise[varName] = noiseVarName;
-            
-            // Generate JAX random value
-            *fOut << "# JAX PRNG for intermediate noise value";
-            EndLine(' ');
-            tab(fTab, *fOut);
-            *fOut << noiseVarName << " = jax.random.randint(self.make_rng(\"rng_stream\"), (), 0, 2147483647, dtype=jnp.int32)";
-            EndLine(' ');
-            tab(fTab, *fOut);
-            
-            // Map the temp variable to use this noise value
-            *fOut << varName << " = " << noiseVarName;
-            EndLine(' ');
-            return;
-        }
-        
+    {        
         if (inst->fAddress->isStaticStruct()) {
             *fOut << fTypeManager->generateType(inst->fType, inst->getName());
             // Allocation is actually done in JAXInitFieldsVisitor
@@ -718,13 +684,7 @@ class JAXInstVisitor : public TextInstVisitor {
     }
 
     virtual void visit(NamedAddress* named)
-    {
-        // If this is a noise variable, use it directly as a local variable
-        if (isNoiseVar(named->fName)) {
-            *fOut << named->fName;
-            return;
-        }
-        
+    {        
         // kStaticStruct are actually merged in the main DSP
         if (named->isStruct() || named->isStaticStruct()) {
             *fOut << "state[\"";
@@ -741,20 +701,7 @@ class JAXInstVisitor : public TextInstVisitor {
     virtual void visit(IndexedAddress* indexed)
     {
         // Check if this is a noise variable access
-        if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
-            if (isNoiseVar(named->fName)) {
-                // For noise variables with array access, use the alias
-                if (Int32NumInst* idx = dynamic_cast<Int32NumInst*>(indexed->getIndex())) {
-                    if (idx->fNum == 0) {
-                        *fOut << named->fName << "_0";  // Use the alias for iRec0[0]
-                        return;
-                    }
-                }
-                // For other indices, just use the variable name
-                *fOut << named->fName;
-                return;
-            }
-            
+        if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {            
             // Check if this is a scalar delay variable
             if (isScalarDelayVar(named->fName)) {
                 // For scalar delays, just output the variable name (no array access)
@@ -814,12 +761,6 @@ class JAXInstVisitor : public TextInstVisitor {
     }
 
     virtual void visit(LoadVarAddressInst* inst) { faustassert(false); }
-
-    // Member variables to track noise generation context
-    bool fIsNoiseGeneration = false;
-    std::string fNoiseVarName;
-    int fNoiseCounter = 0;  // Counter for multiple noise streams
-    std::map<std::string, std::string> fTempToNoise;  // Map temp vars to noise vars
     
     // Helper to determine if a variable is integer type based on naming convention
     bool isIntegerVariable(const std::string& name) {
@@ -932,36 +873,11 @@ class JAXInstVisitor : public TextInstVisitor {
         }
         return false;
     }
-    
-    // Helper to check if a variable is a noise generator
-    bool isNoiseVar(const std::string& name) {
-        return fNoiseVars.find(name) != fNoiseVars.end();
-    }
+
     
     // Helper to check if a variable is a scalar delay
     bool isScalarDelayVar(const std::string& name) {
         return fScalarDelayVars.find(name) != fScalarDelayVars.end();
-    }
-    
-    // Helper to check if an expression contains noise variables
-    bool containsNoiseVars(ValueInst* value) {
-        if (!value) return false;
-        
-        // Check if it's a load from a noise variable
-        if (LoadVarInst* load = dynamic_cast<LoadVarInst*>(value)) {
-            if (NamedAddress* named = dynamic_cast<NamedAddress*>(load->fAddress)) {
-                if (fTempToNoise.find(named->fName) != fTempToNoise.end()) {
-                    return true;
-                }
-            }
-        }
-        
-        // Check binary operations
-        if (BinopInst* binop = dynamic_cast<BinopInst*>(value)) {
-            return containsNoiseVars(binop->fInst1) || containsNoiseVars(binop->fInst2);
-        }
-        
-        return false;
     }
 
     virtual void visit(StoreVarInst* inst)
@@ -1009,78 +925,8 @@ class JAXInstVisitor : public TextInstVisitor {
             }
         }
         
-        // Check if this is storing an LCG noise pattern OR contains noise variables
-        if (isLCGNoisePattern(inst->fValue) || containsNoiseVars(inst->fValue)) {
-            // Extract variable name for tracking
-            std::string varName;
-            bool isArrayAccess = false;
-            
-            if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
-                varName = named->fName;
-            } else if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
-                if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
-                    varName = named->fName;
-                    isArrayAccess = true;
-                }
-            }
-            
-            // Mark this variable as a noise generator
-            fNoiseVars[varName] = true;
-            fNoiseVarName = varName;
-            
-            // Generate JAX PRNG code as a local variable (not in state)
-            *fOut << "# JAX PRNG noise generation (replacing LCG)";
-            EndLine(' ');
-            tab(fTab, *fOut);
-            
-            // Generate another noise value
-            std::string noiseVarName = "noise" + std::to_string(fNoiseCounter++);
-            *fOut << noiseVarName << " = jax.random.randint(self.make_rng(\"rng_stream\"), (), 0, 2147483647, dtype=jnp.int32)";
-            EndLine(' ');
-            tab(fTab, *fOut);
-            
-            // For array access (like iRec0[0]), use the noise value
-            if (isArrayAccess) {
-                *fOut << varName << "_0 = " << noiseVarName;  // Create alias for iRec0[0]
-            } else {
-                *fOut << varName << " = " << noiseVarName;
-            }
-            
-            EndLine(' ');
-            fIsNoiseGeneration = true;
-            return;
-        }
-        
-        // Check if we're storing a simple load from a temp variable
-        if (LoadVarInst* load = dynamic_cast<LoadVarInst*>(inst->fValue)) {
-            if (NamedAddress* srcNamed = dynamic_cast<NamedAddress*>(load->fAddress)) {
-                std::string srcName = srcNamed->fName;
-                // Check if this is one of our temp noise variables
-                if (fTempToNoise.find(srcName) != fTempToNoise.end()) {
-                    // This is storing a noise temp variable
-                    if (NamedAddress* dstNamed = dynamic_cast<NamedAddress*>(inst->fAddress)) {
-                        *fOut << dstNamed->fName << " = " << srcName;
-                        EndLine(' ');
-                        return;
-                    }
-                }
-            }
-        }
-        
         // Check if we're storing to a noise variable - skip it
         std::string targetVar;
-        if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
-            targetVar = named->fName;
-        } else if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
-            if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
-                targetVar = named->fName;
-            }
-        }
-        
-        if (isNoiseVar(targetVar)) {
-            // Skip storing to noise variables in state
-            return;
-        }
         
         // Normal store operation
         fIsStoringLhs = true;
