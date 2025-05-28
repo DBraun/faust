@@ -248,15 +248,15 @@ def test(args):
 
 	def forward(x: jnp.ndarray):
 		y, mod_vars = model.apply(variables, x, N_SAMPLES, mutable='intermediates', rngs={"rng_stream": key})
-		return y, mod_vars
+		return y
 	
 	if args.jit:
 		forward = jax.jit(forward)
 		import tqdm
 		for _ in range(3):
-			y, mod_vars = forward(input_audio)
+			y = forward(input_audio).block_until_ready()
 		for _ in tqdm.trange(1000):
-			y, mod_vars = forward(input_audio)
+			y = forward(input_audio).block_until_ready()
 
 	y, mod_vars = forward(input_audio)
 

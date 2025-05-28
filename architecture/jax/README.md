@@ -119,7 +119,14 @@ Options:
 - `-cn MyDSP`: Sets the class name (default is `mydsp`)
 - `-o mydsp.py`: Specifies the output file
 
-The generated code creates a Flax `nn.Module` that can be used in JAX programs.
+The generated code creates a Flax `nn.Module` that can be used in JAX programs. You can also verify its basic execution with:
+```bash
+python3 mydsp.py
+```
+and check how to use it:
+```bash
+python3 mydsp.py --help
+```
 
 ### Basic Example
 
