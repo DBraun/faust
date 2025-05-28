@@ -211,7 +211,7 @@ void JAXCodeContainer::produceClass()
     *fOut << "# fmt: off";
 
     tab(n + 1, *fOut);
-    *fOut << "def initialize(self, x, T):";
+    *fOut << "def initialize(self, x, length: int):";
     {
         tab(n + 2, *fOut);
         *fOut << "state = {}";
@@ -293,7 +293,7 @@ void JAXCodeContainer::produceClass()
 
     // User interface
     tab(n + 1, *fOut);
-    *fOut << "def build_interface(self, state, x, T: int):";
+    *fOut << "def build_interface(self, state, x, length: int):";
     tab(n + 2, *fOut);
     *fOut << "ui_path = []";
     tab(n + 2, *fOut);

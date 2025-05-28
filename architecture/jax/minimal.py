@@ -203,22 +203,27 @@ except ImportError:
 		
 		return state
 	
-	def process_block(self, carry: Dict[str, jnp.array], inputs: jnp.array = None, unroll: int = 1) -> Tuple[jnp.array, Dict[str, jnp.array]]:
+	def process_block(self, carry: Dict[str, jnp.array], inputs: jnp.array = None, length: int = None, unroll: int = 1) -> Tuple[jnp.array, Dict[str, jnp.array]]:
 		"""
 		Process one block of audio and return updated state.
 		
 		Args:
 			carry: State dictionary from previous block
 			inputs: Input audio block of shape (num_inputs, block_size)
+			length (int): block size of generated output
+			unroll (int): 
 			
 		Returns:
 			Tuple of (output_block, new_carry) where:
 			- output_block has shape (num_outputs, block_size)
 			- new_carry is the updated state dictionary
 		"""
+		if length is None and inputs is not None and hasattr(inputs, "shape"):
+			length = x.shape[-1]
+
 		# Transpose for scan: (block_size, num_inputs)
 		if inputs is not None:
-			inputs_t = jnp.transpose(inputs, axes=(1, 0))
+			inputs = jnp.transpose(inputs, axes=(1, 0))
 
 		def tick(module, carry, *xs):
 			return module.tick(carry, *xs)
@@ -226,10 +231,10 @@ except ImportError:
 		scan_fn = nn.scan(tick,
 			variable_broadcast="params",
 			split_rngs={"rng_stream": True},
-			length=T,
+			length=length,
 			unroll=unroll,
 		)
-		new_carry, outputs = scan_fn(self, carry, inputs_t)
+		new_carry, outputs = scan_fn(self, carry, inputs)
 		
 		# Transpose back: (num_outputs, block_size)
 		outputs_t = jnp.transpose(outputs, axes=(1, 0))
@@ -240,7 +245,7 @@ except ImportError:
 	def __call__(self, x: jnp.array, length: int = None, unroll: int = 1) -> jnp.array:
 
 		if length is None:
-			length = x.shape[0]
+			length = x.shape[-1]
 
 		# Handle generators (no input case)
 		if x is None:
@@ -295,6 +300,8 @@ def test(args):
 		duration_sec = args.duration or 1.  # default to 1 second when making noise.
 
 		N_SAMPLES = int(duration_sec*args.sample_rate)
+		if isinstance(args.unroll, int):
+			N_SAMPLES = (N_SAMPLES//int(args.unroll))*int(args.unroll)
 		N_CHANNELS = model.num_inputs
 
 		if args.random:
@@ -306,7 +313,7 @@ def test(args):
 	variables = model.init({"params": key, "rng_stream": key}, input_audio, N_SAMPLES)  
 
 	def forward(x: jnp.ndarray):
-		y, mod_vars = model.apply(variables, x, N_SAMPLES, mutable="intermediates", rngs={"rng_stream": key})
+		y, mod_vars = model.apply(variables, x, length=N_SAMPLES, unroll=args.unroll, mutable="intermediates", rngs={"rng_stream": key})
 		return y
 	
 	if args.jit:
@@ -368,12 +375,13 @@ def realtime_audio_example():
 	
 	# JIT compile the process method
 	@jax.jit
-	def process_block_jit(carry, inputs):
-		return model.apply(variables, carry, inputs, method="process_block")
+	def process_block_jit(carry, inputs: jnp.ndarray, rng: jax.Array):
+		return model.apply(variables, carry, inputs, length=BLOCK_SIZE, unroll=args.unroll, method="process_block", rngs={"rng_stream": rng})
 	
 	# Create a generator for audio blocks
 	def audio_generator():
 		nonlocal carry
+		key = random.key(0)
 		while True:
 			# For generators, create empty input
 			if model.num_inputs == 0:
@@ -384,7 +392,8 @@ def realtime_audio_example():
 				inputs = jnp.zeros((model.num_inputs, BLOCK_SIZE))
 			
 			# Process block
-			outputs, carry = process_block_jit(carry, inputs)
+			key, subkey = random.split(key)
+			outputs, carry = process_block_jit(carry, inputs, subkey)
 			
 			# Convert to numpy and reshape for sounddevice
 			# sounddevice expects shape (frames, channels)
@@ -429,7 +438,8 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Run a JAX/Flax model converted from Faust code")
 	parser.add_argument("-sr", "--sample-rate", type=int, default=44100, help="Sample rate (such as 44100)")
 	parser.add_argument("-d", "--duration", type=float, default=None, help="Output duration in seconds")
-	parser.add_argument("--random", action="store_true",
+	parser.add_argument("--unroll", type=int, default=1, help="Unroll size (default is 1)")
+	parser.add_argument("--random", default=False, action=argparse.BooleanOptionalAction,
 		help="Whether the default audio is random. By default it\"s an impulse.")
 	parser.add_argument("--seed", default=0, type=int, help="Seed for random number generator (default: 0)")
 	parser.add_argument("-i", "--input", type=str, default=None, help="Filepath for input audio WAV")
@@ -438,7 +448,7 @@ if __name__ == "__main__":
 						help="Set the logger level (default: INFO)")
 	parser.add_argument("--jit", default=False, action=argparse.BooleanOptionalAction,
                         help="Whether to use JIT.")
-	parser.add_argument("--platform", default="gpu", choices=["cpu", "gpu", "tpu"])
+	parser.add_argument("--platform", default="gpu", choices=["cpu", "gpu", "METAL", "tpu"])
 	parser.add_argument("--realtime", default=False, action=argparse.BooleanOptionalAction)
 
 	args = parser.parse_args()
