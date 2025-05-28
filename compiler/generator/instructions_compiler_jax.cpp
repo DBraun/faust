@@ -22,6 +22,8 @@
 #include "instructions_compiler_jax.hh"
 #include "ppsig.hh"
 #include "sigtyperules.hh"
+#include "global.hh"
+#include "jax_instructions.hh"
 
 using namespace std;
 
@@ -47,6 +49,36 @@ ValueInst* InstructionsCompilerJAX::generateDelayLine(ValueInst* exp, BasicTyped
             pushComputeDSPMethod(IB::genControlInst(ccs, IB::genStoreStackVar(vname, exp)));
         }
 
+    } else if (mxd == 1) {
+        // Special optimization for single-sample delays in JAX
+        // Use array type for compatibility, but mark as scalar for JAX generation
+        generateInitArray(vname, ctype, 1);
+        
+        // Mark this as a scalar delay variable
+        fScalarDelayVars.insert(vname);
+        
+        // Also add to global JAX visitor if available
+        if (gGlobal->gJAXVisitor) {
+            static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fScalarDelayVars.insert(vname);
+        }
+        
+        // In the compute method:
+        // Store current state value in a temporary variable, then update state
+        string temp_name = vname + "_temp";
+        
+        // 1. Store current state value in the temporary variable BEFORE any computation
+        // Use pushPreComputeDSPMethod to ensure it happens before the signal is used
+        pushPreComputeDSPMethod(IB::genControlInst(
+            ccs, IB::genDecStackVar(temp_name, ctype,
+                IB::genLoadArrayStructVar(vname, IB::genInt32NumInst(0)))));
+        
+        // 2. Update state with new value
+        pushComputeDSPMethod(IB::genControlInst(
+            ccs, IB::genStoreArrayStructVar(vname, IB::genInt32NumInst(0), exp)));
+        
+        // 3. The delayed value is in the temporary variable
+        // (will be used by generateDelayAccess)
+        
     } else if (mxd < gGlobal->gMaxCopyDelay) {
         // Generates table init
         generateInitArray(vname, ctype, mxd + 1);
@@ -129,6 +161,40 @@ ValueInst* InstructionsCompilerJAX::generateDelayLine(ValueInst* exp, BasicTyped
     }
 
     return exp;
+}
+
+ValueInst* InstructionsCompilerJAX::generateDelayAccess(Tree sig, Tree exp, Tree delay)
+{
+    ValueInst* code = CS(exp);  // Ensure exp is compiled to have a vector name
+    int        mxd  = fOccMarkup->retrieve(exp)->getMaxDelay();
+    string     vname;
+
+    if (!getVectorNameProperty(exp, vname)) {
+        if (mxd == 0) {
+            return code;
+        } else {
+            cerr << "ASSERT : no vector name for : " << ppsig(exp, MAX_ERROR_SIZE) << endl;
+            faustassert(false);
+        }
+    }
+
+    if (mxd == 0) {
+        // not a real vector name but a scalar name
+        return IB::genLoadStackVar(vname);
+    } else if (mxd == 1) {
+        int d;
+        if (isSigInt(delay, &d) && d == 1) {
+            // For single-sample delays, we stored the delayed value in a temporary variable
+            string temp_name = vname + "_temp";
+            return IB::genLoadStackVar(temp_name);
+        } else {
+            // Variable delay or delay != 1, use array access
+            return IB::genLoadArrayStructVar(vname, IB::genInt32NumInst(0));
+        }
+    } else {
+        // For all other cases, use the default implementation
+        return InstructionsCompiler::generateDelayAccess(sig, exp, delay);
+    }
 }
 
 ValueInst* InstructionsCompilerJAX::generateSoundfile(Tree sig, Tree path)

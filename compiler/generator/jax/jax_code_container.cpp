@@ -218,7 +218,9 @@ void JAXCodeContainer::produceClass()
         tab(n + 2, *fOut);
         tab(n + 2, *fOut);
         *fOut << "# global declarations:";
-        JAXInitFieldsVisitor initializer(fOut, n + 2, &(static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fNoiseVars));
+        JAXInitFieldsVisitor initializer(fOut, n + 2, 
+            &(static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fNoiseVars),
+            &(static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fScalarDelayVars));
         generateDeclarations(&initializer);
         // Generate global variables initialisation
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
@@ -242,7 +244,29 @@ void JAXCodeContainer::produceClass()
         tab(n + 2, *fOut);
         *fOut << "# instance clear:";
         tab(n + 2, *fOut);
+        // Temporarily set scalar delay vars for the clear visitor
+        JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
+        std::set<std::string> savedScalarDelayVars = jaxVisitor->fScalarDelayVars;
         generateClear(gGlobal->gJAXVisitor);
+        // Restore scalar delay vars (in case they were modified)
+        jaxVisitor->fScalarDelayVars = savedScalarDelayVars;
+        
+        // Generate scalar delay initializations
+        for (const auto& varName : jaxVisitor->fScalarDelayVars) {
+            tab(n + 2, *fOut);
+            *fOut << "state[\"" << varName << "\"] = ";
+            // Determine type based on variable name prefix
+            if (varName[0] == 'i') {
+                *fOut << "np.int32(0)";
+            } else if (gGlobal->gFloatSize == 1) {
+                *fOut << "np.float32(0)";
+            } else {
+                *fOut << "np.float64(0)";
+            }
+            // Add newline but no extra tab
+            *fOut << " ";
+        }
+        
         tab(n + 2, *fOut);
         *fOut << "return state";
         tab(n + 1, *fOut);

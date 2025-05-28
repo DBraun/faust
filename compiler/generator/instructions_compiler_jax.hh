@@ -27,13 +27,20 @@
 // To be used with JAX backend
 
 class InstructionsCompilerJAX : public InstructionsCompiler {
+   private:
+    std::set<std::string> fScalarDelayVars;  // Track single-sample delay variables
+    
    public:
     InstructionsCompilerJAX(CodeContainer* container) : InstructionsCompiler(container) {}
+    
+    const std::set<std::string>& getScalarDelayVars() const { return fScalarDelayVars; }
 
     StatementInst* generateShiftArray(const std::string& vname, int delay) override;
 
     ValueInst* generateDelayLine(ValueInst* exp, BasicTyped* ctype, const std::string& vname,
                                  int mxd, Address::AccessType& access, ValueInst* ccs) override;
+    
+    ValueInst* generateDelayAccess(Tree sig, Tree exp, Tree delay) override;
 
     ValueInst* generateSoundfile(Tree sig, Tree path) override;
 };

@@ -32,9 +32,11 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
     std::ostream* fOut;
     int           fTab;
     std::map<std::string, bool>* fNoiseVars;
+    std::set<std::string>* fScalarDelayVars;
 
-    JAXInitFieldsVisitor(std::ostream* out, int tab = 0, std::map<std::string, bool>* noiseVars = nullptr) 
-        : fOut(out), fTab(tab), fNoiseVars(noiseVars) {}
+    JAXInitFieldsVisitor(std::ostream* out, int tab = 0, std::map<std::string, bool>* noiseVars = nullptr,
+                        std::set<std::string>* scalarDelayVars = nullptr) 
+        : fOut(out), fTab(tab), fNoiseVars(noiseVars), fScalarDelayVars(scalarDelayVars) {}
 
     virtual void visit(DeclareVarInst* inst)
     {
@@ -43,6 +45,15 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
             if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
                 if (fNoiseVars->find(named->fName) != fNoiseVars->end()) {
                     return;
+                }
+            }
+        }
+        
+        // Check if this is a scalar delay variable - skip if so (handled in StoreVarInst)
+        if (fScalarDelayVars && inst->fAddress) {
+            if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
+                if (fScalarDelayVars->find(named->fName) != fScalarDelayVars->end()) {
+                    return;  // Skip - will be initialized as scalar in StoreVarInst
                 }
             }
         }
@@ -88,6 +99,39 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
         }
     }
 
+    virtual void visit(StoreVarInst* inst)
+    {
+        // Check if this is a scalar delay initialization
+        if (fScalarDelayVars && inst->fAddress) {
+            if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
+                if (fScalarDelayVars->find(named->fName) != fScalarDelayVars->end()) {
+                    // Initialize scalar delay variable
+                    tab(fTab, *fOut);
+                    inst->fAddress->accept(this);
+                    *fOut << " = ";
+                    // Determine type from the value
+                    if (Int32NumInst* intVal = dynamic_cast<Int32NumInst*>(inst->fValue)) {
+                        *fOut << "np.int32(" << intVal->fNum << ")";
+                    } else if (FloatNumInst* floatVal = dynamic_cast<FloatNumInst*>(inst->fValue)) {
+                        *fOut << "np.float32(" << checkFloat(floatVal->fNum) << ")";
+                    } else if (DoubleNumInst* doubleVal = dynamic_cast<DoubleNumInst*>(inst->fValue)) {
+                        *fOut << "np.float64(" << checkDouble(doubleVal->fNum) << ")";
+                    } else {
+                        // Default case - determine from global float size
+                        if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.float32(0)";
+                        } else {
+                            *fOut << "np.float64(0)";
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+        // Not a scalar delay - use default behavior
+        DispatchVisitor::visit(inst);
+    }
+    
     // Needed for waveforms
     virtual void visit(Int32ArrayNumInst* inst)
     {
@@ -127,6 +171,7 @@ class JAXInstVisitor : public TextInstVisitor {
    public:
     // Member variables to track noise generation context  
     std::map<std::string, bool> fNoiseVars;  // Track which variables are noise generators
+    std::set<std::string> fScalarDelayVars;  // Track single-sample delay variables
     
    private:
     /*
@@ -709,6 +754,13 @@ class JAXInstVisitor : public TextInstVisitor {
                 *fOut << named->fName;
                 return;
             }
+            
+            // Check if this is a scalar delay variable
+            if (isScalarDelayVar(named->fName)) {
+                // For scalar delays, just output the variable name (no array access)
+                *fOut << "state[\"" << named->fName << "\"]";
+                return;
+            }
         }
         
         if (fUseNumpy) {
@@ -830,6 +882,11 @@ class JAXInstVisitor : public TextInstVisitor {
         return fNoiseVars.find(name) != fNoiseVars.end();
     }
     
+    // Helper to check if a variable is a scalar delay
+    bool isScalarDelayVar(const std::string& name) {
+        return fScalarDelayVars.find(name) != fScalarDelayVars.end();
+    }
+    
     // Helper to check if an expression contains noise variables
     bool containsNoiseVars(ValueInst* value) {
         if (!value) return false;
@@ -853,6 +910,20 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(StoreVarInst* inst)
     {
+        // Check if we're storing to a scalar delay variable
+        if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+            if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                if (isScalarDelayVar(named->fName)) {
+                    // Generate scalar assignment for scalar delays
+                    *fOut << "state[\"" << named->fName << "\"]";
+                    *fOut << " = ";
+                    inst->fValue->accept(this);
+                    EndLine(' ');
+                    return;
+                }
+            }
+        }
+        
         // Check if this is storing an LCG noise pattern OR contains noise variables
         if (isLCGNoisePattern(inst->fValue) || containsNoiseVars(inst->fValue)) {
             // Extract variable name for tracking
