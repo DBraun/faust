@@ -32,9 +32,11 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
     std::ostream* fOut;
     int           fTab;
     std::map<std::string, bool>* fNoiseVars;
+    std::set<std::string>* fScalarDelayVars;
 
-    JAXInitFieldsVisitor(std::ostream* out, int tab = 0, std::map<std::string, bool>* noiseVars = nullptr) 
-        : fOut(out), fTab(tab), fNoiseVars(noiseVars) {}
+    JAXInitFieldsVisitor(std::ostream* out, int tab = 0, std::map<std::string, bool>* noiseVars = nullptr,
+                        std::set<std::string>* scalarDelayVars = nullptr) 
+        : fOut(out), fTab(tab), fNoiseVars(noiseVars), fScalarDelayVars(scalarDelayVars) {}
 
     virtual void visit(DeclareVarInst* inst)
     {
@@ -43,6 +45,15 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
             if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
                 if (fNoiseVars->find(named->fName) != fNoiseVars->end()) {
                     return;
+                }
+            }
+        }
+        
+        // Check if this is a scalar delay variable - skip if so (handled in StoreVarInst)
+        if (fScalarDelayVars && inst->fAddress) {
+            if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
+                if (fScalarDelayVars->find(named->fName) != fScalarDelayVars->end()) {
+                    return;  // Skip - will be initialized as scalar in StoreVarInst
                 }
             }
         }
@@ -88,6 +99,39 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
         }
     }
 
+    virtual void visit(StoreVarInst* inst)
+    {
+        // Check if this is a scalar delay initialization
+        if (fScalarDelayVars && inst->fAddress) {
+            if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
+                if (fScalarDelayVars->find(named->fName) != fScalarDelayVars->end()) {
+                    // Initialize scalar delay variable
+                    tab(fTab, *fOut);
+                    inst->fAddress->accept(this);
+                    *fOut << " = ";
+                    // Determine type from the value
+                    if (Int32NumInst* intVal = dynamic_cast<Int32NumInst*>(inst->fValue)) {
+                        *fOut << "np.int32(" << intVal->fNum << ")";
+                    } else if (FloatNumInst* floatVal = dynamic_cast<FloatNumInst*>(inst->fValue)) {
+                        *fOut << "np.float32(" << checkFloat(floatVal->fNum) << ")";
+                    } else if (DoubleNumInst* doubleVal = dynamic_cast<DoubleNumInst*>(inst->fValue)) {
+                        *fOut << "np.float64(" << checkDouble(doubleVal->fNum) << ")";
+                    } else {
+                        // Default case - determine from global float size
+                        if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.float32(0)";
+                        } else {
+                            *fOut << "np.float64(0)";
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+        // Not a scalar delay - use default behavior
+        DispatchVisitor::visit(inst);
+    }
+    
     // Needed for waveforms
     virtual void visit(Int32ArrayNumInst* inst)
     {
@@ -127,6 +171,7 @@ class JAXInstVisitor : public TextInstVisitor {
    public:
     // Member variables to track noise generation context  
     std::map<std::string, bool> fNoiseVars;  // Track which variables are noise generators
+    std::set<std::string> fScalarDelayVars;  // Track single-sample delay variables
     
    private:
     /*
@@ -709,6 +754,13 @@ class JAXInstVisitor : public TextInstVisitor {
                 *fOut << named->fName;
                 return;
             }
+            
+            // Check if this is a scalar delay variable
+            if (isScalarDelayVar(named->fName)) {
+                // For scalar delays, just output the variable name (no array access)
+                *fOut << "state[\"" << named->fName << "\"]";
+                return;
+            }
         }
         
         if (fUseNumpy) {
@@ -768,6 +820,62 @@ class JAXInstVisitor : public TextInstVisitor {
     std::string fNoiseVarName;
     int fNoiseCounter = 0;  // Counter for multiple noise streams
     std::map<std::string, std::string> fTempToNoise;  // Map temp vars to noise vars
+    
+    // Helper to determine if a variable is integer type based on naming convention
+    bool isIntegerVariable(const std::string& name) {
+        return !name.empty() && name[0] == 'i';
+    }
+    
+    // Helper to determine if a variable is float type based on naming convention
+    bool isFloatVariable(const std::string& name) {
+        return !name.empty() && name[0] == 'f';
+    }
+    
+    // Helper to check if value expression is likely integer type
+    bool isIntegerExpression(ValueInst* inst) {
+        // Check for integer literals
+        if (dynamic_cast<Int32NumInst*>(inst) || dynamic_cast<Int64NumInst*>(inst)) {
+            return true;
+        }
+        
+        // Check for binary operations that typically produce integers
+        if (BinopInst* binop = dynamic_cast<BinopInst*>(inst)) {
+            // Subtraction of integers produces integer
+            if (binop->fOpcode == kSub) {
+                // Check if both operands are integers
+                bool op1_int = dynamic_cast<Int32NumInst*>(binop->fInst1) != nullptr;
+                bool op2_int = false;
+                if (LoadVarInst* load = dynamic_cast<LoadVarInst*>(binop->fInst2)) {
+                    if (NamedAddress* named = dynamic_cast<NamedAddress*>(load->fAddress)) {
+                        op2_int = isIntegerVariable(named->fName);
+                    }
+                }
+                return op1_int && op2_int;
+            }
+        }
+        
+        // Check for loads of variables
+        if (LoadVarInst* load = dynamic_cast<LoadVarInst*>(inst)) {
+            if (NamedAddress* named = dynamic_cast<NamedAddress*>(load->fAddress)) {
+                // Check if it's an integer variable
+                if (isIntegerVariable(named->fName)) {
+                    return true;
+                }
+                // Check if it's a temp variable that contains an integer (like fTemp0)
+                // Temp variables that start with 'f' but are assigned integer expressions
+                // This is a heuristic - we assume fTemp variables assigned from integer
+                // expressions are integer typed even though they have 'f' prefix
+                if (named->fName.find("Temp") != std::string::npos && 
+                    named->fName[0] == 'f') {
+                    // For now, we'll mark this as potentially integer
+                    // A more robust solution would track the type of temp variables
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
     
     // Helper to detect LCG noise pattern
     bool isLCGNoisePattern(ValueInst* value) {
@@ -830,6 +938,11 @@ class JAXInstVisitor : public TextInstVisitor {
         return fNoiseVars.find(name) != fNoiseVars.end();
     }
     
+    // Helper to check if a variable is a scalar delay
+    bool isScalarDelayVar(const std::string& name) {
+        return fScalarDelayVars.find(name) != fScalarDelayVars.end();
+    }
+    
     // Helper to check if an expression contains noise variables
     bool containsNoiseVars(ValueInst* value) {
         if (!value) return false;
@@ -853,6 +966,49 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(StoreVarInst* inst)
     {
+        // Check if we're storing to a scalar delay variable
+        if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+            if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                if (isScalarDelayVar(named->fName)) {
+                    // Generate scalar assignment for scalar delays
+                    *fOut << "state[\"" << named->fName << "\"]";
+                    *fOut << " = ";
+                    
+                    // Check if we need type casting
+                    bool needsCast = false;
+                    std::string castType;
+                    
+                    // Check if we're storing to a float variable but have an integer expression
+                    // EXCEPTION: Never cast _idx variables to float - they must always remain integers
+                    if (isFloatVariable(named->fName) && isIntegerExpression(inst->fValue)) {
+                        // Check if this is an index variable (ends with _idx)
+                        if (named->fName.length() > 4 && named->fName.substr(named->fName.length() - 4) == "_idx") {
+                            needsCast = false;  // Index variables must remain integers
+                        } else {
+                            needsCast = true;
+                            // Determine float precision based on global settings
+                            if (fUseNumpy) {
+                                castType = (gGlobal->gFloatSize == 1) ? "np.float32" : "np.float64";
+                            } else {
+                                castType = (gGlobal->gFloatSize == 1) ? "jnp.float32" : "jnp.float64";
+                            }
+                        }
+                    }
+                    
+                    if (needsCast) {
+                        *fOut << castType << "(";
+                        inst->fValue->accept(this);
+                        *fOut << ")";
+                    } else {
+                        inst->fValue->accept(this);
+                    }
+                    
+                    EndLine(' ');
+                    return;
+                }
+            }
+        }
+        
         // Check if this is storing an LCG noise pattern OR contains noise variables
         if (isLCGNoisePattern(inst->fValue) || containsNoiseVars(inst->fValue)) {
             // Extract variable name for tracking
@@ -938,7 +1094,34 @@ class JAXInstVisitor : public TextInstVisitor {
             inst->fValue->accept(this);
             *fOut << ")";
         } else {
-            inst->fValue->accept(this);
+            // Check if we need type casting
+            bool needsCast = false;
+            std::string castType;
+            
+            // Check if we're storing to a float variable but have an integer expression
+            // EXCEPTION: Never cast _idx variables to float - they must always remain integers
+            if (!targetVar.empty() && isFloatVariable(targetVar) && isIntegerExpression(inst->fValue)) {
+                // Check if this is an index variable (ends with _idx)
+                if (targetVar.length() > 4 && targetVar.substr(targetVar.length() - 4) == "_idx") {
+                    needsCast = false;  // Index variables must remain integers
+                } else {
+                    needsCast = true;
+                    // Determine float precision based on global settings
+                    if (fUseNumpy) {
+                        castType = (gGlobal->gFloatSize == 1) ? "np.float32" : "np.float64";
+                    } else {
+                        castType = (gGlobal->gFloatSize == 1) ? "jnp.float32" : "jnp.float64";
+                    }
+                }
+            }
+            
+            if (needsCast) {
+                *fOut << castType << "(";
+                inst->fValue->accept(this);
+                *fOut << ")";
+            } else {
+                inst->fValue->accept(this);
+            }
         }
 
         EndLine(' ');

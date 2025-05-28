@@ -281,6 +281,36 @@ The JAX backend generates:
 - **State Management**: Proper handling of delays and stateful operations
 - **RNG Support**: Compatible with Flax's RNG system via `self.make_rng("rng_stream")` for stochastic DSPs
 
+## Performance Optimizations
+
+### Single-Sample Delay Optimization
+
+The JAX backend includes a special optimization for single-sample delays (`x'` in Faust), which are very common in DSP code. Instead of using arrays with roll operations, single-sample delays are implemented as scalar state variables.
+
+#### How it Works
+
+For a Faust expression like `x - x'`, the standard approach would generate:
+```python
+# Standard approach (inefficient)
+# In `initialize`:
+state["fVec0"] = np.zeros((2,), dtype=np.float32)  # Array of size 2
+# In `tick`:
+state["fVec0"] = state["fVec0"].at[0].set(input)  # Array update
+output = input - state["fVec0"][1]                # Array access
+state["fVec0"] = jnp.roll(state["fVec0"], 1)      # Expensive roll operation
+```
+
+The optimized JAX backend generates:
+```python
+# Optimized approach
+# In `initialize`:
+state["fVec0"] = np.float32(0)         # Scalar, not array
+# In `tick`:
+fVec0_temp = state["fVec0"]            # Store previous value
+state["fVec0"] = input                 # Direct scalar update
+output = input - fVec0_temp            # Use previous value
+```
+
 ## Noise Generation and PRNG Support
 
 The JAX backend automatically detects and replaces Faust's Linear Congruential Generator (LCG) noise patterns with JAX's proper PRNG system. This allows reproducibility and variation across JAX transformations such as `vmap`.

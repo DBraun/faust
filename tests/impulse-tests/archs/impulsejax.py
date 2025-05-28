@@ -261,8 +261,11 @@ if __name__ == '__main__':
 	parser.add_argument('-sr', '--sample-rate', type=int, default=44100, help='Sample rate (such as 44100)')
 	parser.add_argument('--random', type=bool, default=False, help="Whether the default audio is random. By default it's an impulse.")
 	parser.add_argument('-o', '--output', type=str, default=None, help='Filepath for output audio WAV')
+	parser.add_argument('--platform', default='cpu', choices=['cpu', 'gpu', 'metal', 'tpu'])
 
 	args = parser.parse_args()
+
+	jax.config.update('jax_platform_name', args.platform)
 
 	test(args, 15000, 0)
 	test(args, 15000, 15000, print_header=False)

@@ -218,7 +218,9 @@ void JAXCodeContainer::produceClass()
         tab(n + 2, *fOut);
         tab(n + 2, *fOut);
         *fOut << "# global declarations:";
-        JAXInitFieldsVisitor initializer(fOut, n + 2, &(static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fNoiseVars));
+        JAXInitFieldsVisitor initializer(fOut, n + 2, 
+            &(static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fNoiseVars),
+            &(static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fScalarDelayVars));
         generateDeclarations(&initializer);
         // Generate global variables initialisation
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
@@ -227,6 +229,28 @@ void JAXCodeContainer::produceClass()
             }
         }
         tab(n + 2, *fOut);
+        
+        // Initialize scalar delays BEFORE they're used in inline subcontainers
+        JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
+        if (!jaxVisitor->fScalarDelayVars.empty()) {
+            tab(n + 2, *fOut);
+            *fOut << "# scalar delay initializations:";
+            for (const auto& varName : jaxVisitor->fScalarDelayVars) {
+                tab(n + 2, *fOut);
+                *fOut << "state[\"" << varName << "\"] = ";
+                // Determine type based on variable name prefix
+                if (varName[0] == 'i') {
+                    *fOut << "np.int32(0)";
+                } else if (gGlobal->gFloatSize == 1) {
+                    *fOut << "np.float32(0)";
+                } else {
+                    *fOut << "np.float64(0)";
+                }
+                *fOut << " ";
+            }
+            tab(n + 2, *fOut);
+        }
+        
         tab(n + 2, *fOut);
         *fOut << "# inline subcontainers:";
         tab(n + 2, *fOut);
@@ -243,6 +267,7 @@ void JAXCodeContainer::produceClass()
         *fOut << "# instance clear:";
         tab(n + 2, *fOut);
         generateClear(gGlobal->gJAXVisitor);
+        
         tab(n + 2, *fOut);
         *fOut << "return state";
         tab(n + 1, *fOut);

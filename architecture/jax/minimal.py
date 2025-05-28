@@ -60,7 +60,7 @@ except ImportError:
 		return np.zeros((1, 1024)), self.sample_rate
 	
 	def add_soundfile(self, state, zone: str, ui_path: list[str], label: str, url: str, x):
-		# example url: {'tango.wav';'foo.wav';'bar/baz.wav'}
+		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
 		audio_data = [self.load_soundfile(filepath) for filepath in filepaths]
@@ -75,20 +75,20 @@ except ImportError:
 			fOffset.append(offset)
 			fBuffers = fBuffers.at[:y.shape[0],offset:offset+y.shape[1]].set(y)
 			offset += y.shape[1]
-		if label.startswith('param:'):
+		if label.startswith("param:"):
 			label = label[6:]  # remove param:
 			label = "/".join(ui_path+[label])
 			fBuffers = self.param("_"+label, (lambda key, shape: fBuffers), None)
 		else:
 			label = "/".join(ui_path+[label])
-		self.sow('intermediates', label, fBuffers)
-		state[zone] = {'fLength': fLength, 'fOffset': fOffset, 'fBuffers': fBuffers, 'fSR': fSR}
+		self.sow("intermediates", label, fBuffers)
+		state[zone] = {"fLength": fLength, "fOffset": fOffset, "fBuffers": fBuffers, "fSR": fSR}
 	
 	def add_button(self, state, zone: str, ui_path: list[str], label: str):
 		label = "/".join(ui_path+[label])
 		param = self.param("_"+label, nn.initializers.constant(0.), ())
 		param = jnp.where(param>0., 1., 0.)
-		self.sow('intermediates', label, param)
+		self.sow("intermediates", label, param)
 		state[zone] = param
 	
 	def add_checkbox(self, state, zone: str, ui_path: list[str], label: str):
@@ -142,16 +142,16 @@ except ImportError:
 		self.sow("intermediates", label, param_value)
 		state[zone] = param_value
 	
-	def add_slider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode='linear'):
+	def add_slider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode="linear"):
 		label = "/".join(ui_path + [label])
 		init, a_min, a_max = FAUSTFLOAT(init), FAUSTFLOAT(a_min), FAUSTFLOAT(a_max)
 		
-		if scale_mode == 'linear':
+		if scale_mode == "linear":
 			init = jnp.interp(init, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
 			param = self.param("_" + label, nn.initializers.constant(init, dtype=FAUSTFLOAT), ())
 			param = jnp.clip(param, FAUSTFLOAT(-1), FAUSTFLOAT(1))
 			param = jnp.interp(param, jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([a_min, a_max], dtype=FAUSTFLOAT))
-		elif scale_mode == 'exp':
+		elif scale_mode == "exp":
 			init = jnp.interp(init, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT))
 			init = jnp.log(init)
 			init = jnp.interp(init, jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
@@ -159,7 +159,7 @@ except ImportError:
 			param = jnp.clip(param, FAUSTFLOAT(-1), FAUSTFLOAT(1))
 			param = jnp.interp(param, jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
 			param = jnp.interp(jnp.exp(param), jnp.array([1., jnp.e], dtype=FAUSTFLOAT), jnp.array([a_min, a_max], dtype=FAUSTFLOAT))
-		elif scale_mode == 'log':
+		elif scale_mode == "log":
 			init = jnp.interp(init, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT))
 			init = jnp.power(FAUSTFLOAT(10), init)
 			init = jnp.interp(init, jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
@@ -169,7 +169,7 @@ except ImportError:
 			param = jnp.interp(jnp.log10(param), jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT), jnp.array([a_min, a_max], dtype=FAUSTFLOAT))
 		else:
 			raise ValueError(f"Unknown scale '{scale_mode}'.")
-		self.sow('intermediates', label, param)
+		self.sow("intermediates", label, param)
 		state[zone] = param
 	
 	def add_hslider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode: str):
@@ -183,23 +183,82 @@ except ImportError:
 	
 	def add_vbargraph(self, state, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
 		pass
-	
-	@nn.compact
-	def __call__(self, x, T: int) -> jnp.array:
-		# Handle generators (no input case)
-		if x is None or (hasattr(x, 'shape') and x.shape[0] == 0):
-			x = jnp.zeros((self.num_inputs, T))
+
+	def initialize_carry(self) -> Dict[str, jnp.array]:
+		"""
+		Initialize the carry state for real-time processing.
+			
+		Returns:
+			Dictionary containing all stateful components (delays, filter states, etc.)
+		"""
+		# Create dummy input for initialization
+		dummy_x = jnp.zeros((self.num_inputs, 1), dtype=FAUSTFLOAT)
 		
-		state = self.initialize(x, T)
-		state = self.build_interface(state, x, T)
-		# convert numpy array to jax numpy array
+		# Initialize the full state using fast numpy
+		state = self.initialize(dummy_x, 1)
+		state = self.build_interface(state, dummy_x, 1)
+		
+		# Convert numpy to JAX numpy arrays
 		state = jax.tree.map(jnp.array, state)
+		
+		return state
+	
+	def process_block(self, carry: Dict[str, jnp.array], inputs: jnp.array = None, unroll: int = 1) -> Tuple[jnp.array, Dict[str, jnp.array]]:
+		"""
+		Process one block of audio and return updated state.
+		
+		Args:
+			carry: State dictionary from previous block
+			inputs: Input audio block of shape (num_inputs, block_size)
+			
+		Returns:
+			Tuple of (output_block, new_carry) where:
+			- output_block has shape (num_outputs, block_size)
+			- new_carry is the updated state dictionary
+		"""
+		# Transpose for scan: (block_size, num_inputs)
+		if inputs is not None:
+			inputs_t = jnp.transpose(inputs, axes=(1, 0))
 
 		def tick(module, carry, *xs):
 			return module.tick(carry, *xs)
+		
+		scan_fn = nn.scan(tick,
+			variable_broadcast="params",
+			split_rngs={"rng_stream": True},
+			length=T,
+			unroll=unroll,
+		)
+		new_carry, outputs = scan_fn(self, carry, inputs_t)
+		
+		# Transpose back: (num_outputs, block_size)
+		outputs_t = jnp.transpose(outputs, axes=(1, 0))
 
-		scan_fn = nn.scan(tick, variable_broadcast="params", split_rngs={'rng_stream': True}, length=T)
-		_, outputs = scan_fn(self, state, jnp.transpose(x, axes=(1, 0)))
+		return outputs_t, new_carry
+	
+	@nn.compact
+	def __call__(self, x: jnp.array, length: int = None, unroll: int = 1) -> jnp.array:
+
+		if length is None:
+			length = x.shape[0]
+
+		# Handle generators (no input case)
+		if x is None:
+			x = jnp.zeros((self.num_inputs, length), dtype=FAUSTFLOAT)
+
+		carry = self.initialize_carry()
+		
+		def tick(module, carry, *xs):
+			return module.tick(carry, *xs)
+
+		scan_fn = nn.scan(tick,
+			variable_broadcast="params",
+			split_rngs={"rng_stream": True},
+			length=length,
+			unroll=unroll,
+		)
+		new_carry, outputs = scan_fn(self, carry, jnp.transpose(x, axes=(1, 0)))
+		
 		return jnp.transpose(outputs, axes=(1,0))
 
 
@@ -210,7 +269,7 @@ def test(args):
 	model = mydsp(sample_rate=args.sample_rate)
 
 	log_level = getattr(logging, args.log_level.upper())
-	logging.basicConfig(level=log_level, format='%(levelname)s: %(message)s')
+	logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
 
 	logger = logging.getLogger(__name__)
 
@@ -220,7 +279,7 @@ def test(args):
 	json_obj = model.getJSON()
 	logger.debug(f"JSON info: {json_obj}")
 
-	key = random.PRNGKey(args.seed)
+	key = random.key(args.seed)
 
 	if args.input is not None:
 		input_audio, _ = librosa.load(args.input, mono=False, sr=args.sample_rate, duration=args.duration)
@@ -244,10 +303,10 @@ def test(args):
 			input_audio = jnp.zeros((N_CHANNELS, N_SAMPLES), dtype=FAUSTFLOAT)
 			input_audio = input_audio.at[:,0].set(1.)
 
-	variables = model.init({'params': key, "rng_stream": key}, input_audio, N_SAMPLES)  
+	variables = model.init({"params": key, "rng_stream": key}, input_audio, N_SAMPLES)  
 
 	def forward(x: jnp.ndarray):
-		y, mod_vars = model.apply(variables, x, N_SAMPLES, mutable='intermediates', rngs={"rng_stream": key})
+		y, mod_vars = model.apply(variables, x, N_SAMPLES, mutable="intermediates", rngs={"rng_stream": key})
 		return y
 	
 	if args.jit:
@@ -258,7 +317,7 @@ def test(args):
 		for _ in tqdm.trange(1000):
 			y = forward(input_audio).block_until_ready()
 
-	y, mod_vars = forward(input_audio)
+	y = forward(input_audio)
 
 	assert y.ndim == 2
 	assert y.shape[0] == model.num_outputs
@@ -271,27 +330,123 @@ def test(args):
 		wavfile.write(args.output, args.sample_rate, output_audio)
 
 	logger.info("All done!")
+
+
+def realtime_audio_example():
+	"""
+	Real-time audio streaming example using sounddevice.
+	Demonstrates the real-time API with actual audio output.
+	"""
+	try:
+		import sounddevice as sd
+	except ImportError:
+		print("sounddevice not installed. Install with: pip install sounddevice")
+		print("Falling back to offline example.")
+		example_realtime_processing()
+		return
+	
+	import time
+	
+	# Audio settings
+	SAMPLE_RATE = 48000
+	BLOCK_SIZE = 512
+	
+	# Initialize model
+	model = mydsp(sample_rate=SAMPLE_RATE)
+	key = random.key(0)
+	
+	# Initialize parameters
+	if model.num_inputs > 0:
+		dummy_input = jnp.zeros((model.num_inputs, 1))
+	else:
+		dummy_input = None
+	
+	variables = model.init({"params": key, "rng_stream": key}, dummy_input, length=1)
+	
+	# Initialize carry state
+	carry = model.apply(variables, method="initialize_carry")
+	
+	# JIT compile the process method
+	@jax.jit
+	def process_block_jit(carry, inputs):
+		return model.apply(variables, carry, inputs, method="process_block")
+	
+	# Create a generator for audio blocks
+	def audio_generator():
+		nonlocal carry
+		while True:
+			# For generators, create empty input
+			if model.num_inputs == 0:
+				inputs = jnp.zeros((0, BLOCK_SIZE))
+			else:
+				# For processors, you would get input from sounddevice
+				# For this example, we'll use zeros
+				inputs = jnp.zeros((model.num_inputs, BLOCK_SIZE))
+			
+			# Process block
+			outputs, carry = process_block_jit(carry, inputs)
+			
+			# Convert to numpy and reshape for sounddevice
+			# sounddevice expects shape (frames, channels)
+			output_np = np.asarray(outputs.T, dtype=np.float32)
+			
+			# If mono, reshape to (frames, 1)
+			if output_np.ndim == 1:
+				output_np = output_np.reshape(-1, 1)
+			
+			yield output_np
+	
+	# Create the audio generator
+	audio_gen = audio_generator()
+	
+	# Sounddevice callback
+	def callback(outdata, frames, time_info, status):
+		if status:
+			print(f"Sounddevice status: {status}")
+		outdata[:] = next(audio_gen)
+	
+	# Start streaming
+	print(f"▶ Streaming audio at {SAMPLE_RATE}Hz, {BLOCK_SIZE} samples/block")
+	print(f"  Model: {model.num_inputs} inputs → {model.num_outputs} outputs")
+	print("  Press Ctrl+C to stop...")
+	
+	try:
+		with sd.OutputStream(
+			channels=model.num_outputs,
+			samplerate=SAMPLE_RATE,
+			blocksize=BLOCK_SIZE,
+			dtype='float32',
+			callback=callback
+		):
+			while True:
+				time.sleep(1)
+	except KeyboardInterrupt:
+		print("\n⏹ Stopped.")
 		
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 	import argparse
-	parser = argparse.ArgumentParser(description='Run a JAX/Flax model converted from Faust code')
-	parser.add_argument('-sr', '--sample-rate', type=int, default=44100, help='Sample rate (such as 44100)')
-	parser.add_argument('-d', '--duration', type=float, default=None, help='Output duration in seconds')
-	parser.add_argument('--random', action='store_true',
-		help="Whether the default audio is random. By default it's an impulse.")
-	parser.add_argument('--seed', default=0, type=int, help="Seed for random number generator (default: 0)")
-	parser.add_argument('-i', '--input', type=str, default=None, help='Filepath for input audio WAV')
-	parser.add_argument('-o', '--output', type=str, default=None, help='Filepath for output audio WAV')
-	parser.add_argument('--log-level', default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], 
-						help='Set the logger level (default: INFO)')
-	parser.add_argument('--jit', default=False, action=argparse.BooleanOptionalAction,
+	parser = argparse.ArgumentParser(description="Run a JAX/Flax model converted from Faust code")
+	parser.add_argument("-sr", "--sample-rate", type=int, default=44100, help="Sample rate (such as 44100)")
+	parser.add_argument("-d", "--duration", type=float, default=None, help="Output duration in seconds")
+	parser.add_argument("--random", action="store_true",
+		help="Whether the default audio is random. By default it\"s an impulse.")
+	parser.add_argument("--seed", default=0, type=int, help="Seed for random number generator (default: 0)")
+	parser.add_argument("-i", "--input", type=str, default=None, help="Filepath for input audio WAV")
+	parser.add_argument("-o", "--output", type=str, default=None, help="Filepath for output audio WAV")
+	parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+						help="Set the logger level (default: INFO)")
+	parser.add_argument("--jit", default=False, action=argparse.BooleanOptionalAction,
                         help="Whether to use JIT.")
-	parser.add_argument('--platform', default='gpu', choices=['cpu', 'gpu', 'tpu'])
+	parser.add_argument("--platform", default="gpu", choices=["cpu", "gpu", "tpu"])
+	parser.add_argument("--realtime", default=False, action=argparse.BooleanOptionalAction)
 
 	args = parser.parse_args()
 	
 	# Global flag to set a specific platform, must be used at startup.
-	jax.config.update('jax_platform_name', args.platform)
+	jax.config.update("jax_platform_name", args.platform)
 
-	test(args)
+	if args.realtime:
+		realtime_audio_example()
+	else:
+		test(args)
