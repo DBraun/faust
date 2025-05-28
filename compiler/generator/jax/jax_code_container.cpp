@@ -208,10 +208,11 @@ void JAXCodeContainer::produceClass()
     produceInfoFunctions(n + 1, "", "self", false, FunTyped::kDefault, gGlobal->gJAXVisitor);
 
     tab(n + 1, *fOut);
+    *fOut << "# fmt: off";
+
+    tab(n + 1, *fOut);
     *fOut << "def initialize(self, x, T):";
     {
-        tab(n + 2, *fOut);
-        *fOut << "fmt: off";
         tab(n + 2, *fOut);
         *fOut << "state = {}";
         tab(n + 2, *fOut);
@@ -244,8 +245,6 @@ void JAXCodeContainer::produceClass()
         generateClear(gGlobal->gJAXVisitor);
         tab(n + 2, *fOut);
         *fOut << "return state";
-        tab(n + 2, *fOut);
-        *fOut << "fmt: on";
         tab(n + 1, *fOut);
     }
     back(1, *fOut);
@@ -303,6 +302,9 @@ void JAXCodeContainer::generateCompute(int n)
 
     generatePostComputeBlock(gGlobal->gJAXVisitor);
     gGlobal->gJAXVisitor->fUseNumpy = true;
+
+    tab(n, *fOut);
+    *fOut << "# fmt: on";
 }
 
 void JAXCodeContainer::generateSR()
