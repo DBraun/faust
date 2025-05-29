@@ -79,7 +79,7 @@ except ImportError:
 			label = label[6:]  # remove param:
 			label = "/".join(ui_path+[label])
 			fBuffers = self.param("_"+label, (lambda key, shape: fBuffers), None)
-			unnorm_funcs[zone] = lambda x: (label, x)
+			unnorm_funcs[zone] = (zone, lambda x: x)
 		else:
 			label = "/".join(ui_path+[label])
 
@@ -266,7 +266,7 @@ except ImportError:
 		dummy_x = jnp.zeros((self.num_inputs, 1), dtype=FAUSTFLOAT)
 		
 		# Initialize the full state using fast numpy
-		state = self.initialize(dummy_x, 1)
+		state = self._initialize_carry(dummy_x, 1)
 		
 		# Convert numpy to JAX numpy arrays
 		state = jax.tree.map(jnp.array, state)

@@ -13,7 +13,12 @@
       "Bash(python test_types_fixed.py:*)",
       "Bash(JAX_PLATFORMS=cpu python3 tf_exp_full.py)",
       "Bash(rm:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(awk:*)",
+      "Bash(perl:*)",
+      "Bash(sed:*)",
+      "Bash(diff:*)",
+      "Bash(python test_table1_regenerated.py:*)"
     ],
     "deny": []
   }

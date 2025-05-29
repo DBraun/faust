@@ -211,7 +211,7 @@ void JAXCodeContainer::produceClass()
     *fOut << "# fmt: off";
 
     tab(n + 1, *fOut);
-    *fOut << "def initialize(self, x, length: int):";
+    *fOut << "def _initialize_carry(self, x: jnp.ndarray, length: int):";
     {
         tab(n + 2, *fOut);
         *fOut << "state = {}";

@@ -704,8 +704,14 @@ class JAXInstVisitor : public TextInstVisitor {
             *fOut << "params[\"" << named->fName << "\"]";
         } 
         // Check if this is a constant (either tracked at compile time or runtime)
-        else if (fConstantVars.find(named->fName) != fConstantVars.end() || 
-                 (named->fName.find("fConst") == 0)) {
+        else if (fConstantVars.find(named->fName) != fConstantVars.end() ||
+                 (named->fName.find("iConst") == 0) ||
+                 (named->fName.find("fConst") == 0) ||
+                 (named->fName.find("pfPerm") == 0) ||
+                 (named->fName == "ftbl0mydspSIG0") ||  // Only the static table is a constant
+                 (named->fName.find("fmydspWave") == 0 && named->fName.find("_idx") == std::string::npos) ||  // Wave data but not index
+                 (named->fName.find("fmydspSIG") == 0 && named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos)
+                ) {
             *fOut << "self._" << named->fName;
         } 
         // Check if this is a bargraph variable - use local variable instead of state
