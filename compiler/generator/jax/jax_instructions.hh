@@ -159,6 +159,8 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
 class JAXInstVisitor : public TextInstVisitor {
    public:
     std::set<std::string> fScalarDelayVars;  // Track single-sample delay variables
+    std::set<std::string> fUIParamVars;  // Track UI parameter variables
+    std::set<std::string> fConstantVars;  // Track constant variables
     
    private:
     /*
@@ -426,9 +428,11 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddButtonInst* inst)
     {
-        *fOut << "self.add_button(state, " << quote(inst->fZone) << ", ui_path,"
-              << quote(inst->fLabel) << ")";
+        *fOut << "self.add_button(" << quote(inst->fZone) << ", ui_path, "
+              << quote(inst->fLabel) << ", unnorm_funcs)";
         EndLine(' ');
+        // Track this UI parameter
+        fUIParamVars.insert(inst->fZone);
     }
 
     virtual void visit(AddSliderInst* inst)
@@ -445,51 +449,61 @@ class JAXInstVisitor : public TextInstVisitor {
         switch (inst->fType) {
             case AddSliderInst::kHorizontal:
                 // clang-format off
-                *fOut << "self.add_hslider(state, " 
+                *fOut << "self.add_hslider(" 
                     << quote(inst->fZone) << ", ui_path, "
                     << quote(inst->fLabel) << ", "
                     << checkReal(inst->fInit) << ", "
                     << checkReal(inst->fMin) << ", "
                     << checkReal(inst->fMax) << ", "
+                    << "unnorm_funcs, "
                     << scaleMode << ")";
                 break;
                 // clang-format on
             case AddSliderInst::kVertical:
                 // clang-format off
-                *fOut << "self.add_vslider(state, " 
+                *fOut << "self.add_vslider(" 
                     << quote(inst->fZone) << ", ui_path, "
                     << quote(inst->fLabel) << ", "
                     << checkReal(inst->fInit) << ", "
                     << checkReal(inst->fMin) << ", "
                     << checkReal(inst->fMax) << ", "
+                    << "unnorm_funcs, "
                     << scaleMode << ")";
                 break;
                 // clang-format on
             case AddSliderInst::kNumEntry:
                 // clang-format off
-                *fOut << "self.add_nentry(state, " 
+                *fOut << "self.add_nentry(" 
                     << quote(inst->fZone) << ", ui_path, "
                     << quote(inst->fLabel) << ", "
                     << checkReal(inst->fInit) << ", "
                     << checkReal(inst->fMin) << ", "
                     << checkReal(inst->fMax) << ", "
-                    << checkReal(inst->fStep) << ")";
+                    << checkReal(inst->fStep) << ", unnorm_funcs, \"linear\")";
                 break;
                 // clang-format on
         }
         EndLine(' ');
+        // Track this UI parameter
+        fUIParamVars.insert(inst->fZone);
     }
 
     virtual void visit(AddBargraphInst* inst)
     {
-        *fOut << "state[" + quote(inst->fZone) + "] = 0.";
+        // Always use setup-style - bargraphs are output-only
+        *fOut << "self.add_" << ((inst->fType == AddBargraphInst::kHorizontal) ? "h" : "v") 
+              << "bargraph(" << quote(inst->fZone) << ", ui_path, "
+              << quote(inst->fLabel) << ", " 
+              << checkReal(inst->fMin) << ", " 
+              << checkReal(inst->fMax) << ")";
         EndLine(' ');
     }
 
     virtual void visit(AddSoundfileInst* inst)
     {
-        *fOut << "self.add_soundfile(state, " << quote(inst->fSFZone) << ", ui_path, "
-              << quote(inst->fLabel) << ", " << quote(inst->fURL) << ", x)";
+        // Always use setup-style (no state parameter)
+        *fOut << "self.add_soundfile(" << quote(inst->fSFZone) << ", ui_path, "
+              << quote(inst->fLabel) << ", " << quote(inst->fURL) << ")";
         EndLine(' ');
     }
 
@@ -685,13 +699,28 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(NamedAddress* named)
     {        
-        // kStaticStruct are actually merged in the main DSP
-        if (named->isStruct() || named->isStaticStruct()) {
-            *fOut << "state[\"";
+        // Check if this is a UI parameter (access from params dict in tick)
+        if (fUIParamVars.find(named->fName) != fUIParamVars.end()) {
+            *fOut << "params[\"" << named->fName << "\"]";
+        } 
+        // Check if this is a constant (either tracked at compile time or runtime)
+        else if (fConstantVars.find(named->fName) != fConstantVars.end() || 
+                 (named->fName.find("fConst") == 0)) {
+            *fOut << "self._" << named->fName;
+        } 
+        // Check if this is a bargraph variable - use local variable instead of state
+        else if (isBargraphVar(named->fName)) {
+            *fOut << named->fName;
         }
-        *fOut << named->fName;
-        if (named->isStruct() || named->isStaticStruct()) {
-            *fOut << "\"]";
+        else {
+            // kStaticStruct are actually merged in the main DSP
+            if (named->isStruct() || named->isStaticStruct()) {
+                *fOut << "state[\"";
+            }
+            *fOut << named->fName;
+            if (named->isStruct() || named->isStaticStruct()) {
+                *fOut << "\"]";
+            }
         }
     }
 
@@ -700,7 +729,7 @@ class JAXInstVisitor : public TextInstVisitor {
     */
     virtual void visit(IndexedAddress* indexed)
     {
-        // Check if this is a noise variable access
+        
         if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {            
             // Check if this is a scalar delay variable
             if (isScalarDelayVar(named->fName)) {
@@ -818,70 +847,19 @@ class JAXInstVisitor : public TextInstVisitor {
         return false;
     }
     
-    // Helper to detect LCG noise pattern
-    bool isLCGNoisePattern(ValueInst* value) {
-        // Check if this is ((1103515245 * var) + 12345)
-        if (BinopInst* add = dynamic_cast<BinopInst*>(value)) {
-            if (add->fOpcode == kAdd) {
-                // Check for + 12345
-                bool hasIncrement = false;
-                if (Int32NumInst* num = dynamic_cast<Int32NumInst*>(add->fInst2)) {
-                    hasIncrement = (num->fNum == 12345);
-                } else if (Int32NumInst* num = dynamic_cast<Int32NumInst*>(add->fInst1)) {
-                    hasIncrement = (num->fNum == 12345);
-                }
-                
-                if (hasIncrement) {
-                    // Check for multiplication by 1103515245
-                    BinopInst* mul = nullptr;
-                    
-                    // Check if either operand is a multiplication
-                    if (BinopInst* inst1 = dynamic_cast<BinopInst*>(add->fInst1)) {
-                        if (inst1->fOpcode == kMul) mul = inst1;
-                    }
-                    if (!mul) {
-                        if (BinopInst* inst2 = dynamic_cast<BinopInst*>(add->fInst2)) {
-                            if (inst2->fOpcode == kMul) mul = inst2;
-                        }
-                    }
-                    
-                    if (mul) {
-                        // Check if one operand is 1103515245
-                        if (Int32NumInst* num = dynamic_cast<Int32NumInst*>(mul->fInst1)) {
-                            return num->fNum == 1103515245;
-                        } else if (Int32NumInst* num = dynamic_cast<Int32NumInst*>(mul->fInst2)) {
-                            return num->fNum == 1103515245;
-                        }
-                    }
-                }
-            }
-        }
-        return false;
-    }
-    
-    // Helper to detect chained LCG pattern (multiplication by 1103515245)
-    bool isLCGMultiplication(ValueInst* value) {
-        if (BinopInst* mul = dynamic_cast<BinopInst*>(value)) {
-            if (mul->fOpcode == kMul) {
-                // Check if one operand is 1103515245
-                if (Int32NumInst* num = dynamic_cast<Int32NumInst*>(mul->fInst1)) {
-                    return num->fNum == 1103515245;
-                } else if (Int32NumInst* num = dynamic_cast<Int32NumInst*>(mul->fInst2)) {
-                    return num->fNum == 1103515245;
-                }
-            }
-        }
-        return false;
-    }
-
-    
     // Helper to check if a variable is a scalar delay
     bool isScalarDelayVar(const std::string& name) {
         return fScalarDelayVars.find(name) != fScalarDelayVars.end();
     }
+    
+    // Helper to check if a variable is a bargraph
+    bool isBargraphVar(const std::string& name) {
+        return name.find("fVbargraph") == 0 || name.find("fHbargraph") == 0;
+    }
 
     virtual void visit(StoreVarInst* inst)
     {
+        
         // Check if we're storing to a scalar delay variable
         if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
             if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
@@ -925,8 +903,44 @@ class JAXInstVisitor : public TextInstVisitor {
             }
         }
         
-        // Check if we're storing to a noise variable - skip it
+        // Check if we're storing to a bargraph variable
         std::string targetVar;
+        if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
+            targetVar = named->fName;
+            if (isBargraphVar(targetVar)) {
+                // Generate temporary variable and sow() call for bargraph
+                *fOut << targetVar << " = ";
+                
+                // Check if we need type casting
+                bool needsCast = false;
+                std::string castType;
+                
+                // Check if we're storing to a float variable but have an integer expression
+                if (isFloatVariable(targetVar) && isIntegerExpression(inst->fValue)) {
+                    needsCast = true;
+                    // Determine float precision based on global settings
+                    if (fUseNumpy) {
+                        castType = (gGlobal->gFloatSize == 1) ? "np.float32" : "np.float64";
+                    } else {
+                        castType = (gGlobal->gFloatSize == 1) ? "jnp.float32" : "jnp.float64";
+                    }
+                }
+                
+                if (needsCast) {
+                    *fOut << castType << "(";
+                    inst->fValue->accept(this);
+                    *fOut << ")";
+                } else {
+                    inst->fValue->accept(this);
+                }
+                
+                // Generate sow() call
+                tab(fTab, *fOut);
+                *fOut << "self.sow(\"intermediates\", \"" << targetVar << "\", " << targetVar << ")";
+                EndLine(' ');
+                return;
+            }
+        }
         
         // Normal store operation
         fIsStoringLhs = true;

@@ -12,7 +12,8 @@
       "Bash(../../build/bin/faust:*)",
       "Bash(python test_types_fixed.py:*)",
       "Bash(JAX_PLATFORMS=cpu python3 tf_exp_full.py)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

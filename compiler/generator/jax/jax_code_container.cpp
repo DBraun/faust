@@ -290,28 +290,58 @@ void JAXCodeContainer::produceClass()
         tab(n + 1, *fOut);
     }
 
-    // User interface
+    // Setup method
     tab(n + 1, *fOut);
-    *fOut << "def build_interface(self, state, x, length: int):";
-    tab(n + 2, *fOut);
-    *fOut << "ui_path = []";
-    tab(n + 2, *fOut);
-    gGlobal->gJAXVisitor->Tab(n + 2);
-    generateUserInterface(gGlobal->gJAXVisitor);
-    tab(n + 2, *fOut);
-    *fOut << "return state";
+    *fOut << "def setup(self):";
+    {
+        JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
+        
+        // Initialize unnormalization functions dictionary
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize unnormalization functions dictionary";
+        tab(n + 2, *fOut);
+        *fOut << "unnorm_funcs = {}";
+        
+        // Initialize constants as instance attributes
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize constants as instance attributes";
+        tab(n + 2, *fOut);
+        *fOut << "self._fSampleRate = self.sample_rate";
+        // Track fSampleRate as a constant
+        jaxVisitor->fConstantVars.insert("fSampleRate");
+        
+        // Generate constants from init instructions directly
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize constants from init instructions";
+        tab(n + 2, *fOut);
+        gGlobal->gJAXVisitor->Tab(n + 2);
+        // Process fInitInstructions manually to extract constants
+        fInitInstructions->accept(gGlobal->gJAXVisitor);
+        
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize UI parameters as instance attributes";
+        tab(n + 2, *fOut);
+        *fOut << "ui_path = []";
+        tab(n + 2, *fOut);
+        gGlobal->gJAXVisitor->Tab(n + 2);
+        generateUserInterface(gGlobal->gJAXVisitor);
+        
+        // Store the unnorm_funcs dictionary
+        tab(n + 2, *fOut);
+        *fOut << "# Store unnormalization functions";
+        tab(n + 2, *fOut);
+        *fOut << "self._unnorm_funcs = unnorm_funcs";
+    }
 
     // Compute
-    tab(n + 1, *fOut);
     generateCompute(n + 1);
     tab(n, *fOut);
 }
 
 void JAXCodeContainer::generateCompute(int n)
 {
-    // Generates declaration
     tab(n, *fOut);
-    *fOut << "def tick(self, state: dict, inputs: jnp.array):";
+    *fOut << "def tick(self, params: dict, state: dict, inputs: jnp.array):";
     tab(n + 1, *fOut);
 
     tab(n + 1, *fOut);
@@ -359,19 +389,6 @@ void JAXCodeContainer::produceInfoFunctions(int tabs, const string& classname, c
     *fOut << "def num_outputs(self):";
     tab(tabs + 1, *fOut);
     *fOut << "return " << fNumOutputs;
-    tab(tabs, *fOut);
-    
-    // Keep the old methods for backward compatibility
-    tab(tabs, *fOut);
-    *fOut << "def getNumInputs(self):";
-    tab(tabs + 1, *fOut);
-    *fOut << "return self.num_inputs";
-    tab(tabs, *fOut);
-    
-    tab(tabs, *fOut);
-    *fOut << "def getNumOutputs(self):";
-    tab(tabs + 1, *fOut);
-    *fOut << "return self.num_outputs";
     tab(tabs, *fOut);
 }
 

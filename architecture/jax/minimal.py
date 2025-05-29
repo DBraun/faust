@@ -59,7 +59,7 @@ except ImportError:
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, state, zone: str, ui_path: list[str], label: str, url: str, x):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -79,25 +79,24 @@ except ImportError:
 			label = label[6:]  # remove param:
 			label = "/".join(ui_path+[label])
 			fBuffers = self.param("_"+label, (lambda key, shape: fBuffers), None)
+			unnorm_funcs[zone] = lambda x: (label, x)
 		else:
 			label = "/".join(ui_path+[label])
-		self.sow("intermediates", label, fBuffers)
-		state[zone] = {"fLength": fLength, "fOffset": fOffset, "fBuffers": fBuffers, "fSR": fSR}
+
+		setattr(self, zone, {"fLength": fLength, "fOffset": fOffset, "fBuffers": fBuffers, "fSR": fSR})
 	
-	def add_button(self, state, zone: str, ui_path: list[str], label: str):
+	def add_button(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
 		label = "/".join(ui_path+[label])
-		param = self.param("_"+label, nn.initializers.constant(0.), ())
-		param = jnp.where(param>0., 1., 0.)
-		self.sow("intermediates", label, param)
-		state[zone] = param
+		setattr(self, zone, self.param(label, nn.initializers.constant(0., dtype=FAUSTFLOAT), ()))
+		unnorm_funcs[label] = (zone, lambda x: x)
 	
-	def add_checkbox(self, state, zone: str, ui_path: list[str], label: str):
-		self.add_button(state, zone, ui_path, label)
+	def add_checkbox(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
+		self.add_button(zone, ui_path, label, unnorm_funcs)
 	
 	def add_nentry(
-		self, state, zone: str, ui_path: List[str], label: str,
+		self, zone: str, ui_path: List[str], label: str,
 		init: float, a_min: float, a_max: float, step_size: float,
-		scale_mode: str = "linear",
+		unnorm_funcs: dict, scale_mode: str = "linear",
 	):
 		"""
 		Gumbel-Softmax version of a FAUST nentry:
@@ -120,69 +119,141 @@ except ImportError:
 		def init_logits(key, shape):
 			logits = jnp.zeros(shape, dtype=FAUSTFLOAT)
 			return logits.at[init_step].set(FAUSTFLOAT(5.0))        # bias ≈ exp(5) ≈ 148
-		logits = self.param("_" + label, init_logits, (num_steps,))
+		logits_zone = zone + "_logits"
+		logits_label = label + ":logits"
+		setattr(self, logits_zone, self.param(logits_label, init_logits, (num_steps,)))
 
 		# temperature (optional learnable scalar)
-		# tau = self.param(f"_{label}_tau", nn.initializers.constant(1.0), ())
-		tau = 1.0  # todo: user should be able to configure via UI Label metadata:
+		# tau = self.param(f"{zone}_tau", nn.initializers.constant(1.0), ())
+		tau = 1.0  # TODO: user should be able to configure via UI Label metadata:
 		# https://faustdoc.grame.fr/manual/syntax/#ui-label-metadata
 
-		# At train-time pass rngs={"gumbel": key} to model.apply
-		if self.has_rng("gumbel"):
-			gumbel_noise = -jnp.log(-jnp.log(
-				random.uniform(self.make_rng("gumbel"), shape=logits.shape) + FAUSTFLOAT(1e-10)
-			) + FAUSTFLOAT(1e-10))
-			probs = nn.softmax((logits + gumbel_noise) / jnp.clip(tau, FAUSTFLOAT(1e-3)))
-		else:  # deterministic fallback (e.g. evaluation)
-			probs = nn.softmax(logits / jnp.clip(tau, FAUSTFLOAT(1e-3)))
-
-		param_value = jnp.sum(probs * step_values)
-
-		self.sow("intermediates", label + ":probs", probs)
-		self.sow("intermediates", label, param_value)
-		state[zone] = param_value
+		# Store nentry metadata as attributes. TODO: necessary?
+		setattr(self, f"_{zone}_step_values", step_values)
+		setattr(self, f"_{zone}_tau", tau)
+		setattr(self, f"_{zone}_logits_zone", logits_zone)
+		
+		# Add unnormalization lambda for nentry
+		def make_nentry_unnorm(zone, logits_zone, tau, step_values):
+			def unnorm_nentry(module):
+				logits = getattr(module, logits_zone)
+				# Gumbel-softmax computation
+				if module.has_rng("gumbel"):
+					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
+					logits_with_noise = logits + gumbel_noise
+				else:
+					logits_with_noise = logits
+				probs = nn.softmax(logits_with_noise / tau)
+				return jnp.dot(probs, step_values)
+			return unnorm_nentry
+		
+		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
 	
-	def add_slider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode="linear"):
+	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> float:
+		"""Normalize a value from [a_min, a_max] to [-1, 1] based on scale mode."""
+		if scale_mode == "linear":
+			return jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
+							 jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+		elif scale_mode == "exp":
+			# Map to [1, e], take log, then map to [-1, 1]
+			value_exp = jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
+								  jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT))
+			value_log = jnp.log(value_exp)
+			return jnp.interp(value_log, jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), 
+							 jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+		elif scale_mode == "log":
+			# Map to [-4, 0], apply 10^x, then map to [-1, 1]
+			value_log10 = jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
+									jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT))
+			value_pow = jnp.power(FAUSTFLOAT(10), value_log10)
+			return jnp.interp(value_pow, jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), 
+							 jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+		else:
+			raise ValueError(f"Unknown scale mode: {scale_mode}")
+	
+	def create_unnormalize_func(self, a_min: float, a_max: float, scale_mode: str):
+		"""Create an unnormalization function for the given scale mode."""
+		if scale_mode == "linear":
+			return lambda normalized: jnp.interp(
+				jnp.clip(normalized, FAUSTFLOAT(-1), FAUSTFLOAT(1)),
+				jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
+				jnp.array([a_min, a_max], dtype=FAUSTFLOAT)
+			)
+		elif scale_mode == "exp":
+			return lambda normalized: jnp.interp(
+				jnp.exp(jnp.interp(
+					jnp.clip(normalized, FAUSTFLOAT(-1), FAUSTFLOAT(1)),
+					jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
+					jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT)
+				)), 
+				jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT), 
+				jnp.array([a_min, a_max], dtype=FAUSTFLOAT)
+			)
+		elif scale_mode == "log":
+			return lambda normalized: jnp.interp(
+				jnp.log10(jnp.interp(
+					jnp.clip(normalized, FAUSTFLOAT(-1), FAUSTFLOAT(1)),
+					jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
+					jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT)
+				)), 
+				jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT), 
+				jnp.array([a_min, a_max], dtype=FAUSTFLOAT)
+			)
+		else:
+			raise ValueError(f"Unknown scale mode: {scale_mode}")
+	
+	def add_slider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode="linear"):
+		"""Add a slider UI element with the specified parameters."""
 		label = "/".join(ui_path + [label])
 		init, a_min, a_max = FAUSTFLOAT(init), FAUSTFLOAT(a_min), FAUSTFLOAT(a_max)
 		
-		if scale_mode == "linear":
-			init = jnp.interp(init, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
-			param = self.param("_" + label, nn.initializers.constant(init, dtype=FAUSTFLOAT), ())
-			param = jnp.clip(param, FAUSTFLOAT(-1), FAUSTFLOAT(1))
-			param = jnp.interp(param, jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([a_min, a_max], dtype=FAUSTFLOAT))
-		elif scale_mode == "exp":
-			init = jnp.interp(init, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT))
-			init = jnp.log(init)
-			init = jnp.interp(init, jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
-			param = self.param("_" + label, nn.initializers.constant(init, dtype=FAUSTFLOAT), ())
-			param = jnp.clip(param, FAUSTFLOAT(-1), FAUSTFLOAT(1))
-			param = jnp.interp(param, jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
-			param = jnp.interp(jnp.exp(param), jnp.array([1., jnp.e], dtype=FAUSTFLOAT), jnp.array([a_min, a_max], dtype=FAUSTFLOAT))
-		elif scale_mode == "log":
-			init = jnp.interp(init, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT))
-			init = jnp.power(FAUSTFLOAT(10), init)
-			init = jnp.interp(init, jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
-			param = self.param("_" + label, nn.initializers.constant(init, dtype=FAUSTFLOAT), ())
-			param = jnp.clip(param, FAUSTFLOAT(-1), FAUSTFLOAT(1))
-			param = jnp.interp(param, jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
-			param = jnp.interp(jnp.log10(param), jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT), jnp.array([a_min, a_max], dtype=FAUSTFLOAT))
-		else:
-			raise ValueError(f"Unknown scale '{scale_mode}'.")
-		self.sow("intermediates", label, param)
-		state[zone] = param
+		# Normalize init value to [-1, 1] based on scale mode
+		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
+		
+		# Create the normalized parameter with label as name
+		setattr(self, zone, self.param(label, nn.initializers.constant(normalized_init, dtype=FAUSTFLOAT), ()))
+		
+		# Create and store the unnormalization function
+		unnorm_func = self.create_unnormalize_func(a_min, a_max, scale_mode)
+		unnorm_funcs[label] = (zone, unnorm_func)
 	
-	def add_hslider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode: str):
-		self.add_slider(state, zone, ui_path, label, init, a_min, a_max, scale_mode)
+	def add_hslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
+		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_vslider(self, state, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, scale_mode: str):
-		self.add_slider(state, zone, ui_path, label, init, a_min, a_max, scale_mode)
+	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
+		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, state, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, state, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def unnormalize(self) -> Dict[str, jnp.array]:
+		"""
+		Unnormalize all UI parameters from [-1, 1] to their original ranges.
+		
+		Returns:
+			Dictionary mapping zones to unnormalized parameter values
+		"""
+		params = {}
+		
+		# Simply use the stored unnormalization functions
+		for label, (zone, unnorm_func) in self._unnorm_funcs.items():
+			# Check if it's a nentry (needs module as arg)
+			if hasattr(self, f"_{zone}_logits_zone"):
+				params[zone] = unnorm_func(self)
+			elif hasattr(self, zone):
+				# Regular parameter
+				normalized_value = getattr(self, zone)
+				params[zone] = unnorm_func(normalized_value)
+			else:
+				raise ValueError(f"Zone not found: {zone}")
+			self.sow("intermediates", label, params[zone])
+		
+		return params
 
 	def initialize_carry(self) -> Dict[str, jnp.array]:
 		"""
@@ -196,7 +267,6 @@ except ImportError:
 		
 		# Initialize the full state using fast numpy
 		state = self.initialize(dummy_x, 1)
-		state = self.build_interface(state, dummy_x, 1)
 		
 		# Convert numpy to JAX numpy arrays
 		state = jax.tree.map(jnp.array, state)
@@ -219,14 +289,17 @@ except ImportError:
 			- new_carry is the updated state dictionary
 		"""
 		if length is None and inputs is not None and hasattr(inputs, "shape"):
-			length = x.shape[-1]
+			length = inputs.shape[-1]
 
 		# Transpose for scan: (block_size, num_inputs)
 		if inputs is not None:
 			inputs = jnp.transpose(inputs, axes=(1, 0))
 
+		# Unnormalize parameters once before the scan
+		params = self.unnormalize()
+		
 		def tick(module, carry, *xs):
-			return module.tick(carry, *xs)
+			return module.tick(params, carry, *xs)
 		
 		scan_fn = nn.scan(tick,
 			variable_broadcast="params",
@@ -241,10 +314,9 @@ except ImportError:
 
 		return outputs_t, new_carry
 	
-	@nn.compact
 	def __call__(self, x: jnp.array, length: int = None, unroll: int = 1) -> jnp.array:
 
-		if length is None:
+		if length is None and x is not None:
 			length = x.shape[-1]
 
 		# Handle generators (no input case)
@@ -253,8 +325,11 @@ except ImportError:
 
 		carry = self.initialize_carry()
 		
+		# Unnormalize parameters once before the scan
+		params = self.unnormalize()
+		
 		def tick(module, carry, *xs):
-			return module.tick(carry, *xs)
+			return module.tick(params, carry, *xs)
 
 		scan_fn = nn.scan(tick,
 			variable_broadcast="params",
@@ -310,10 +385,11 @@ def test(args):
 			input_audio = jnp.zeros((N_CHANNELS, N_SAMPLES), dtype=FAUSTFLOAT)
 			input_audio = input_audio.at[:,0].set(1.)
 
-	variables = model.init({"params": key, "rng_stream": key}, input_audio, N_SAMPLES)  
+	variables = model.init({"params": key, "rng_stream": key}, input_audio, N_SAMPLES)
+	print("variables:", variables)
 
 	def forward(x: jnp.ndarray):
-		y, mod_vars = model.apply(variables, x, length=N_SAMPLES, unroll=args.unroll, mutable="intermediates", rngs={"rng_stream": key})
+		y = model.apply(variables, x, length=N_SAMPLES, unroll=args.unroll, rngs={"rng_stream": key})
 		return y
 	
 	if args.jit:
@@ -325,6 +401,9 @@ def test(args):
 			y = forward(input_audio).block_until_ready()
 
 	y = forward(input_audio)
+
+	_, mod_vars = model.apply(variables, mutable="intermediates", rngs={"rng_stream": key}, method="unnormalize")
+	print("mod_vars", mod_vars)
 
 	assert y.ndim == 2
 	assert y.shape[0] == model.num_outputs
@@ -339,7 +418,7 @@ def test(args):
 	logger.info("All done!")
 
 
-def realtime_audio_example():
+def realtime_audio_example(unroll: int = 1):
 	"""
 	Real-time audio streaming example using sounddevice.
 	Demonstrates the real-time API with actual audio output.
@@ -349,7 +428,6 @@ def realtime_audio_example():
 	except ImportError:
 		print("sounddevice not installed. Install with: pip install sounddevice")
 		print("Falling back to offline example.")
-		example_realtime_processing()
 		return
 	
 	import time
@@ -376,7 +454,7 @@ def realtime_audio_example():
 	# JIT compile the process method
 	@jax.jit
 	def process_block_jit(carry, inputs: jnp.ndarray, rng: jax.Array):
-		return model.apply(variables, carry, inputs, length=BLOCK_SIZE, unroll=args.unroll, method="process_block", rngs={"rng_stream": rng})
+		return model.apply(variables, carry, inputs, length=BLOCK_SIZE, unroll=unroll, method="process_block", rngs={"rng_stream": rng})
 	
 	# Create a generator for audio blocks
 	def audio_generator():
@@ -457,6 +535,6 @@ if __name__ == "__main__":
 	jax.config.update("jax_platform_name", args.platform)
 
 	if args.realtime:
-		realtime_audio_example()
+		realtime_audio_example(args.unroll)
 	else:
 		test(args)
