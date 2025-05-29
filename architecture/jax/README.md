@@ -1,6 +1,6 @@
 # Faust JAX Backend Documentation
 
-The JAX backend allows Faust to generate Python code that uses JAX and Flax for efficient numerical computation with automatic differentiation support.
+The JAX backend allows Faust to generate Python code that uses JAX and Flax for efficient numerical computation with automatic differentiation support. For more information on developing backends for Faust, check out [`compiler/generator/template/README.md`](https://github.com/grame-cncm/faust/tree/master-dev/compiler/generator/template).
 
 ## Available Architecture Files
 
@@ -9,20 +9,14 @@ Minimal architecture for basic usage. Includes:
 - All UI element handlers (sliders, buttons, soundfiles, etc.)
 - Basic `__call__` method for processing
 - Generator support (0-input DSPs)
-- Soundfile loading with librosa (falls back to dummy data if not installed)
-
-### `jax-realtime.py`
-Full-featured architecture with real-time processing API. Includes everything from `minimal.py` plus:
+- Soundfile loading with librosa
 - `initialize_carry()`: Creates initial state for block-wise processing
 - `process_block()`: Processes audio block-by-block with state management
-- Real soundfile loading with librosa (when available)
-- Example code for real-time processing loops
 - Real-time audio streaming example using `sounddevice`
-- When run as main, streams audio to the default output device
 
 ### UI Element Handlers
 
-Both architectures implement these essential methods:
+An architecture file must implement these methods:
 
 - **`add_slider()`**: Continuous parameters with linear/exp/log scaling
 - **`add_hslider()`/`add_vslider()`**: Horizontal/vertical sliders
@@ -31,6 +25,8 @@ Both architectures implement these essential methods:
 - **`add_nentry()`**: Numerical entries with discrete steps
 - **`add_soundfile()`**: Audio file loading and playback
 - **`add_hbargraph()`/`add_vbargraph()`**: Output value displays
+
+It is optional to override these methods:
 - **`load_soundfile()`**: Helper for loading audio files from disk
 
 ## Installation
@@ -138,7 +134,7 @@ from mydsp import MyDSP
 
 # Initialize the model
 model = MyDSP(sample_rate=48000)
-key = random.PRNGKey(0)
+key = random.key(0)
 
 # Create input (channels x samples)
 n_samples = 48000  # 1 second
@@ -147,9 +143,11 @@ input_audio = input_audio.at[:, 0].set(1.0)  # impulse
 
 # Initialize and run the model
 variables = model.init({'params': key}, input_audio, n_samples)
-output_audio, mod_vars = model.apply(variables, input_audio, n_samples, mutable='intermediates')
-
+output_audio, mod_vars = model.apply(variables, input_audio, n_samples, mutable="intermediates")
 # output_audio shape: (num_outputs, n_samples)
+
+# if bargraphs are in the DSP code:
+bargraphs = mod_vars["intermediates"]
 ```
 
 ### Generator Example (No Input)
@@ -164,18 +162,18 @@ from mydsp import MyDSP
 
 # Initialize the model
 model = MyDSP(sample_rate=48000)
-key = random.PRNGKey(0)
+key = random.key(0)
 
-# For generators, pass None as input and specify length with T
+# For generators, pass None as input and specify `length`
 n_samples = 48000  # 1 second
 variables = model.init({'params': key}, None, n_samples)
-output_audio, mod_vars = model.apply(variables, None, n_samples, mutable='intermediates')
+output_audio = model.apply(variables, None, length=n_samples)
 
 # output_audio shape: (num_outputs, n_samples)
 ```
 
 **Note**: The module should handle `None` input gracefully:
-- When `x is None`, the module should generate `T` samples
+- When `x is None`, the module should generate `n_samples` samples
 - No transpose operations should be performed on `None`
 - The module should internally create appropriate zero inputs if needed
 
@@ -193,32 +191,32 @@ from mydsp import MyDSP
 
 # Initialize model
 model = MyDSP(sample_rate=48000)
-key = random.PRNGKey(0)
+key = random.key(0)
+
+block_size = 512
 
 # Initialize parameters with dummy input
-dummy_input = jnp.zeros((model.getNumInputs(), 1))
-variables = model.init({'params': key}, dummy_input, 1)
+dummy_input = jnp.zeros((model.getNumInputs(), block_size))
+variables = model.init({"params": key, "rng_stream": key}, dummy_input, length=1)
 
-# Initialize carry state for real-time processing
-carry = model.initialize_carry(key, (model.getNumInputs(),))
+# Initialize carry state
+carry = model.apply(variables, method="initialize_carry")
+
+# JIT compile the process method
+@jax.jit
+def process_block_jit(carry, inputs: jnp.ndarray, rng: jax.Array):
+   return model.apply(variables, carry, inputs, length=BLOCK_SIZE, unroll=unroll, method="process_block", rngs={"rng_stream": rng})
+
+rng = jax.random.key(0)
 
 # Process audio block by block
-block_size = 512
 for block_idx in range(num_blocks):
     # Get input block (e.g., from audio interface)
     input_block = get_audio_input()  # shape: (num_inputs, block_size)
     
     # Process block and get updated state
-    (output_block, new_carry), _ = model.apply(
-        variables, 
-        carry, 
-        input_block,
-        method=model.process_block,
-        mutable='intermediates'
-    )
-    
-    # Update carry for next iteration
-    carry = new_carry
+    rng, subkey = jax.random.split(rng)
+    (output_block, carry), _ = process_block_jit(carry, input_block, subkey)
     
     # Send output to audio interface
     send_audio_output(output_block)
@@ -226,39 +224,27 @@ for block_idx in range(num_blocks):
 
 **Available Methods:**
 
-1. **`initialize_carry(key, input_shape)`**: Creates initial state for real-time processing
-   - `key`: PRNG key for random initialization if needed
-   - `input_shape`: Shape tuple `(num_inputs,)` without batch dimension
+1. **`initialize_carry(x, length: int)`**: Creates initial state for real-time processing
+   - `x`:
+   - `length`: 
    - Returns: Dictionary containing all stateful components (delays, filter states, etc.)
 
-2. **`process_block(carry, inputs)`**: Processes one block of audio
+1. **`process_block(carry, inputs)`**: Processes one block of audio
    - `carry`: State dictionary from previous block
    - `inputs`: Input block of shape `(num_inputs, block_size)`
+   - `length`: 
+   - `unroll`:
    - Returns: Tuple `(outputs, new_carry)` where outputs has shape `(num_outputs, block_size)`
-
-3. **Backward Compatibility**: The `__call__` method now internally uses `process_block`
-
-4. **JIT Compilation**: For optimal performance, compile the process method:
-   ```python
-   @jax.jit
-   def process_block_jit(carry, inputs):
-       return model.apply(variables, carry, inputs, method=model.process_block)
-   ```
-
-This implementation enables:
-- True real-time processing with low latency
-- Integration with audio streaming frameworks
-- Stateful processing in interactive applications
-- Efficient block-wise gradient computation for online learning
 
 ## Architecture
 
 The JAX backend generates:
 
 1. A Flax `nn.Module` class with:
-   - `__call__(x, T)` method that accepts:
+   - `__call__(x, length, unroll)` method that accepts:
      - `x`: Input audio tensor of shape `(num_inputs, num_samples)` or `None` for generators
-     - `T`: Number of samples to process (used when `x is None`)
+     - `length`: Number of samples to process (used when `x is None`)
+     - `unroll`: Unroll size for `nn.scan`
    - `initialize()` method for state initialization
    - Static `tick()` method for DSP computation
    - `num_inputs` and `num_outputs` properties

@@ -18,7 +18,12 @@
       "Bash(perl:*)",
       "Bash(sed:*)",
       "Bash(diff:*)",
-      "Bash(python test_table1_regenerated.py:*)"
+      "Bash(python test_table1_regenerated.py:*)",
+      "Bash(python test_prefix_fixed.py:*)",
+      "Bash(mkdir:*)",
+      "Bash(/Users/braun/GitHub/faust/build/bin/faust -lang c prefix.dsp -o /tmp/prefix.c)",
+      "Bash(./faust2impulse:*)",
+      "Bash(/tmp:*)"
     ],
     "deny": []
   }

@@ -57,6 +57,42 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
             } else {
                 ZeroInitializer(fOut, inst->fType);
             }
+        } else {
+            // Handle non-array struct variables (like IOTA)
+            if (inst->fAddress) {
+                if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
+                    // Skip UI parameters - they're handled separately
+                    // UI parameters typically have names like fButton0, fHslider0, etc.
+                    if (named->fName.find("Button") != std::string::npos ||
+                        named->fName.find("Hslider") != std::string::npos ||
+                        named->fName.find("Vslider") != std::string::npos ||
+                        named->fName.find("Checkbox") != std::string::npos ||
+                        named->fName.find("Entry") != std::string::npos) {
+                        return;  // Skip UI parameters
+                    }
+                    
+                    if (named->isStruct() || named->isStaticStruct()) {
+                        tab(fTab, *fOut);
+                        inst->fAddress->accept(this);
+                        *fOut << " = ";
+                        // Initialize based on type
+                        if (isIntType(inst->fType->getType())) {
+                            *fOut << "np.int32(0)";
+                        } else if (isRealType(inst->fType->getType())) {
+                            if (gGlobal->gFloatSize == 1) {
+                                *fOut << "np.float32(0)";
+                            } else {
+                                *fOut << "np.float64(0)";
+                            }
+                        } else if (inst->fValue) {
+                            inst->fValue->accept(this);
+                        } else {
+                            *fOut << "None";  // Default for unknown types
+                        }
+                        *fOut << " ";
+                    }
+                }
+            }
         }
     }
 
@@ -197,11 +233,17 @@ class JAXInstVisitor : public TextInstVisitor {
 
    public:
     using TextInstVisitor::visit;
+    
+    // Map to store pfPerm initialization values
+    std::map<std::string, ValueInst*> fPfPermInitValues;
 
     // This bool indicates that we should use the numpy functions, so the prefix "np."
     // If false, use jax.numpy "jnp."
     // We want to use numpy when initializing arrays and sound files because it's faster than JAX.
     bool fUseNumpy = true;
+    
+    // This bool indicates we're in the setup method context where constants should be accessed as self._varname
+    bool fInSetup = false;
 
     JAXInstVisitor(std::ostream* out, const std::string& struct_name, int tab = 0)
         : TextInstVisitor(out, ".", new JAXStringTypeManager(xfloat(), "*", struct_name), tab)
@@ -704,14 +746,15 @@ class JAXInstVisitor : public TextInstVisitor {
             *fOut << "params[\"" << named->fName << "\"]";
         } 
         // Check if this is a constant (either tracked at compile time or runtime)
-        else if (fConstantVars.find(named->fName) != fConstantVars.end() ||
-                 (named->fName.find("iConst") == 0) ||
-                 (named->fName.find("fConst") == 0) ||
-                 (named->fName.find("pfPerm") == 0) ||
-                 (named->fName == "ftbl0mydspSIG0") ||  // Only the static table is a constant
-                 (named->fName.find("fmydspWave") == 0 && named->fName.find("_idx") == std::string::npos) ||  // Wave data but not index
-                 (named->fName.find("fmydspSIG") == 0 && named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos)
-                ) {
+        // Note: pfPerm variables are NOT constants - they are state variables
+        else if ((named->fName.find("pfPerm") != 0) &&  // Exclude pfPerm variables
+                 (fConstantVars.find(named->fName) != fConstantVars.end() ||
+                  (named->fName.find("iConst") == 0) ||
+                  (named->fName.find("fConst") == 0) ||
+                  (named->fName == "ftbl0mydspSIG0") ||  // Only the static table is a constant
+                  (named->fName.find("fmydspWave") == 0 && named->fName.find("_idx") == std::string::npos) ||  // Wave data but not index
+                  (named->fName.find("fmydspSIG") == 0 && named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos)
+                 )) {
             *fOut << "self._" << named->fName;
         } 
         // Check if this is a bargraph variable - use local variable instead of state
@@ -720,11 +763,11 @@ class JAXInstVisitor : public TextInstVisitor {
         }
         else {
             // kStaticStruct are actually merged in the main DSP
-            if (named->isStruct() || named->isStaticStruct()) {
+            if ((named->isStruct() || named->isStaticStruct()) && !fInSetup) {
                 *fOut << "state[\"";
             }
             *fOut << named->fName;
-            if (named->isStruct() || named->isStaticStruct()) {
+            if ((named->isStruct() || named->isStaticStruct()) && !fInSetup) {
                 *fOut << "\"]";
             }
         }

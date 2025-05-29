@@ -25,6 +25,7 @@
 #include "fir_function_builder.hh"
 #include "floats.hh"
 #include "global.hh"
+#include "instructions.hh"
 
 using namespace std;
 
@@ -174,6 +175,25 @@ void JAXCodeContainer::produceClass()
 
     // Merge sub containers
     mergeSubContainers();
+    
+    // Extract pfPerm initialization values BEFORE generating methods
+    // This ensures they're available when _initialize_carry is generated
+    JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
+    struct PfPermExtractor : public DispatchVisitor {
+        JAXInstVisitor* fJaxVisitor;
+        
+        PfPermExtractor(JAXInstVisitor* visitor) : fJaxVisitor(visitor) {}
+        
+        virtual void visit(StoreVarInst* inst) {
+            string varname = inst->fAddress->getName();
+            if (varname.find("pfPerm") == 0) {
+                fJaxVisitor->fPfPermInitValues[varname] = inst->fValue;
+            }
+        }
+    };
+    
+    PfPermExtractor extractor(jaxVisitor);
+    fInitInstructions->accept(&extractor);
 
     // Missing math function
     tab(n, *fOut);
@@ -221,10 +241,24 @@ void JAXCodeContainer::produceClass()
         JAXInitFieldsVisitor initializer(fOut, n + 2, 
             &(static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fScalarDelayVars));
         generateDeclarations(&initializer);
-        // Generate global variables initialisation
+        // Generate global variables initialisation, but skip static tables and waveforms
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (dynamic_cast<DeclareVarInst*>(it)) {
-                it->accept(&initializer);
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                // Skip static tables and waveforms - they're instance attributes
+                if (varname.find("ftbl0") == 0 || varname.find("fmydspWave") == 0 || 
+                    varname.find("fmydspSIG") == 0) {
+                    continue;
+                }
+                decl->accept(&initializer);
+            } else if (StoreVarInst* store = dynamic_cast<StoreVarInst*>(it)) {
+                // Check if this is a pfPerm initialization
+                string varname = store->fAddress->getName();
+                if (varname.find("pfPerm") == 0) {
+                    // Store the initialization value for later use
+                    JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
+                    jaxVisitor->fPfPermInitValues[varname] = store->fValue;
+                }
             }
         }
         tab(n + 2, *fOut);
@@ -250,22 +284,25 @@ void JAXCodeContainer::produceClass()
             tab(n + 2, *fOut);
         }
         
-        tab(n + 2, *fOut);
-        *fOut << "# inline subcontainers:";
-        tab(n + 2, *fOut);
-        gGlobal->gJAXVisitor->Tab(n + 2);
-        // Ensure we use numpy in initialize method
-        static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fUseNumpy = true;
-        inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
-        tab(n + 2, *fOut);
-        *fOut << "# init constants:";
-        tab(n + 2, *fOut);
-        gGlobal->gJAXVisitor->Tab(n + 2);
-        inlineSubcontainersFunCalls(fInitInstructions)->accept(gGlobal->gJAXVisitor);
-        tab(n + 2, *fOut);
-        *fOut << "# instance clear:";
-        tab(n + 2, *fOut);
-        generateClear(gGlobal->gJAXVisitor);
+        // Initialize pfPerm variables with their actual values
+        JAXInstVisitor* jaxVisitor2 = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
+        if (!jaxVisitor2->fPfPermInitValues.empty()) {
+            tab(n + 2, *fOut);
+            *fOut << "# pfPerm initializations:";
+            for (const auto& kv : jaxVisitor2->fPfPermInitValues) {
+                tab(n + 2, *fOut);
+                *fOut << "state[\"" << kv.first << "\"] = ";
+                // Use numpy for initialization
+                jaxVisitor2->fUseNumpy = true;
+                kv.second->accept(jaxVisitor2);
+                jaxVisitor2->fUseNumpy = false;
+                *fOut << " ";
+            }
+            tab(n + 2, *fOut);
+        }
+        
+        // Don't process init instructions here - they belong in setup()
+        // since they may reference instance attributes
         
         tab(n + 2, *fOut);
         *fOut << "return state";
@@ -295,13 +332,7 @@ void JAXCodeContainer::produceClass()
     *fOut << "def setup(self):";
     {
         JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
-        
-        // Initialize unnormalization functions dictionary
-        tab(n + 2, *fOut);
-        *fOut << "# Initialize unnormalization functions dictionary";
-        tab(n + 2, *fOut);
-        *fOut << "unnorm_funcs = {}";
-        
+
         // Initialize constants as instance attributes
         tab(n + 2, *fOut);
         *fOut << "# Initialize constants as instance attributes";
@@ -309,14 +340,57 @@ void JAXCodeContainer::produceClass()
         *fOut << "self._fSampleRate = self.sample_rate";
         // Track fSampleRate as a constant
         jaxVisitor->fConstantVars.insert("fSampleRate");
+
+        // Initialize constants that need to be instance attributes
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize instance constants";
         
-        // Generate constants from init instructions directly
+        // Process global declarations to find constants
+        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                // Check if this is a constant table or waveform
+                if (varname.find("ftbl") == 0 || varname.find("fmydspWave") == 0 || varname.find("fmydspSIG") == 0) {
+                    tab(n + 2, *fOut);
+                    *fOut << "self._" << varname << " = ";
+                    if (decl->fValue) {
+                        // Use numpy for initialization
+                        static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fUseNumpy = true;
+                        decl->fValue->accept(gGlobal->gJAXVisitor);
+                    } else {
+                        JAXInitFieldsVisitor::ZeroInitializer(fOut, decl->fType);
+                    }
+                    jaxVisitor->fConstantVars.insert(varname);
+                }
+            }
+        }
+        
+        // Initialize tables - removed hardcoded initialization
+        // Table initialization is handled by the static init instructions
+        
+        // Note: ftbl1 is mutable and will be in state, not as instance attribute
+        
+        // Initialize index variables
         tab(n + 2, *fOut);
-        *fOut << "# Initialize constants from init instructions";
+        *fOut << "# Initialize index variables";
+        // Look for index variables in global declarations
+        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                if (varname.find("_idx") != string::npos) {
+                    tab(n + 2, *fOut);
+                    *fOut << "self._" << varname << " = np.int32(0)";
+                    jaxVisitor->fConstantVars.insert(varname);
+                }
+            }
+        }
+        // Note: fmydspWave0_idx will be in state, not as instance attribute
+        
+        // Initialize unnormalization functions dictionary
         tab(n + 2, *fOut);
-        gGlobal->gJAXVisitor->Tab(n + 2);
-        // Process fInitInstructions manually to extract constants
-        fInitInstructions->accept(gGlobal->gJAXVisitor);
+        *fOut << "# Initialize unnormalization functions dictionary";
+        tab(n + 2, *fOut);
+        *fOut << "unnorm_funcs = {}";
         
         tab(n + 2, *fOut);
         *fOut << "# Initialize UI parameters as instance attributes";
@@ -331,11 +405,116 @@ void JAXCodeContainer::produceClass()
         *fOut << "# Store unnormalization functions";
         tab(n + 2, *fOut);
         *fOut << "self._unnorm_funcs = unnorm_funcs";
+        
+        // Initialize constants from init instructions
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize constants";
+        // Process init instructions to find constant initializations
+        struct ConstantInitExtractor : public DispatchVisitor {
+            std::ostream* fOut;
+            int fTab;
+            JAXInstVisitor* fJaxVisitor;
+            
+            ConstantInitExtractor(std::ostream* out, int tab, JAXInstVisitor* visitor) 
+                : fOut(out), fTab(tab), fJaxVisitor(visitor) {}
+                
+            virtual void visit(StoreVarInst* inst) {
+                string varname = inst->fAddress->getName();
+                if (varname.find("Const") != std::string::npos) {
+                    // Add to constant vars BEFORE visiting the instruction
+                    fJaxVisitor->fConstantVars.insert(varname);
+                    tab(fTab, *fOut);
+                    // Don't add "self._" here, the visitor will handle it
+                    inst->accept(fJaxVisitor);
+                } else if (varname.find("pfPerm") == 0) {
+                    // For pfPerm variables, store the initialization value for later use
+                    // Don't generate code here - it will be handled in _initialize_carry
+                    // Store the initialization instruction for later processing
+                    fJaxVisitor->fPfPermInitValues[varname] = inst->fValue;
+                }
+            }
+        };
+        
+        // Set setup context flag
+        jaxVisitor->fInSetup = true;
+        ConstantInitExtractor extractor(fOut, n + 2, jaxVisitor);
+        fInitInstructions->accept(&extractor);
+        jaxVisitor->fInSetup = false;
+        
+        // For JAX, we need to handle table initialization differently
+        // The init instructions may contain C++ style function calls that don't exist in Python
+        // Instead, we'll generate the table filling code directly
+        
+        // Check if there are any tables to fill
+        bool hasStaticTable = false;
+        bool hasRWTable = false;
+        for (const auto& varname : jaxVisitor->fConstantVars) {
+            if (varname.find("ftbl0") == 0) {
+                hasStaticTable = true;
+            }
+        }
+        
+        // Check for read-write tables in state
+        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                if (varname.find("ftbl") == 0 && varname != "ftbl0mydspSIG0") {
+                    hasRWTable = true;
+                }
+            }
+        }
+        
+        // Generate table initialization code if needed
+        if (hasStaticTable || hasRWTable) {
+            tab(n + 2, *fOut);
+            *fOut << "# Initialize tables";
+            
+            // Look for wave data variables
+            std::vector<std::string> waveVars;
+            for (const auto& varname : jaxVisitor->fConstantVars) {
+                if (varname.find("Wave0") != std::string::npos) {
+                    waveVars.push_back(varname);
+                }
+            }
+            
+            // For each wave variable, fill corresponding tables
+            for (const auto& waveVar : waveVars) {
+                // Extract the base name (e.g., "fmydspSIG0Wave0" -> "mydspSIG0")
+                size_t pos = waveVar.find("Wave0");
+                if (pos != std::string::npos) {
+                    std::string baseName = waveVar.substr(1, pos - 1); // Remove 'f' prefix
+                    
+                    // Check if ftbl0<baseName> exists (static table)
+                    std::string staticTableName = "ftbl0" + baseName;
+                    if (jaxVisitor->fConstantVars.find(staticTableName) != jaxVisitor->fConstantVars.end()) {
+                        tab(n + 2, *fOut);
+                        *fOut << "# Fill static table " << staticTableName;
+                        tab(n + 2, *fOut);
+                        *fOut << "_idx = 0";
+                        tab(n + 2, *fOut);
+                        *fOut << "for i in range(len(self._" << staticTableName << ")):";
+                        tab(n + 3, *fOut);
+                        *fOut << "self._" << staticTableName << "[i] = self._" << waveVar << "[_idx]";
+                        tab(n + 3, *fOut);
+                        *fOut << "_idx = (_idx + 1) % len(self._" << waveVar << ")";
+                    }
+                }
+            }
+        }
+        
+        // Convert numpy arrays to JAX arrays for use in tick
+        tab(n + 2, *fOut);
+        *fOut << "# Convert numpy arrays to JAX arrays";
+        for (const auto& varname : jaxVisitor->fConstantVars) {
+            if (varname.find("ftbl") == 0 || varname.find("fmydsp") == 0) {
+                tab(n + 2, *fOut);
+                *fOut << "self._" << varname << " = jnp.array(self._" << varname << ")";
+            }
+        }
     }
 
     // Compute
     generateCompute(n + 1);
-    tab(n, *fOut);
 }
 
 void JAXCodeContainer::generateCompute(int n)
