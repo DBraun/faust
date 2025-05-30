@@ -244,6 +244,13 @@ class JAXInstVisitor : public TextInstVisitor {
     
     // This bool indicates we're in the setup method context where constants should be accessed as self._varname
     bool fInSetup = false;
+    
+    // This bool indicates we're processing static init instructions (inline subcontainers)
+    bool fInStaticInit = false;
+    // This bool indicates we're processing inline subcontainer code (table filling)
+    bool fInInlineSubcontainer = false;
+    // Set of local variables in inline subcontainer code
+    std::set<std::string> fInlineSubcontainerLocals;
 
     JAXInstVisitor(std::ostream* out, const std::string& struct_name, int tab = 0)
         : TextInstVisitor(out, ".", new JAXStringTypeManager(xfloat(), "*", struct_name), tab)
@@ -741,8 +748,12 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(NamedAddress* named)
     {        
+        // Special case: fSampleRate should always use self.sample_rate
+        if (named->fName == "fSampleRate") {
+            *fOut << "self.sample_rate";
+        }
         // Check if this is a UI parameter (access from params dict in tick)
-        if (fUIParamVars.find(named->fName) != fUIParamVars.end()) {
+        else if (fUIParamVars.find(named->fName) != fUIParamVars.end()) {
             *fOut << "params[\"" << named->fName << "\"]";
         } 
         // Check if this is a constant (either tracked at compile time or runtime)
@@ -752,23 +763,60 @@ class JAXInstVisitor : public TextInstVisitor {
                   (named->fName.find("iConst") == 0) ||
                   (named->fName.find("fConst") == 0) ||
                   (named->fName == "ftbl0mydspSIG0") ||  // Only the static table is a constant
+                  (named->fName.find("ftbl0") == 0) ||  // All static tables
+                  (named->fName.find("itbl0") == 0 && named->fName.find("mydspSIG") != std::string::npos) ||  // Integer static tables (only SIG tables)
                   (named->fName.find("fmydspWave") == 0 && named->fName.find("_idx") == std::string::npos) ||  // Wave data but not index
-                  (named->fName.find("fmydspSIG") == 0 && named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos)
+                  (named->fName.find("fmydspSIG") == 0 && named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos) ||
+                  (named->fName.find("imydspWave") == 0 && named->fName.find("_idx") == std::string::npos) ||  // Integer wave data but not index
+                  (named->fName.find("imydspSIG") == 0 && named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos)
                  )) {
-            *fOut << "self._" << named->fName;
+            // In static init, ftbl0* and itbl0*mydspSIG* tables are local variables
+            if (fInStaticInit && (named->fName.find("ftbl0") == 0 || 
+                                  (named->fName.find("itbl0") == 0 && named->fName.find("mydspSIG") != std::string::npos))) {
+                *fOut << named->fName;
+            } else {
+                *fOut << "self._" << named->fName;
+            }
         } 
         // Check if this is a bargraph variable - use local variable instead of state
         else if (isBargraphVar(named->fName)) {
             *fOut << named->fName;
         }
+        // Special handling for read-write tables in static init (they're not available yet)
+        else if (fInStaticInit && named->fName.find("ftbl") == 0 && named->fName.find("ftbl0") != 0) {
+            // This shouldn't happen - read-write tables shouldn't be accessed in setup()
+            // For now, we'll output the table name and let the Python runtime error catch it
+            *fOut << named->fName;
+        }
+        // Special handling for temporary variables in setup (inline subcontainer variables)
+        else if (fInSetup && 
+                 ((named->fName.find("fmydspSIG") == 0 && 
+                   (named->fName.find("_idx") != std::string::npos || named->fName.find("Wave0") != std::string::npos)) ||
+                  // Also handle inline subcontainer state variables (iVec, fVec, iRec, fRec) in static init
+                  (fInStaticInit && (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos)) ||
+                  // Also handle inline subcontainer waveform variables in static init
+                  (fInStaticInit && (named->fName.find("imydspSIG") == 0 || named->fName.find("imydspWave") == 0)))) {
+            // These are temporary local variables used in setup for filling tables
+            *fOut << named->fName;
+        }
+        // When processing inline subcontainer code, check if variable is local
+        else if (fInInlineSubcontainer && 
+                 fInlineSubcontainerLocals.find(named->fName) != fInlineSubcontainerLocals.end()) {
+            *fOut << named->fName;
+        }
         else {
             // kStaticStruct are actually merged in the main DSP
-            if ((named->isStruct() || named->isStaticStruct()) && !fInSetup) {
-                *fOut << "state[\"";
+            // Special case: if we're in static init and this is a Vec/Rec variable, treat as local
+            if (fInStaticInit && (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos)) {
+                *fOut << named->fName;
             }
-            *fOut << named->fName;
-            if ((named->isStruct() || named->isStaticStruct()) && !fInSetup) {
+            // Don't wrap in state[...] if we're in setup/static init context
+            else if ((named->isStruct() || named->isStaticStruct()) && !fInSetup && !fInStaticInit) {
+                *fOut << "state[\"";
+                *fOut << named->fName;
                 *fOut << "\"]";
+            } else {
+                *fOut << named->fName;
             }
         }
     }
@@ -782,8 +830,12 @@ class JAXInstVisitor : public TextInstVisitor {
         if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {            
             // Check if this is a scalar delay variable
             if (isScalarDelayVar(named->fName)) {
-                // For scalar delays, just output the variable name (no array access)
-                *fOut << "state[\"" << named->fName << "\"]";
+                // For scalar delays in static init, use local variable
+                if (fInStaticInit && (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos)) {
+                    *fOut << named->fName;
+                } else {
+                    *fOut << "state[\"" << named->fName << "\"]";
+                }
                 return;
             }
         }
@@ -908,6 +960,31 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(StoreVarInst* inst)
     {
+        // Check if we're storing to a local variable in static init
+        if (fInStaticInit && inst->fAddress) {
+            if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
+                if (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos) {
+                    // Direct assignment to local variable
+                    *fOut << named->fName << " = ";
+                    inst->fValue->accept(this);
+                    EndLine(' ');
+                    return;
+                }
+            }
+            // Also check IndexedAddress for scalar delay stores
+            else if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+                if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                    if (isScalarDelayVar(named->fName) && 
+                        (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos)) {
+                        // Direct assignment to local scalar delay variable
+                        *fOut << named->fName << " = ";
+                        inst->fValue->accept(this);
+                        EndLine(' ');
+                        return;
+                    }
+                }
+            }
+        }
         
         // Check if we're storing to a scalar delay variable
         if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
@@ -1140,6 +1217,69 @@ class JAXInstVisitor : public TextInstVisitor {
         if (inst->fCode->size() == 0) {
             return;
         }
+        
+        // Skip loops based on context
+        if (fInStaticInit || fInInlineSubcontainer) {
+            // Check if this loop accesses tables we should skip
+            struct TableChecker : public DispatchVisitor {
+                bool fAccessesRWTable = false;
+                bool fAccessesStaticTable = false;
+                
+                virtual void visit(IndexedAddress* indexed) {
+                    if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                        if (named->fName.find("ftbl0") == 0 || 
+                            (named->fName.find("itbl0") == 0 && named->fName.find("mydspSIG") != std::string::npos)) {
+                            fAccessesStaticTable = true;
+                        } else if (named->fName.find("ftbl") == 0 || named->fName.find("itbl") == 0) {
+                            fAccessesRWTable = true;
+                        }
+                    }
+                }
+                
+                // Also check LoadVarInst for table accesses
+                virtual void visit(LoadVarInst* inst) {
+                    if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
+                        if (named->fName.find("ftbl0") == 0 || 
+                            (named->fName.find("itbl0") == 0 && named->fName.find("mydspSIG") != std::string::npos)) {
+                            fAccessesStaticTable = true;
+                        } else if (named->fName.find("ftbl") == 0 || named->fName.find("itbl") == 0) {
+                            fAccessesRWTable = true;
+                        }
+                    }
+                }
+                
+                // Also check StoreVarInst for table accesses
+                virtual void visit(StoreVarInst* inst) {
+                    if (inst->fAddress) {
+                        if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+                            visit(indexed);
+                        }
+                    }
+                }
+            };
+            
+            TableChecker checker;
+            inst->fCode->accept(&checker);
+            
+            // In static init, skip read-write table loops
+            if (fInStaticInit && checker.fAccessesRWTable) {
+                tab(fTab, *fOut);
+                *fOut << "# Skipping loop that fills read-write table - handled in _initialize_carry";
+                tab(fTab, *fOut);
+                return;
+            }
+            
+            // In inline subcontainer (_initialize_carry), skip static table loops
+            if (fInInlineSubcontainer && checker.fAccessesStaticTable) {
+                tab(fTab, *fOut);
+                *fOut << "# Skipping loop that fills static table - already handled in setup";
+                tab(fTab, *fOut);
+                *fOut << "pass";
+                EndLine(' ');
+                return;
+            }
+        }
+        
         *fOut << "for " << inst->getName() << " in ";
 
         if (inst->fReverse) {

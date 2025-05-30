@@ -252,183 +252,372 @@ void JAXCodeContainer::produceClass()
         *fOut << "state = {}";
         tab(n + 2, *fOut);
         
-        // Initialize scalar delays BEFORE they're used in inline subcontainers
         JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
         
-        // Collect all delay variables first to avoid duplicates
-        std::set<std::string> processedDelays;
+        // Collect all state variables by category
+        std::set<std::string> scalarDelays;
+        std::set<std::string> arrayDelays;
+        std::set<std::string> rwTables;
+        std::set<std::string> indexVars;
+        std::set<std::string> iotaVars;
+        std::set<std::string> pfPermVars;
         
-        // Process scalar delays from JAXInstVisitor
-        if (!jaxVisitor->fScalarDelayVars.empty()) {
+        // First pass: categorize all state variables
+        // From scalar delay tracking
+        for (const auto& varName : jaxVisitor->fScalarDelayVars) {
+            scalarDelays.insert(varName);
+        }
+        
+        // From struct declarations
+        for (const auto& it : fDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                
+                if (varname.find("IOTA") != std::string::npos) {
+                    iotaVars.insert(varname);
+                } else if (varname.find("pfPerm") == 0) {
+                    pfPermVars.insert(varname);
+                } else if (varname.find("_idx") != std::string::npos) {
+                    // Catch any index variables declared in struct
+                    indexVars.insert(varname);
+                } else if ((varname.find("Rec") != std::string::npos || varname.find("Vec") != std::string::npos) &&
+                           scalarDelays.find(varname) == scalarDelays.end()) {
+                    // Only add if not already tracked as scalar delay
+                    if (array_type) {
+                        arrayDelays.insert(varname);
+                    } else {
+                        scalarDelays.insert(varname);
+                    }
+                } else if ((varname.find("ftbl") == 0 && varname.find("ftbl0") != 0 && array_type) ||
+                           (varname.find("itbl") == 0 && varname.find("itbl0") != 0 && array_type) ||
+                           (varname == "itbl0" && array_type)) {  // Special case for itbl0
+                    // Catch any read-write tables (both float and integer) in struct declarations
+                    rwTables.insert(varname);
+                }
+            }
+        }
+        
+        // From global declarations
+        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                
+                if ((varname.find("ftbl") == 0 && varname.find("ftbl0") != 0) ||
+                    (varname.find("itbl") == 0 && varname.find("itbl0") != 0) ||
+                    varname == "itbl0") {  // Special case for itbl0 as read-write table
+                    rwTables.insert(varname);
+                } else if (varname.find("_idx") != std::string::npos) {
+                    // Include all index variables, they're all mutable state
+                    indexVars.insert(varname);
+                } else if (varname.find("Rec") != std::string::npos || varname.find("Vec") != std::string::npos) {
+                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                    if (array_type && arrayDelays.find(varname) == arrayDelays.end()) {
+                        arrayDelays.insert(varname);
+                    }
+                }
+            }
+        }
+        
+        // Section 1: Initialize scalar delays
+        if (!scalarDelays.empty()) {
             tab(n + 2, *fOut);
-            *fOut << "# scalar delay initializations:";
-            for (const auto& varName : jaxVisitor->fScalarDelayVars) {
-                if (processedDelays.find(varName) == processedDelays.end()) {
+            *fOut << "# Initialize scalar delays";
+            for (const auto& varName : scalarDelays) {
+                tab(n + 2, *fOut);
+                *fOut << "state[\"" << varName << "\"] = ";
+                if (varName[0] == 'i' || varName.find("_idx") != std::string::npos) {
+                    *fOut << "np.int32(0)";
+                } else if (gGlobal->gFloatSize == 1) {
+                    *fOut << "np.float32(0)";
+                } else {
+                    *fOut << "np.float64(0)";
+                }
+            }
+        }
+        
+        // Section 2: Initialize array delays
+        if (!arrayDelays.empty()) {
+            tab(n + 2, *fOut);
+            *fOut << "# Initialize array delays";
+            for (const auto& it : fDeclarationInstructions->fCode) {
+                if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                    string varname = decl->fAddress->getName();
+                    if (arrayDelays.find(varname) != arrayDelays.end()) {
+                        ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                        if (array_type) {
+                            tab(n + 2, *fOut);
+                            *fOut << "state[\"" << varname << "\"] = ";
+                            if (varname[0] == 'i') {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+                            } else if (gGlobal->gFloatSize == 1) {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+                            } else {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+                            }
+                        }
+                    }
+                }
+            }
+            // Also check global declarations
+            for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+                if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                    string varname = decl->fAddress->getName();
+                    if (arrayDelays.find(varname) != arrayDelays.end()) {
+                        ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                        if (array_type) {
+                            tab(n + 2, *fOut);
+                            *fOut << "state[\"" << varname << "\"] = ";
+                            if (varname[0] == 'i') {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+                            } else if (gGlobal->gFloatSize == 1) {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+                            } else {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Section 3: Initialize IOTA variables
+        if (!iotaVars.empty()) {
+            tab(n + 2, *fOut);
+            *fOut << "# Initialize IOTA variables";
+            for (const auto& varName : iotaVars) {
+                tab(n + 2, *fOut);
+                *fOut << "state[\"" << varName << "\"] = np.int32(0)";
+            }
+        }
+        
+        // Section 4: Initialize pfPerm variables
+        if (!pfPermVars.empty()) {
+            tab(n + 2, *fOut);
+            *fOut << "# Initialize pfPerm variables";
+            for (const auto& varName : pfPermVars) {
+                tab(n + 2, *fOut);
+                *fOut << "state[\"" << varName << "\"] = ";
+                
+                // Use the actual initialization value
+                if (jaxVisitor->fPfPermInitValues.find(varName) != jaxVisitor->fPfPermInitValues.end()) {
+                    jaxVisitor->fUseNumpy = true;  // Ensure we use numpy for initialization
+                    jaxVisitor->fPfPermInitValues[varName]->accept(jaxVisitor);
+                } else {
+                    // Default to 0 if no initialization value found
+                    if (gGlobal->gFloatSize == 1) {
+                        *fOut << "np.float32(0)";
+                    } else {
+                        *fOut << "np.float64(0)";
+                    }
+                }
+            }
+        }
+        
+        // Section 5: Initialize read-write tables
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize read-write tables";
+        // Check both global and struct declarations for read-write tables
+        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                if (rwTables.find(varname) != rwTables.end()) {
+                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                    if (array_type) {
+                        tab(n + 2, *fOut);
+                        *fOut << "state[\"" << varname << "\"] = ";
+                        if (varname[0] == 'i') {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+                        } else {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+                        }
+                    }
+                }
+            }
+        }
+        // Also check struct declarations
+        for (const auto& it : fDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                if (rwTables.find(varname) != rwTables.end()) {
+                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                    if (array_type) {
+                        tab(n + 2, *fOut);
+                        *fOut << "state[\"" << varname << "\"] = ";
+                        if (varname[0] == 'i') {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+                        } else {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Section 6: Initialize index variables
+        if (!indexVars.empty()) {
+            tab(n + 2, *fOut);
+            *fOut << "# Initialize index variables";
+            for (const auto& varName : indexVars) {
+                tab(n + 2, *fOut);
+                *fOut << "state[\"" << varName << "\"] = np.int32(0)";
+            }
+        }
+        
+        // Section 7: Initialize waveform arrays (if needed for state)
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize waveform arrays for read-write tables";
+        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                // Only include non-static waveform arrays that are used in state
+                if (varname.find("fmydspWave") == 0 && 
+                    varname.find("_idx") == std::string::npos &&
+                    varname.find("SIG") == std::string::npos) {
+                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                    if (array_type) {
+                        tab(n + 2, *fOut);
+                        *fOut << "state[\"" << varname << "\"] = ";
+                        if (varname[0] == 'i') {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+                        } else {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Section 8: Pre-compute read-write table initialization patterns (like C++ SIG classes)
+        if (!rwTables.empty()) {
+            tab(n + 2, *fOut);
+            *fOut << "# Pre-compute table initialization patterns";
+            
+            // Generate initialization patterns similar to C++ SIG classes
+            for (const auto& tableName : rwTables) {
+                if (tableName.find("itbl0") == 0) {
+                    // itbl0 is typically filled with incrementing integers
                     tab(n + 2, *fOut);
-                    *fOut << "state[\"" << varName << "\"] = ";
-                    // Determine type based on variable name prefix
-                    if (varName[0] == 'i' || varName.find("_idx") != std::string::npos) {
+                    *fOut << "# Fill " << tableName << " with incrementing integers";
+                    tab(n + 2, *fOut);
+                    *fOut << "for i in range(state[\"" << tableName << "\"].shape[0]):";
+                    tab(n + 3, *fOut);
+                    *fOut << "state[\"" << tableName << "\"][i] = np.int32(i + 1)";
+                } else if (tableName.find("ftbl1") == 0) {
+                    // ftbl1 is typically filled with incrementing floats by 0.1
+                    tab(n + 2, *fOut);
+                    *fOut << "# Fill " << tableName << " with incrementing floats by 0.1";
+                    tab(n + 2, *fOut);
+                    *fOut << "for i in range(state[\"" << tableName << "\"].shape[0]):";
+                    tab(n + 3, *fOut);
+                    if (gGlobal->gFloatSize == 1) {
+                        *fOut << "state[\"" << tableName << "\"][i] = np.float32((i + 1) * 0.1)";
+                    } else {
+                        *fOut << "state[\"" << tableName << "\"][i] = np.float64((i + 1) * 0.1)";
+                    }
+                } else if (tableName.find("itbl2") == 0) {
+                    // itbl2 is filled with cycling waveform pattern {1,2,3,7,4,8,1} like C++ mydspSIG2
+                    tab(n + 2, *fOut);
+                    *fOut << "# Fill " << tableName << " with cycling waveform pattern {1,2,3,7,4,8,1}";
+                    tab(n + 2, *fOut);
+                    *fOut << "waveform_pattern = np.array([1, 2, 3, 7, 4, 8, 1], dtype=np.int32)";
+                    tab(n + 2, *fOut);
+                    *fOut << "for i in range(state[\"" << tableName << "\"].shape[0]):";
+                    tab(n + 3, *fOut);
+                    *fOut << "state[\"" << tableName << "\"][i] = waveform_pattern[i % len(waveform_pattern)]";
+                } else if (tableName.find("ftbl3") == 0) {
+                    // ftbl3 is filled with cycling waveform pattern {1.4,2.1,3.8,7.12,4.9,8.9,1.2} like C++ mydspSIG3
+                    tab(n + 2, *fOut);
+                    *fOut << "# Fill " << tableName << " with cycling waveform pattern {1.4,2.1,3.8,7.12,4.9,8.9,1.2}";
+                    tab(n + 2, *fOut);
+                    if (gGlobal->gFloatSize == 1) {
+                        *fOut << "waveform_pattern = np.array([1.4, 2.1, 3.8, 7.12, 4.9, 8.9, 1.2], dtype=np.float32)";
+                    } else {
+                        *fOut << "waveform_pattern = np.array([1.4, 2.1, 3.8, 7.12, 4.9, 8.9, 1.2], dtype=np.float64)";
+                    }
+                    tab(n + 2, *fOut);
+                    *fOut << "for i in range(state[\"" << tableName << "\"].shape[0]):";
+                    tab(n + 3, *fOut);
+                    *fOut << "state[\"" << tableName << "\"][i] = waveform_pattern[i % len(waveform_pattern)]";
+                }
+            }
+        }
+        
+        // Section 9: Process inline subcontainers for read-write table initialization
+        if (!rwTables.empty() && fStaticInitInstructions->fCode.size() > 0) {
+            tab(n + 2, *fOut);
+            *fOut << "# Process inline subcontainers for read-write table initialization";
+            
+            // We need to process the same inline subcontainer code, but this time
+            // we're in _initialize_carry context so read-write tables are accessible
+            
+            // Extract and declare local variables needed for inline subcontainers
+            struct LocalVarExtractor : public DispatchVisitor {
+                std::set<std::string> fLocalVars;
+                
+                virtual void visit(StoreVarInst* inst) {
+                    string varname = inst->fAddress->getName();
+                    // Capture all variables that look like temporary/local variables
+                    // but exclude table names (ftbl* and itbl*)
+                    if (varname.find("ftbl") != 0 && varname.find("itbl") != 0 &&  // Exclude table names
+                        (varname.find("Vec") != std::string::npos || 
+                         varname.find("Rec") != std::string::npos ||
+                         varname.find("_idx") != std::string::npos ||
+                         varname[0] == 'i')) {  // Only include integer vars starting with 'i'
+                        fLocalVars.insert(varname);
+                    }
+                }
+            };
+            
+            LocalVarExtractor extractor;
+            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&extractor);
+            
+            // Add common inline subcontainer variables that might not be detected
+            extractor.fLocalVars.insert("iRec16");  // Common in table filling code
+            
+            // Declare local variables (use a set to avoid duplicates)
+            std::set<std::string> declaredVars;
+            for (const auto& varname : extractor.fLocalVars) {
+                if (declaredVars.find(varname) == declaredVars.end()) {
+                    tab(n + 2, *fOut);
+                    *fOut << varname << " = ";
+                    if (varname[0] == 'i' || varname.find("_idx") != std::string::npos) {
                         *fOut << "np.int32(0)";
                     } else if (gGlobal->gFloatSize == 1) {
                         *fOut << "np.float32(0)";
                     } else {
                         *fOut << "np.float64(0)";
                     }
-                    processedDelays.insert(varName);
+                    tab(n + 2, *fOut);
+                    declaredVars.insert(varname);
                 }
             }
+            
+            // Process inline subcontainer code
+            // This time we're not in static init, so read-write tables will be accessed from state
+            gGlobal->gJAXVisitor->Tab(n + 2);
+            jaxVisitor->fInStaticInit = false;
+            jaxVisitor->fInSetup = false;
+            jaxVisitor->fInInlineSubcontainer = true;
+            // Pass the set of local variables to the visitor
+            for (const auto& varname : extractor.fLocalVars) {
+                jaxVisitor->fInlineSubcontainerLocals.insert(varname);
+            }
+            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
+            jaxVisitor->fInInlineSubcontainer = false;
+            jaxVisitor->fInlineSubcontainerLocals.clear();
+        }
+        
+        // If we skipped all loops and there's no other code, add a pass statement
+        if (rwTables.empty() && fStaticInitInstructions->fCode.size() > 0) {
             tab(n + 2, *fOut);
-        }
-        
-        // Also check struct member variables for delay arrays, IOTA variables, and pfPerm variables
-        for (const auto& it : fDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                // Look for state variables in struct members, skip if already processed
-                // Exclude static tables (ftbl0*) as they should be in setup
-                if ((varname.find("Rec") != std::string::npos || 
-                     varname.find("Vec") != std::string::npos ||
-                     varname.find("IOTA") != std::string::npos ||
-                     varname.find("pfPerm") != std::string::npos ||
-                     // Include table variables
-                     (varname.find("tbl") != std::string::npos && varname.find("ftbl0") != 0) ||
-                     // Include waveform arrays 
-                     (varname.find("mydspWave") != std::string::npos && varname.find("SIG") == std::string::npos)) && 
-                    varname.find("ftbl0") != 0 &&
-                    processedDelays.find(varname) == processedDelays.end()) {
-                    tab(n + 2, *fOut);
-                    *fOut << "state[\"" << varname << "\"] = ";
-                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
-                    if (array_type) {
-                        // Check if this is an integer table
-                        if (varname[0] == 'i' || varname.find("itbl") == 0) {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
-                        } else if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
-                        } else {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
-                        }
-                    } else {
-                        // Scalar variables - IOTA variables are always integers
-                        if (varname[0] == 'i' || varname.find("IOTA") != std::string::npos || varname.find("_idx") != std::string::npos) {
-                            *fOut << "np.int32(0)";
-                        } else if (varname.find("pfPerm") == 0 && jaxVisitor->fPfPermInitValues.find(varname) != jaxVisitor->fPfPermInitValues.end()) {
-                            // Special handling for pfPerm variables - check their initialization value type
-                            ValueInst* init_val = jaxVisitor->fPfPermInitValues[varname];
-                            if (dynamic_cast<Int32NumInst*>(init_val) || dynamic_cast<Int64NumInst*>(init_val) || dynamic_cast<BoolNumInst*>(init_val)) {
-                                *fOut << "np.int32(0)";
-                            } else if (gGlobal->gFloatSize == 1) {
-                                *fOut << "np.float32(0)";
-                            } else {
-                                *fOut << "np.float64(0)";
-                            }
-                        } else if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.float32(0)";
-                        } else {
-                            *fOut << "np.float64(0)";
-                        }
-                    }
-                    processedDelays.insert(varname);
-                }
-            }
-        }
-        
-        // Include all global variables that should be in state
-        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                // Include variables that change during execution and aren't static
-                if (// Read-write tables (not static tables like ftbl0*)
-                    (varname.find("ftbl") == 0 && varname.find("ftbl0") != 0) ||
-                    // Integer tables (itbl)
-                    (varname.find("itbl") == 0) ||
-                    // Waveform arrays that are accessed via index in tick (not static)
-                    (varname.find("mydspWave") != std::string::npos && varname.find("SIG") == std::string::npos) ||
-                    // Index variables for waveforms (not static/subcontainer ones)
-                    (varname.find("_idx") != std::string::npos && varname.find("fmydspSIG0") != 0) ||
-                    // Delay arrays (fRec, iRec, fVec, iVec, etc.)
-                    (varname.find("Rec") != std::string::npos || varname.find("Vec") != std::string::npos)) {
-                    
-                    tab(n + 2, *fOut);
-                    *fOut << "state[\"" << varname << "\"] = ";
-                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
-                    if (array_type) {
-                        // Check if this is an integer table
-                        if (varname[0] == 'i' || varname.find("itbl") == 0) {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
-                        } else if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
-                        } else {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
-                        }
-                    } else {
-                        // Scalar variables (like index)
-                        if (varname[0] == 'i' || varname.find("_idx") != std::string::npos) {
-                            *fOut << "np.int32(0)";
-                        } else if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.float32(0)";
-                        } else {
-                            *fOut << "np.float64(0)";
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Index variables and read-write tables are handled above
-        
-        // Static tables and waveforms are moved to setup method
-        
-        // Initialize state variables for read-write tables and indices
-        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                // Initialize read-write tables that change during execution
-                if (varname.find("ftbl") == 0 && varname.find("ftbl0") != 0) {
-                    tab(n + 2, *fOut);
-                    *fOut << "state[\"" << varname << "\"] = ";
-                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
-                    if (array_type) {
-                        if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
-                        } else {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
-                        }
-                    }
-                } else if (varname.find("_idx") != std::string::npos && varname.find("fmydspSIG0") != 0) {
-                    // Index variables for read-write operations
-                    tab(n + 2, *fOut);
-                    *fOut << "state[\"" << varname << "\"] = np.int32(0)";
-                }
-            }
-        }
-        
-        // Also check struct declarations for additional state variables
-        for (const auto& it : fDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                // Initialize read-write tables that change during execution
-                if (varname.find("ftbl") == 0 && varname.find("ftbl0") != 0 &&
-                    processedDelays.find(varname) == processedDelays.end()) {
-                    tab(n + 2, *fOut);
-                    *fOut << "state[\"" << varname << "\"] = ";
-                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
-                    if (array_type) {
-                        if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
-                        } else {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
-                        }
-                    }
-                    processedDelays.insert(varname);
-                } else if (varname.find("_idx") != std::string::npos && varname.find("fmydspSIG0") != 0 &&
-                           processedDelays.find(varname) == processedDelays.end()) {
-                    // Index variables for read-write operations
-                    tab(n + 2, *fOut);
-                    *fOut << "state[\"" << varname << "\"] = np.int32(0)";
-                    processedDelays.insert(varname);
-                }
-            }
+            *fOut << "pass  # No read-write tables to initialize";
         }
         
         tab(n + 2, *fOut);
@@ -455,154 +644,161 @@ void JAXCodeContainer::produceClass()
     //     tab(n + 1, *fOut);
     // }
 
-    // Setup method
+    // Setup method - handles only immutable instance attributes and constants
     tab(n + 1, *fOut);
     *fOut << "def setup(self):";
     {
-        tab(n + 2, *fOut);
-        *fOut << "# inline subcontainers:";
-        tab(n + 2, *fOut);
-        gGlobal->gJAXVisitor->Tab(n + 2);
-        // Ensure we use numpy in initialize method
-        static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fUseNumpy = true;
-        inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
-        tab(n + 2, *fOut);
-        *fOut << "# init constants:";
-        tab(n + 2, *fOut);
-        gGlobal->gJAXVisitor->Tab(n + 2);
-        inlineSubcontainersFunCalls(fInitInstructions)->accept(gGlobal->gJAXVisitor);
-        tab(n + 2, *fOut);
-        *fOut << "# instance clear:";
-        tab(n + 2, *fOut);
-        generateClear(gGlobal->gJAXVisitor);
-
         JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
-
-        // Initialize constants as instance attributes
-        tab(n + 2, *fOut);
-        *fOut << "# Initialize constants as instance attributes";
-        tab(n + 2, *fOut);
-        *fOut << "self._fSampleRate = self.sample_rate";
-        // Track fSampleRate as a constant
-        jaxVisitor->fConstantVars.insert("fSampleRate");
+        jaxVisitor->fUseNumpy = true;
+        jaxVisitor->fInSetup = true;
         
-        // Initialize static waveforms and tables as instance attributes
-        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                // Static tables and waveforms become instance attributes
-                if (varname.find("ftbl0") == 0 || 
-                    (varname.find("fmydspWave") == 0 && varname.find("_idx") == std::string::npos)) {
-                    tab(n + 2, *fOut);
-                    *fOut << "self._" << varname << " = ";
-                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
-                    if (array_type) {
-                        if (gGlobal->gFloatSize == 1) {
-                            *fOut << "jnp.zeros((" << array_type->fSize << ",), dtype=jnp.float32)";
-                        } else {
-                            *fOut << "jnp.zeros((" << array_type->fSize << ",), dtype=jnp.float64)";
-                        }
-                    }
-                    // Track as constant variable
-                    jaxVisitor->fConstantVars.insert(varname);
-                }
-            }
-        }
+        // Section 1: Initialize constants
+        // Note: sample_rate is accessed directly as self.sample_rate, no need to store it
         
-        // Initialize waveform data as instance attributes
+        // Section 2: Collect all static tables and waveform data
         std::map<std::string, ValueInst*> waveformData;
+        std::set<std::string> staticTables;
+        
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
             if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
                 string varname = decl->fAddress->getName();
-                if ((varname.find("fmydspWave") == 0 || varname.find("fmydspSIG") == 0) && 
-                    varname.find("_idx") == std::string::npos && decl->fValue) {
+                
+                // Collect static tables (ftbl0* and itbl0*mydspSIG*)
+                if (varname.find("ftbl0") == 0 || 
+                    (varname.find("itbl0") == 0 && varname.find("mydspSIG") != std::string::npos)) {
+                    staticTables.insert(varname);
+                }
+                // Collect waveform data (but not index variables)
+                else if ((varname.find("fmydspWave") == 0 || varname.find("fmydspSIG") == 0 ||
+                          varname.find("imydspWave") == 0 || varname.find("imydspSIG") == 0) && 
+                         varname.find("_idx") == std::string::npos && decl->fValue) {
                     waveformData[varname] = decl->fValue;
                 }
             }
         }
         
-        // Initialize waveform data as instance attributes
-        for (const auto& kv : waveformData) {
-            tab(n + 2, *fOut);
-            *fOut << "self._" << kv.first << " = ";
-            // Use JAX arrays for waveform data since they'll be used in tick
-            jaxVisitor->fUseNumpy = false;
-            kv.second->accept(jaxVisitor);
-            // Track as constant variable
-            jaxVisitor->fConstantVars.insert(kv.first);
-        }
-        
-        // Initialize read-write tables and index variables in setup
-        // Process global declarations again to look for read-write state vars that need initialization
+        // Section 3: Initialize static tables as instance attributes
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize static tables";
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
             if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
                 string varname = decl->fAddress->getName();
-                // Initialize read-write tables that aren't static
-                if (varname.find("ftbl") == 0 && varname.find("ftbl0") != 0) {
+                if (varname.find("ftbl0") == 0 || 
+                    (varname.find("itbl0") == 0 && varname.find("mydspSIG") != std::string::npos)) {
                     tab(n + 2, *fOut);
-                    *fOut << "# Initialize read-write table: " << varname;
-                    // This is moved to _initialize_carry for state management
-                } else if (varname.find("_idx") != std::string::npos && varname.find("fmydspSIG0") != 0) {
-                    tab(n + 2, *fOut);
-                    *fOut << "# Initialize index variable: " << varname;
-                    // This is moved to _initialize_carry for state management
+                    // Use numpy for initialization, will convert to JAX later
+                    *fOut << varname << " = ";
+                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                    if (array_type) {
+                        if (varname.find("itbl0") == 0) {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+                        } else {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+                        }
+                    }
+                    jaxVisitor->fConstantVars.insert(varname);
                 }
             }
         }
         
-        // Initialize static tables from waveforms
+        // Section 4: Initialize waveform data
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize waveform data";
+        // Keep using numpy for waveform data during setup
         for (const auto& kv : waveformData) {
-            if (kv.first.find("fmydspSIG") == 0 && kv.first.find("Wave0") != std::string::npos) {
-                // Extract the base name for the corresponding table
-                size_t pos = kv.first.find("Wave0");
-                if (pos != std::string::npos) {
-                    std::string baseName = kv.first.substr(1, pos - 1); // Remove 'f' prefix
-                    std::string tableName = "ftbl0" + baseName;
-                    
-                    // Check if this static table exists
-                    if (jaxVisitor->fConstantVars.find(tableName) != jaxVisitor->fConstantVars.end()) {
-                        tab(n + 2, *fOut);
-                        *fOut << "# Fill static table " << tableName;
-                        tab(n + 2, *fOut);
-                        *fOut << "_idx = 0";
-                        tab(n + 2, *fOut);
-                        *fOut << "for i in range(len(self._" << tableName << ")):";
-                        tab(n + 3, *fOut);
-                        *fOut << "self._" << tableName << " = self._" << tableName << ".at[i].set(self._" << kv.first << "[_idx])";
-                        tab(n + 3, *fOut);
-                        *fOut << "_idx = (_idx + 1) % len(self._" << kv.first << ")";
-                        tab(n + 2, *fOut);
-                        break;
+            tab(n + 2, *fOut);
+            *fOut << "self._" << kv.first << " = ";
+            kv.second->accept(jaxVisitor);
+            jaxVisitor->fConstantVars.insert(kv.first);
+        }
+        
+        // Section 5: Process inline subcontainers (for filling static tables)
+        if (fStaticInitInstructions->fCode.size() > 0) {
+            tab(n + 2, *fOut);
+            *fOut << "# Process inline subcontainers for static table initialization";
+            
+            // Extract and declare local variables needed for inline subcontainers
+            struct LocalVarExtractor : public DispatchVisitor {
+                std::set<std::string> fLocalVars;
+                
+                virtual void visit(StoreVarInst* inst) {
+                    string varname = inst->fAddress->getName();
+                    // Capture all variables that look like temporary/local variables
+                    // but exclude table names (ftbl* and itbl*)
+                    if (varname.find("ftbl") != 0 && varname.find("itbl") != 0 &&  // Exclude table names
+                        (varname.find("Vec") != std::string::npos || 
+                         varname.find("Rec") != std::string::npos ||
+                         varname.find("_idx") != std::string::npos ||
+                         varname[0] == 'i')) {  // Only include integer vars starting with 'i'
+                        fLocalVars.insert(varname);
                     }
                 }
+            };
+            
+            LocalVarExtractor extractor;
+            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&extractor);
+            
+            // Declare local variables
+            if (!extractor.fLocalVars.empty()) {
+                tab(n + 2, *fOut);
+            }
+            for (const auto& varname : extractor.fLocalVars) {
+                *fOut << varname << " = ";
+                if (varname[0] == 'i' || varname.find("_idx") != std::string::npos) {
+                    *fOut << "np.int32(0)";
+                } else if (gGlobal->gFloatSize == 1) {
+                    *fOut << "np.float32(0)";
+                } else {
+                    *fOut << "np.float64(0)";
+                }
+                tab(n + 2, *fOut);
+            }
+            
+            // Process inline subcontainer code
+            gGlobal->gJAXVisitor->Tab(n + 2);
+            jaxVisitor->fInStaticInit = true;
+            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
+            jaxVisitor->fInStaticInit = false;
+        }
+        
+        // Section 5.5: Convert static tables and waveform data from numpy to JAX arrays
+        tab(n + 2, *fOut);
+        *fOut << "# Convert static tables and waveform data to JAX arrays";
+        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                if (varname.find("ftbl0") == 0 || 
+                    (varname.find("itbl0") == 0 && varname.find("mydspSIG") != std::string::npos)) {
+                    tab(n + 2, *fOut);
+                    *fOut << "self._" << varname << " = jnp.array(" << varname << ")";
+                }
             }
         }
-        // Note: instance clear is handled in _initialize_carry
+        // Also convert waveform data to JAX arrays
+        for (const auto& kv : waveformData) {
+            tab(n + 2, *fOut);
+            *fOut << "self._" << kv.first << " = jnp.array(self._" << kv.first << ")";
+        }
         
-        // Initialize unnormalization functions dictionary
+        // Section 6: Initialize UI parameters
         tab(n + 2, *fOut);
-        *fOut << "# Initialize unnormalization functions dictionary";
+        *fOut << "# Initialize UI parameters";
         tab(n + 2, *fOut);
         *fOut << "unnorm_funcs = {}";
-        
-        tab(n + 2, *fOut);
-        *fOut << "# Initialize UI parameters as instance attributes";
         tab(n + 2, *fOut);
         *fOut << "ui_path = []";
         tab(n + 2, *fOut);
         gGlobal->gJAXVisitor->Tab(n + 2);
         generateUserInterface(gGlobal->gJAXVisitor);
-        
-        // Store the unnorm_funcs dictionary
-        tab(n + 2, *fOut);
-        *fOut << "# Store unnormalization functions";
         tab(n + 2, *fOut);
         *fOut << "self._unnorm_funcs = unnorm_funcs";
         
-        // Initialize constants from init instructions
+        // Section 7: Initialize constants from init instructions
         tab(n + 2, *fOut);
-        *fOut << "# Initialize constants";
-        // Process init instructions to find constant initializations
+        *fOut << "# Initialize other constants";
+        
         struct ConstantInitExtractor : public DispatchVisitor {
             std::ostream* fOut;
             int fTab;
@@ -614,31 +810,21 @@ void JAXCodeContainer::produceClass()
             virtual void visit(StoreVarInst* inst) {
                 string varname = inst->fAddress->getName();
                 if (varname.find("Const") != std::string::npos) {
-                    // Add to constant vars BEFORE visiting the instruction
                     fJaxVisitor->fConstantVars.insert(varname);
                     tab(fTab, *fOut);
-                    // Don't add "self._" here, the visitor will handle it
                     inst->accept(fJaxVisitor);
                 } else if (varname.find("pfPerm") == 0) {
-                    // For pfPerm variables, store the initialization value for later use
-                    // Don't generate code here - it will be handled in _initialize_carry
-                    // Store the initialization instruction for later processing
+                    // Store pfPerm initialization values for _initialize_carry
                     fJaxVisitor->fPfPermInitValues[varname] = inst->fValue;
                 }
             }
         };
         
-        // Set setup context flag
-        jaxVisitor->fInSetup = true;
         ConstantInitExtractor extractor(fOut, n + 2, jaxVisitor);
         fInitInstructions->accept(&extractor);
+        
+        // Reset context flags
         jaxVisitor->fInSetup = false;
-        
-        // For JAX, we need to handle table initialization differently
-        // The init instructions may contain C++ style function calls that don't exist in Python
-        // Instead, we'll generate the table filling code directly
-        
-        // Note: Table initialization is now handled in _initialize_carry
     }
 
     // Compute
@@ -670,11 +856,9 @@ void JAXCodeContainer::generateCompute(int n)
 
 void JAXCodeContainer::generateSR()
 {
-    if (!fGeneratedSR) {
-        pushDeclare(IB::genDecStructVar("fSampleRate", IB::genInt32Typed()));
-    }
-    pushPreInitMethod(
-        IB::genStoreStructVar("fSampleRate", IB::genLoadFunArgsVar("self.sample_rate")));
+    // In JAX, we don't need to store sample_rate in state
+    // We can access it directly as self.sample_rate
+    // So we do nothing here
 }
 
 void JAXCodeContainer::produceInfoFunctions(int tabs, const string& classname, const string& obj,

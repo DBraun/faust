@@ -30,7 +30,9 @@
       "Bash(/Users/braun/GitHub/faust/build/bin/faust:*)",
       "Bash(python test:*)",
       "Bash(python:*)",
-      "Bash(./filesCompare ir/jax/double/comb_delay1.ir reference/comb_delay1.ir)"
+      "Bash(./filesCompare ir/jax/double/comb_delay1.ir reference/comb_delay1.ir)",
+      "Bash(build/bin/faust tests/impulse-tests/dsp/table1.dsp -lang jax -o table1_jax_new.py 2>&1)",
+      "Bash(./filesCompare ir/jax/double/prefix.ir reference/prefix.ir)"
     ],
     "deny": []
   }
