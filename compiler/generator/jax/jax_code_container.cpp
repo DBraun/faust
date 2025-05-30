@@ -310,22 +310,23 @@ void JAXCodeContainer::produceClass()
     }
     back(1, *fOut);
 
-    // JSON generation
-    tab(n + 1, *fOut);
-    *fOut << "def getJSON(self):";
-    {
-        string json;
-        if (gGlobal->gFloatSize == 1) {
-            json = generateJSON<float>();
-        } else {
-            json = generateJSON<double>();
-        }
-        tab(n + 2, *fOut);
-        *fOut << "json_str = \"\"\"" << flattenJSONforPython(json) << "\"\"\"";
-        tab(n + 2, *fOut);
-        *fOut << "return json.loads(json_str)";
-        tab(n + 1, *fOut);
-    }
+    // todo: enable later
+    // // JSON generation
+    // tab(n + 1, *fOut);
+    // *fOut << "def getJSON(self):";
+    // {
+    //     string json;
+    //     if (gGlobal->gFloatSize == 1) {
+    //         json = generateJSON<float>();
+    //     } else {
+    //         json = generateJSON<double>();
+    //     }
+    //     tab(n + 2, *fOut);
+    //     *fOut << "json_str = \"\"\"" << flattenJSONforPython(json) << "\"\"\"";
+    //     tab(n + 2, *fOut);
+    //     *fOut << "return json.loads(json_str)";
+    //     tab(n + 1, *fOut);
+    // }
 
     // Setup method
     tab(n + 1, *fOut);
@@ -341,50 +342,32 @@ void JAXCodeContainer::produceClass()
         // Track fSampleRate as a constant
         jaxVisitor->fConstantVars.insert("fSampleRate");
 
-        // Initialize constants that need to be instance attributes
         tab(n + 2, *fOut);
-        *fOut << "# Initialize instance constants";
-        
-        // Process global declarations to find constants
+        *fOut << "# global declarations:";
+        JAXInitFieldsVisitor initializer(fOut, n + 2);
+        generateDeclarations(&initializer);
+        // Generate global variables initialisation
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                // Check if this is a constant table or waveform
-                if (varname.find("ftbl") == 0 || varname.find("fmydspWave") == 0 || varname.find("fmydspSIG") == 0) {
-                    tab(n + 2, *fOut);
-                    *fOut << "self._" << varname << " = ";
-                    if (decl->fValue) {
-                        // Use numpy for initialization
-                        static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fUseNumpy = true;
-                        decl->fValue->accept(gGlobal->gJAXVisitor);
-                    } else {
-                        JAXInitFieldsVisitor::ZeroInitializer(fOut, decl->fType);
-                    }
-                    jaxVisitor->fConstantVars.insert(varname);
-                }
+            if (dynamic_cast<DeclareVarInst*>(it)) {
+                it->accept(&initializer);
             }
         }
-        
-        // Initialize tables - removed hardcoded initialization
-        // Table initialization is handled by the static init instructions
-        
-        // Note: ftbl1 is mutable and will be in state, not as instance attribute
-        
-        // Initialize index variables
         tab(n + 2, *fOut);
-        *fOut << "# Initialize index variables";
-        // Look for index variables in global declarations
-        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                if (varname.find("_idx") != string::npos) {
-                    tab(n + 2, *fOut);
-                    *fOut << "self._" << varname << " = np.int32(0)";
-                    jaxVisitor->fConstantVars.insert(varname);
-                }
-            }
-        }
-        // Note: fmydspWave0_idx will be in state, not as instance attribute
+        tab(n + 2, *fOut);
+        *fOut << "# inline subcontainers:";
+        tab(n + 2, *fOut);
+        gGlobal->gJAXVisitor->Tab(n + 2);
+        inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
+        tab(n + 2, *fOut);
+        *fOut << "# init constants:";
+        tab(n + 2, *fOut);
+        gGlobal->gJAXVisitor->Tab(n + 2);
+        inlineSubcontainersFunCalls(fInitInstructions)->accept(gGlobal->gJAXVisitor);
+        tab(n + 2, *fOut);
+        *fOut << "# instance clear:";
+        tab(n + 2, *fOut);
+        generateClear(gGlobal->gJAXVisitor);
+        tab(n + 2, *fOut);
         
         // Initialize unnormalization functions dictionary
         tab(n + 2, *fOut);
