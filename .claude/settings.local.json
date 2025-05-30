@@ -23,7 +23,14 @@
       "Bash(mkdir:*)",
       "Bash(/Users/braun/GitHub/faust/build/bin/faust -lang c prefix.dsp -o /tmp/prefix.c)",
       "Bash(./faust2impulse:*)",
-      "Bash(/tmp:*)"
+      "Bash(/tmp:*)",
+      "Bash(cp:*)",
+      "Bash(./filesCompare ir/jax/double/volume.ir reference/volume.ir)",
+      "Bash(../../../build/bin/faust:*)",
+      "Bash(/Users/braun/GitHub/faust/build/bin/faust:*)",
+      "Bash(python test:*)",
+      "Bash(python:*)",
+      "Bash(./filesCompare ir/jax/double/comb_delay1.ir reference/comb_delay1.ir)"
     ],
     "deny": []
   }

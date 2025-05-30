@@ -1,72 +1,8 @@
 # Faust JAX Backend Documentation
 
-The JAX backend allows Faust to generate Python code that uses JAX and Flax for efficient numerical computation with automatic differentiation support. For more information on developing backends for Faust, check out [`compiler/generator/template/README.md`](https://github.com/grame-cncm/faust/tree/master-dev/compiler/generator/template).
+The JAX backend allows Faust to generate Python code that uses JAX and Flax for efficient numerical computation with automatic differentiation support. For more information on developing backends for Faust, check out [`compiler/generator/template/README.md`](https://github.com/grame-cncm/faust/tree/master-dev/compiler/generator/template) and the related C++ files.
 
-## Available Architecture Files
-
-### `minimal.py`
-Minimal architecture for basic usage. Includes:
-- All UI element handlers (sliders, buttons, soundfiles, etc.)
-- Basic `__call__` method for processing
-- Generator support (0-input DSPs)
-- Soundfile loading with librosa
-- `initialize_carry()`: Creates initial state for block-wise processing
-- `process_block()`: Processes audio block-by-block with state management
-- Real-time audio streaming example using `sounddevice`
-
-### UI Element Handlers
-
-An architecture file must implement these methods:
-
-- **`add_slider()`**: Continuous parameters with linear/exp/log scaling
-- **`add_hslider()`/`add_vslider()`**: Horizontal/vertical sliders
-- **`add_button()`**: Momentary buttons (0 or 1)
-- **`add_checkbox()`**: Toggle switches (0 or 1)
-- **`add_nentry()`**: Numerical entries with discrete steps
-- **`add_soundfile()`**: Audio file loading and playback
-- **`add_hbargraph()`/`add_vbargraph()`**: Output value displays
-
-It is optional to override these methods:
-- **`load_soundfile()`**: Helper for loading audio files from disk
-
-## Installation
-
-### Prerequisites
-
-1. Python 3.9 or later
-2. Faust compiler built with JAX backend support (included in regular builds)
-
-### Building Faust with JAX Backend
-
-To build Faust with only the JAX backend:
-
-```bash
-# From the Faust root directory
-cd build
-cmake . -Bfaustdir -DCMAKE_BUILD_TYPE=Release -C ./backends/jax-only.cmake
-cmake --build faustdir --config=Release
-
-# Optional: To build only the compiler (faster):
-# cmake --build faustdir --config=Release --target faust
-```
-
-To build Faust with JAX and other backends:
-
-```bash
-# From the Faust root directory
-cd build
-cmake . -Bfaustdir -DCMAKE_BUILD_TYPE=Release -C ./backends/all.cmake
-cmake --build faustdir --config=Release
-```
-
-The Faust executable will be in `build/bin/faust`. Verify JAX backend is included:
-
-```bash
-./build/bin/faust -v
-# Should show "DSP to JAX" in the embedded backends list
-```
-
-### Installing JAX Dependencies
+## Installing JAX Dependencies
 
 JAX and its ecosystem can be installed in two ways:
 
@@ -138,38 +74,24 @@ key = random.key(0)
 
 # Create input (channels x samples)
 n_samples = 48000  # 1 second
+
 input_audio = jnp.zeros((model.num_inputs, n_samples))
-input_audio = input_audio.at[:, 0].set(1.0)  # impulse
+input_audio = input_audio.at[:, 0].set(1.0)  # impulse on all channels
 
 # Initialize and run the model
-variables = model.init({'params': key}, input_audio, n_samples)
-output_audio, mod_vars = model.apply(variables, input_audio, n_samples, mutable="intermediates")
+variables = model.init({'params': key}, input_audio, length=n_samples)
+output_audio, mod_vars = model.apply(variables, input_audio, length=n_samples, mutable="intermediates")
 # output_audio shape: (num_outputs, n_samples)
 
 # if bargraphs are in the DSP code:
 bargraphs = mod_vars["intermediates"]
-```
 
-### Generator Example (No Input)
-
-For DSPs that generate audio without inputs (e.g., synthesizers, oscillators):
-
-```python
-import jax
-import jax.numpy as jnp
-from jax import random
-from mydsp import MyDSP
-
-# Initialize the model
-model = MyDSP(sample_rate=48000)
-key = random.key(0)
+# if no bargraphs are needed, just run this:
+output_audio = model.apply(variables, input_audio, length=n_samples)
 
 # For generators, pass None as input and specify `length`
-n_samples = 48000  # 1 second
 variables = model.init({'params': key}, None, n_samples)
 output_audio = model.apply(variables, None, length=n_samples)
-
-# output_audio shape: (num_outputs, n_samples)
 ```
 
 **Note**: The module should handle `None` input gracefully:
@@ -193,26 +115,22 @@ from mydsp import MyDSP
 model = MyDSP(sample_rate=48000)
 key = random.key(0)
 
-block_size = 512
-
-# Initialize parameters with dummy input
-dummy_input = jnp.zeros((model.getNumInputs(), block_size))
-variables = model.init({"params": key, "rng_stream": key}, dummy_input, length=1)
-
-# Initialize carry state
-carry = model.apply(variables, method="initialize_carry")
+BLOCK_SIZE = 512
 
 # JIT compile the process method
 @jax.jit
 def process_block_jit(carry, inputs: jnp.ndarray, rng: jax.Array):
-   return model.apply(variables, carry, inputs, length=BLOCK_SIZE, unroll=unroll, method="process_block", rngs={"rng_stream": rng})
+   return model.apply(variables, carry, inputs, length=BLOCK_SIZE, method="process_block", rngs={"rng_stream": rng})
+
+# Initialize carry state
+carry, variables = model.init_with_output({"params": key, "rng_stream": key}, method="initialize_carry")
 
 rng = jax.random.key(0)
 
 # Process audio block by block
 for block_idx in range(num_blocks):
     # Get input block (e.g., from audio interface)
-    input_block = get_audio_input()  # shape: (num_inputs, block_size)
+    input_block = get_audio_input()  # shape: (num_inputs, BLOCK_SIZE)
     
     # Process block and get updated state
     rng, subkey = jax.random.split(rng)
@@ -224,40 +142,26 @@ for block_idx in range(num_blocks):
 
 **Available Methods:**
 
-1. **`initialize_carry(x, length: int)`**: Creates initial state for real-time processing
-   - `x`:
-   - `length`: 
+1. **`initialize_carry(self)`**: Creates initial state for real-time processing
    - Returns: Dictionary containing all stateful components (delays, filter states, etc.)
 
 1. **`process_block(carry, inputs)`**: Processes one block of audio
    - `carry`: State dictionary from previous block
    - `inputs`: Input block of shape `(num_inputs, block_size)`
-   - `length`: 
-   - `unroll`:
+   - `length`: output length if `inputs` is None
+   - `unroll`: Unroll size for `nn.scan`
    - Returns: Tuple `(outputs, new_carry)` where outputs has shape `(num_outputs, block_size)`
 
-## Architecture
+1. **`__call__(x, length, unroll)`**: Basic offline audio processing without receiving and giving a carry state
+   - `x`: Input audio tensor of shape `(num_inputs, num_samples)` or `None` for generators
+   - `length`: Number of samples to process (used when `x is None`)
+   - `unroll`: Unroll size for `nn.scan`
 
-The JAX backend generates:
+**Available properties:**
 
-1. A Flax `nn.Module` class with:
-   - `__call__(x, length, unroll)` method that accepts:
-     - `x`: Input audio tensor of shape `(num_inputs, num_samples)` or `None` for generators
-     - `length`: Number of samples to process (used when `x is None`)
-     - `unroll`: Unroll size for `nn.scan`
-   - `initialize()` method for state initialization
-   - Static `tick()` method for DSP computation
-   - `num_inputs` and `num_outputs` properties
-   - `getJSON()` method returning DSP metadata
+- `num_inputs` and `num_outputs` properties
+- `getJSON()` method returning DSP metadata
 
-2. Efficient JAX operations using `jnp` (JAX numpy)
-
-3. Support for both single and double precision (controlled by `-single` or `-double` flags)
-
-4. Automatic handling of generators vs processors:
-   - When `.num_inputs == 0`, the module works as a generator
-   - The module creates zero inputs internally when needed
-   - `T` parameter determines output length for generators
 
 ## Features
 
