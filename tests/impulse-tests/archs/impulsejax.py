@@ -113,8 +113,15 @@ except ImportError:
 		init: float, a_min: float, a_max: float, step_size: float,
 		unnorm_funcs: dict, scale_mode: str = "linear",
 	):
-		# For deterministic impulse tests, treat nentry like a regular slider
-		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
+		# For deterministic impulse tests, use exact init values like C++ CheckControlUI
+		label = "/".join(ui_path + [label])
+		init = FAUSTFLOAT(init)
+		
+		# Create parameter with exact init value (no normalization for impulse tests)
+		setattr(self, zone, self.param(label, nn.initializers.constant(init, dtype=FAUSTFLOAT), ()))
+		
+		# Create identity unnormalization function (parameter is already at correct value)
+		unnorm_funcs[label] = (zone, lambda x: x)
 	
 	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> float:
 		"""Normalize a value from [a_min, a_max] to [-1, 1] based on scale mode."""
