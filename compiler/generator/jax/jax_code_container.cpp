@@ -188,7 +188,7 @@ void JAXCodeContainer::produceClass()
         tab(n, *fOut);
     }
 
-    // Merge sub containers
+    // Merge sub containers. TODO: explain this.
     mergeSubContainers();
     
     // Extract pfPerm initialization values BEFORE generating methods
@@ -459,6 +459,23 @@ void JAXCodeContainer::produceClass()
     tab(n + 1, *fOut);
     *fOut << "def setup(self):";
     {
+        tab(n + 2, *fOut);
+        *fOut << "# inline subcontainers:";
+        tab(n + 2, *fOut);
+        gGlobal->gJAXVisitor->Tab(n + 2);
+        // Ensure we use numpy in initialize method
+        static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fUseNumpy = true;
+        inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
+        tab(n + 2, *fOut);
+        *fOut << "# init constants:";
+        tab(n + 2, *fOut);
+        gGlobal->gJAXVisitor->Tab(n + 2);
+        inlineSubcontainersFunCalls(fInitInstructions)->accept(gGlobal->gJAXVisitor);
+        tab(n + 2, *fOut);
+        *fOut << "# instance clear:";
+        tab(n + 2, *fOut);
+        generateClear(gGlobal->gJAXVisitor);
+
         JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
 
         // Initialize constants as instance attributes
