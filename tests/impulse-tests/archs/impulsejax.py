@@ -18,6 +18,8 @@ import sys
 import os
 from os import environ
 environ["JAX_PLATFORM_NAME"] = "cpu"
+environ["CUDA_VISIBLE_DEVICES"] = ""  # Disable CUDA
+environ["JAX_PLATFORMS"] = "cpu"     # Force CPU only
 
 import contextlib
 
@@ -27,13 +29,19 @@ warnings.filterwarnings("ignore")
 @contextlib.contextmanager
 def suppress_metal_message():
 	with open(os.devnull, 'w') as fnull:
+		# Suppress both stdout and stderr
+		stdout_fileno = sys.stdout.fileno()
 		stderr_fileno = sys.stderr.fileno()
+		old_stdout = os.dup(stdout_fileno)
 		old_stderr = os.dup(stderr_fileno)
+		os.dup2(fnull.fileno(), stdout_fileno)
 		os.dup2(fnull.fileno(), stderr_fileno)
 		try:
 			yield
 		finally:
+			os.dup2(old_stdout, stdout_fileno)
 			os.dup2(old_stderr, stderr_fileno)
+			os.close(old_stdout)
 			os.close(old_stderr)
 
 # Use it when importing or initializing JAX
@@ -105,56 +113,8 @@ except ImportError:
 		init: float, a_min: float, a_max: float, step_size: float,
 		unnorm_funcs: dict, scale_mode: str = "linear",
 	):
-		"""
-		Gumbel-Softmax version of a FAUST nentry:
-			* logits param  (num_steps,)
-			* learnable temperature τ
-			* optional Gumbel noise from self.make_rng("gumbel")
-		Returns a *soft* value in the physical range.
-
-		todo: this implementation may be problematic for custom value nentry like:
-		`foo = nentry("foo[style:menu{'low':0;'mid':5;'high':7}]",0,0,7,1)`
-		"""
-		# ---------- set up grid ----------
-		label = "/".join(ui_path + [label])
-		num_steps  = int(round((a_max - a_min) / step_size)) + 1
-		init_step  = int(round((init - a_min) / step_size))
-		step_values = jnp.arange(num_steps, dtype=FAUSTFLOAT) * FAUSTFLOAT(step_size) + FAUSTFLOAT(a_min)
-
-		# ---------- parameters ----------
-		# (1) logits, initialised to favour the initial step
-		def init_logits(key, shape):
-			logits = jnp.zeros(shape, dtype=FAUSTFLOAT)
-			return logits.at[init_step].set(FAUSTFLOAT(5.0))        # bias ≈ exp(5) ≈ 148
-		logits_zone = zone + "_logits"
-		logits_label = label + ":logits"
-		setattr(self, logits_zone, self.param(logits_label, init_logits, (num_steps,)))
-
-		# temperature (optional learnable scalar)
-		# tau = self.param(f"{zone}_tau", nn.initializers.constant(1.0), ())
-		tau = 1.0  # TODO: user should be able to configure via UI Label metadata:
-		# https://faustdoc.grame.fr/manual/syntax/#ui-label-metadata
-
-		# Store nentry metadata as attributes. TODO: necessary?
-		setattr(self, f"_{zone}_step_values", step_values)
-		setattr(self, f"_{zone}_tau", tau)
-		setattr(self, f"_{zone}_logits_zone", logits_zone)
-		
-		# Add unnormalization lambda for nentry
-		def make_nentry_unnorm(zone, logits_zone, tau, step_values):
-			def unnorm_nentry(module):
-				logits = getattr(module, logits_zone)
-				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
-					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
-					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
-			return unnorm_nentry
-		
-		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
+		# For deterministic impulse tests, treat nentry like a regular slider
+		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
 	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> float:
 		"""Normalize a value from [a_min, a_max] to [-1, 1] based on scale mode."""
