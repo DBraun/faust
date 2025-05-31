@@ -46,6 +46,11 @@ class JAXCodeContainer : public virtual CodeContainer {
     void generateCompute(int n);
 
     virtual void generateSR();
+    
+    virtual void produceInfoFunctions(int tabs, const std::string& classname, const std::string& obj,
+                                     bool ismethod, FunTyped::FunAttribute funtype,
+                                     TextInstVisitor* producer, const std::string& in_fun = "getNumInputs",
+                                     const std::string& out_fun = "getNumOutputs");
 
    public:
     JAXCodeContainer() {}

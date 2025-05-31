@@ -46,10 +46,9 @@ compile-%: $(outdir)/%.py
 	@echo "✓ Compiled $*.dsp to $(outdir)/$*.py"
 
 # Run only target (assumes already compiled)
-# todo: use --jit
 run-%: $(outdir)/%.py
 	@echo "Running $*.py..."
-	@$(PYTHON) $< --duration 0.1
+	@$(PYTHON) $< --duration 0.1 --jit
 
 all: test
 
@@ -104,10 +103,9 @@ $(outdir)/%.py: dsps/%.dsp | $(outdir)
 		(echo "FAILED: Compilation error" > $(outdir)/$*.test && exit 1)
 
 # Rule to run Python file and create test result
-# todo: use --jit
 $(outdir)/%.test: $(outdir)/%.py
 	@echo "Running $<..."
-	@if $(PYTHON) $< --duration 0.1 > $(outdir)/$*.output.log 2>&1; then \
+	@if $(PYTHON) $< --duration 0.1 --jit > $(outdir)/$*.output.log 2>&1; then \
 		echo "PASSED" > $@; \
 		echo "✓ $(notdir $<) passed"; \
 	else \
