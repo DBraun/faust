@@ -32,7 +32,24 @@ make native        # Revert to native mode
 cd tests
 make -C impulse-tests  # Test all backends
 
+# JAX backend tests
+cd tests/jax-tests
+make test              # Run all JAX tests (use 5 minute timeout)
+make test-table        # Run specific test (e.g., table.dsp)
+make compile-table     # Only compile without running
+
+# Important: Generated Python files in tests/jax-tests/generated/ are created 
+# only when compiling or testing. They don't exist by default. Always:
+# - Use make compile-<test> to generate the .py file before reading it
+# - Or check if file exists first
+# Clean generated files: rm generated/*.py generated/*.test generated/*.output.log
+
+# IMPORTANT: When running `make test` for all JAX tests, use a 5 minute timeout
+# as there are many tests and they take time to complete:
+# Example: timeout=300000 (5 minutes in milliseconds)
+
 # Other test types
+cd tests
 make -C compile-tests  # Compilation tests
 make -C error-tests    # Error handling tests
 make -C architecture-tests && ./testserver  # Architecture tests
@@ -103,6 +120,10 @@ When adding language features (see `adding-feature.md`):
 ### Testing Philosophy
 - Impulse response tests compare output against reference files
 - Tests should cover all backends when adding features
+
+### Building Faust
+- Always run `make` from the `/build` directory, not the root directory
+- Use `cd build && make -j8` for parallel builds
 
 ## Development Workflow
 

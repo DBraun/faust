@@ -14,15 +14,15 @@ PYTHON ?= python3
 ARCHITECTURE ?= ../../architecture/jax/minimal.py
 FAUSTOPTIONS ?= -lang jax -a $(ARCHITECTURE)
 
-# Find all DSP files in the dsps directory
-dspfiles := $(wildcard dsps/*.dsp)
+# Find all DSP files in the dsp directory
+dspfiles := $(wildcard dsp/*.dsp)
 
 # Output directory for generated Python files
 outdir := generated
 
 # Target for each DSP file
-pyfiles := $(dspfiles:dsps/%.dsp=$(outdir)/%.py)
-testfiles := $(dspfiles:dsps/%.dsp=$(outdir)/%.test)
+pyfiles := $(dspfiles:dsp/%.dsp=$(outdir)/%.py)
+testfiles := $(dspfiles:dsp/%.dsp=$(outdir)/%.test)
 
 # Prevent automatic deletion of intermediate .py files
 .SECONDARY: $(pyfiles)
@@ -66,7 +66,7 @@ test: $(outdir) $(testfiles)
 
 help:
 	@echo "===== FAUST JAX Backend Tests ====="
-	@echo "This Makefile tests the JAX backend by compiling DSP files from the dsps/ directory"
+	@echo "This Makefile tests the JAX backend by compiling DSP files from the dsp/ directory"
 	@echo "and running them with the minimal.py architecture."
 	@echo ""
 	@echo "Usage:"
@@ -84,7 +84,7 @@ help:
 	@echo "  make run-stereo_pan     : Run the compiled stereo_pan.py"
 	@echo ""
 	@echo "To add a test:"
-	@echo "  1. Place a .dsp file in the dsps/ directory"
+	@echo "  1. Place a .dsp file in the dsp/ directory"
 	@echo "  2. Run 'make' or 'make test-<filename>'"
 	@echo ""
 	@echo "Options:"
@@ -97,7 +97,7 @@ $(outdir):
 	@mkdir -p $(outdir)
 
 # Rule to compile DSP to Python
-$(outdir)/%.py: dsps/%.dsp | $(outdir)
+$(outdir)/%.py: dsp/%.dsp | $(outdir)
 	@echo "Compiling $<..."
 	@$(FAUST) $(FAUSTOPTIONS) -I ../../libraries/ $< -o $@ 2>&1 | tee $(outdir)/$*.compile.log || \
 		(echo "FAILED: Compilation error" > $(outdir)/$*.test && exit 1)

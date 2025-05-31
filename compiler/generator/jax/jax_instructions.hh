@@ -759,6 +759,10 @@ class JAXInstVisitor : public TextInstVisitor {
         else if (fUIParamVars.find(named->fName) != fUIParamVars.end()) {
             *fOut << "params[\"" << named->fName << "\"]";
         }
+        // Special case for soundfile variables - access as module attributes
+        else if (named->fName.find("fSoundfile") == 0 && named->fName.find("ca") == std::string::npos) {
+            *fOut << "self." << named->fName;
+        }
         // Check if this is a constant (either tracked at compile time or runtime)
         // Note: pfPerm variables are NOT constants - they are state variables
         else if ((named->fName.find("pfPerm") != 0) &&  // Exclude pfPerm variables

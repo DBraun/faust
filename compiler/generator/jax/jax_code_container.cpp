@@ -605,17 +605,54 @@ void JAXCodeContainer::produceClass()
             // Extract and declare local variables needed for inline subcontainers
             struct LocalVarExtractor : public DispatchVisitor {
                 std::set<std::string> fLocalVars;
+                std::map<std::string, int> fArraySizes;  // Track array sizes
+                std::set<std::string> fArrayVars;  // Track variables accessed as arrays
                 
                 virtual void visit(StoreVarInst* inst) {
+                    // Check if storing to an indexed address (array access)
+                    if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+                        if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                            string indexed_varname = named->getName();
+                            if (indexed_varname.find("ftbl") != 0 && indexed_varname.find("itbl") != 0) {
+                                fLocalVars.insert(indexed_varname);
+                                fArrayVars.insert(indexed_varname);
+                            }
+                        }
+                    } else {
+                        // Regular (non-indexed) address
+                        string varname = inst->fAddress->getName();
+                        // Capture all variables that look like temporary/local variables
+                        // but exclude table names (ftbl* and itbl*)
+                        if (varname.find("ftbl") != 0 && varname.find("itbl") != 0 &&  // Exclude table names
+                            (varname.find("Vec") != std::string::npos || 
+                             varname.find("Rec") != std::string::npos ||
+                             varname.find("_idx") != std::string::npos)) {
+                            fLocalVars.insert(varname);
+                        }
+                    }
+                }
+                
+                // Also check for array access in LoadVarInst
+                virtual void visit(LoadVarInst* inst) {
+                    if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+                        if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                            string indexed_varname = named->getName();
+                            if (indexed_varname.find("ftbl") != 0 && indexed_varname.find("itbl") != 0) {
+                                fLocalVars.insert(indexed_varname);
+                                fArrayVars.insert(indexed_varname);
+                            }
+                        }
+                    }
+                }
+                
+                virtual void visit(DeclareVarInst* inst) {
                     string varname = inst->fAddress->getName();
-                    // Capture all variables that look like temporary/local variables
-                    // but exclude table names (ftbl* and itbl*)
-                    if (varname.find("ftbl") != 0 && varname.find("itbl") != 0 &&  // Exclude table names
-                        (varname.find("Vec") != std::string::npos || 
-                         varname.find("Rec") != std::string::npos ||
-                         varname.find("_idx") != std::string::npos ||
-                         varname[0] == 'i')) {  // Only include integer vars starting with 'i'
-                        fLocalVars.insert(varname);
+                    // Check if this is an array declaration for a local variable
+                    if (varname.find("ftbl") != 0 && varname.find("itbl") != 0) {
+                        if (ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(inst->fType)) {
+                            fLocalVars.insert(varname);
+                            fArraySizes[varname] = array_type->fSize;
+                        }
                     }
                 }
             };
@@ -632,12 +669,36 @@ void JAXCodeContainer::produceClass()
                 if (declaredVars.find(varname) == declaredVars.end()) {
                     tab(n + 2, *fOut);
                     *fOut << varname << " = ";
-                    if (varname[0] == 'i' || varname.find("_idx") != std::string::npos) {
-                        *fOut << "np.int32(0)";
-                    } else if (gGlobal->gFloatSize == 1) {
-                        *fOut << "np.float32(0)";
+                    
+                    // Check if it's an array (either from array size info or array access detection)
+                    if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end()) {
+                        int size = extractor.fArraySizes[varname];
+                        if (varname[0] == 'i') {
+                            *fOut << "np.zeros((" << size << ",), dtype=np.int32)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((" << size << ",), dtype=np.float32)";
+                        } else {
+                            *fOut << "np.zeros((" << size << ",), dtype=np.float64)";
+                        }
+                    } else if (extractor.fArrayVars.find(varname) != extractor.fArrayVars.end()) {
+                        // Variable was accessed as an array but we don't know the size
+                        // Use a default size of 4 (common for Rec variables)
+                        if (varname[0] == 'i') {
+                            *fOut << "np.zeros((4,), dtype=np.int32)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((4,), dtype=np.float32)";
+                        } else {
+                            *fOut << "np.zeros((4,), dtype=np.float64)";
+                        }
                     } else {
-                        *fOut << "np.float64(0)";
+                        // Scalar variable
+                        if (varname[0] == 'i' || varname.find("_idx") != std::string::npos) {
+                            *fOut << "np.int32(0)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.float32(0)";
+                        } else {
+                            *fOut << "np.float64(0)";
+                        }
                     }
                     tab(n + 2, *fOut);
                     declaredVars.insert(varname);
@@ -769,17 +830,54 @@ void JAXCodeContainer::produceClass()
             // Extract and declare local variables needed for inline subcontainers
             struct LocalVarExtractor : public DispatchVisitor {
                 std::set<std::string> fLocalVars;
+                std::map<std::string, int> fArraySizes;  // Track array sizes
+                std::set<std::string> fArrayVars;  // Track variables accessed as arrays
                 
                 virtual void visit(StoreVarInst* inst) {
+                    // Check if storing to an indexed address (array access)
+                    if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+                        if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                            string indexed_varname = named->getName();
+                            if (indexed_varname.find("ftbl") != 0 && indexed_varname.find("itbl") != 0) {
+                                fLocalVars.insert(indexed_varname);
+                                fArrayVars.insert(indexed_varname);
+                            }
+                        }
+                    } else {
+                        // Regular (non-indexed) address
+                        string varname = inst->fAddress->getName();
+                        // Capture all variables that look like temporary/local variables
+                        // but exclude table names (ftbl* and itbl*)
+                        if (varname.find("ftbl") != 0 && varname.find("itbl") != 0 &&  // Exclude table names
+                            (varname.find("Vec") != std::string::npos || 
+                             varname.find("Rec") != std::string::npos ||
+                             varname.find("_idx") != std::string::npos)) {
+                            fLocalVars.insert(varname);
+                        }
+                    }
+                }
+                
+                // Also check for array access in LoadVarInst
+                virtual void visit(LoadVarInst* inst) {
+                    if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+                        if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                            string indexed_varname = named->getName();
+                            if (indexed_varname.find("ftbl") != 0 && indexed_varname.find("itbl") != 0) {
+                                fLocalVars.insert(indexed_varname);
+                                fArrayVars.insert(indexed_varname);
+                            }
+                        }
+                    }
+                }
+                
+                virtual void visit(DeclareVarInst* inst) {
                     string varname = inst->fAddress->getName();
-                    // Capture all variables that look like temporary/local variables
-                    // but exclude table names (ftbl* and itbl*)
-                    if (varname.find("ftbl") != 0 && varname.find("itbl") != 0 &&  // Exclude table names
-                        (varname.find("Vec") != std::string::npos || 
-                         varname.find("Rec") != std::string::npos ||
-                         varname.find("_idx") != std::string::npos ||
-                         varname[0] == 'i')) {  // Only include integer vars starting with 'i'
-                        fLocalVars.insert(varname);
+                    // Check if this is an array declaration for a local variable
+                    if (varname.find("ftbl") != 0 && varname.find("itbl") != 0) {
+                        if (ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(inst->fType)) {
+                            fLocalVars.insert(varname);
+                            fArraySizes[varname] = array_type->fSize;
+                        }
                     }
                 }
             };
@@ -787,23 +885,88 @@ void JAXCodeContainer::produceClass()
             LocalVarExtractor extractor;
             inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&extractor);
             
-            // Declare local variables
-            if (!extractor.fLocalVars.empty()) {
-                tab(n + 2, *fOut);
-            }
+            // Remove iRec and iVec variables from fArrayVars if they are not actually accessed as arrays
+            // This handles the common pattern where these are used as scalars in inline subcontainers
+            std::set<std::string> toRemove;
             for (const auto& varname : extractor.fLocalVars) {
-                *fOut << varname << " = ";
-                if (varname[0] == 'i' || varname.find("_idx") != std::string::npos) {
-                    *fOut << "np.int32(0)";
-                } else if (gGlobal->gFloatSize == 1) {
-                    *fOut << "np.float32(0)";
-                } else {
-                    *fOut << "np.float64(0)";
+                if ((varname.find("iRec") == 0 || varname.find("iVec") == 0) && 
+                    extractor.fArrayVars.find(varname) != extractor.fArrayVars.end()) {
+                    // Check if this variable is really accessed as an array
+                    // For now, assume iRec/iVec variables in inline subcontainers are scalars unless proven otherwise
+                    toRemove.insert(varname);
                 }
+            }
+            for (const auto& varname : toRemove) {
+                extractor.fArrayVars.erase(varname);
+            }
+            
+            // Declare local variables
+            // Special handling for iRec variables in inline subcontainers
+            // If iRec variable is not accessed as array, it's likely a scalar (common pattern in noise generators)
+            for (const auto& varname : extractor.fLocalVars) {
                 tab(n + 2, *fOut);
+                // Debug info
+                *fOut << "# " << varname;
+                if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end()) {
+                    *fOut << " (in fArraySizes, size=" << extractor.fArraySizes[varname] << ")";
+                }
+                if (extractor.fArrayVars.find(varname) != extractor.fArrayVars.end()) {
+                    *fOut << " (in fArrayVars)";
+                }
+                *fOut << endl;
+                tab(n + 2, *fOut);
+                *fOut << varname << " = ";
+                
+                // Check if it's an array (either from array size info or array access detection)
+                // For inline subcontainer variables, only treat as array if explicitly accessed as array
+                if (extractor.fArrayVars.find(varname) != extractor.fArrayVars.end()) {
+                    // Variable was accessed as an array
+                    // Use size from fArraySizes if available, otherwise default to 4
+                    if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end()) {
+                        int size = extractor.fArraySizes[varname];
+                        if (varname[0] == 'i') {
+                            *fOut << "np.zeros((" << size << ",), dtype=np.int32)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((" << size << ",), dtype=np.float32)";
+                        } else {
+                            *fOut << "np.zeros((" << size << ",), dtype=np.float64)";
+                        }
+                    } else {
+                        // Default size of 4 for arrays without explicit size
+                        if (varname[0] == 'i') {
+                            *fOut << "np.zeros((4,), dtype=np.int32)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((4,), dtype=np.float32)";
+                        } else {
+                            *fOut << "np.zeros((4,), dtype=np.float64)";
+                        }
+                    }
+                } else if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end() && 
+                           varname.find("iRec") != 0) {  // Only use array size for non-iRec variables
+                    int size = extractor.fArraySizes[varname];
+                    if (varname[0] == 'i') {
+                        *fOut << "np.zeros((" << size << ",), dtype=np.int32)";
+                    } else if (gGlobal->gFloatSize == 1) {
+                        *fOut << "np.zeros((" << size << ",), dtype=np.float32)";
+                    } else {
+                        *fOut << "np.zeros((" << size << ",), dtype=np.float64)";
+                    }
+                } else {
+                    // Scalar variable
+                    if (varname[0] == 'i' || varname.find("_idx") != std::string::npos) {
+                        *fOut << "np.int32(0)";
+                    } else if (gGlobal->gFloatSize == 1) {
+                        *fOut << "np.float32(0)";
+                    } else {
+                        *fOut << "np.float64(0)";
+                    }
+                }
             }
             
             // Process inline subcontainer code
+            if (!extractor.fLocalVars.empty()) {
+                tab(n + 2, *fOut);
+            }
             gGlobal->gJAXVisitor->Tab(n + 2);
             jaxVisitor->fInStaticInit = true;
             inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);

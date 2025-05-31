@@ -4,7 +4,7 @@ This directory contains tests for the Faust JAX backend using the minimal.py arc
 
 ## Structure
 
-- `dsps/` - Directory containing DSP test files
+- `dsp/` - Directory containing DSP test files
 - `generated/` - Directory for generated Python files and test results (created by Makefile)
 - `Makefile` - Build and test automation
 
@@ -47,13 +47,13 @@ make help
 
 ### Adding New Tests
 
-1. Add a `.dsp` file to the `dsps/` directory
+1. Add a `.dsp` file to the `dsp/` directory
 2. Run `make` to test all files, or `make test-<filename>` to test just your new file
 
 ### Test Output
 
 The Makefile will:
-1. Compile each `.dsp` file in `dsps/` to a Python file using the JAX backend
+1. Compile each `.dsp` file in `dsp/` to a Python file using the JAX backend
 2. Run each generated Python file with `--duration 0.1 --jit`
 3. Report success/failure for each test
 4. Provide a summary of all test results
@@ -83,15 +83,15 @@ FAUSTOPTIONS="-lang jax -a ../../architecture/jax/minimal.py -double" make
 
 ## Example DSP Files
 
-Place test DSP files in the `dsps/` directory. For example:
+Place test DSP files in the `dsp/` directory. For example:
 
 ```faust
-// dsps/simple_gain.dsp
+// dsp/simple_gain.dsp
 process = *(0.5);
 ```
 
 ```faust
-// dsps/sine_oscillator.dsp
+// dsp/sine_oscillator.dsp
 import("stdfaust.lib");
 process = os.osc(440);
 ```
