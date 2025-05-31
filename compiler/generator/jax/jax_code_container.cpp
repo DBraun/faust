@@ -821,15 +821,15 @@ void JAXCodeContainer::produceClass()
                 if (varname.find("ftbl0") == 0 || 
                     (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
                     tab(n + 2, *fOut);
-                    // Convert to JAX array and use stop_gradient to prevent tracing issues
-                    *fOut << "self._" << varname << " = jax.lax.stop_gradient(jnp.array(" << varname << "))";
+                    // Convert to JAX array
+                    *fOut << "self._" << varname << " = jnp.array(" << varname << ")";
                 }
             }
         }
-        // Also convert waveform data to JAX arrays with stop_gradient
+        // Also convert waveform data to JAX arrays
         for (const auto& kv : waveformData) {
             tab(n + 2, *fOut);
-            *fOut << "self._" << kv.first << " = jax.lax.stop_gradient(jnp.array(self._" << kv.first << "))";
+            *fOut << "self._" << kv.first << " = jnp.array(self._" << kv.first << ")";
         }
         
         // Section 6: Initialize UI parameters
