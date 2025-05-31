@@ -93,7 +93,7 @@ jobs:
         python-version: '3.11'
 
     - name: Download Faust build artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: faust-build
 
