@@ -2,7 +2,37 @@
   "permissions": {
     "allow": [
       "Bash(make:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(./build/bin/faust:*)",
+      "Bash(cat:*)",
+      "Bash(python3:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(g++:*)",
+      "Bash(../../build/bin/faust:*)",
+      "Bash(python test_types_fixed.py:*)",
+      "Bash(JAX_PLATFORMS=cpu python3 tf_exp_full.py)",
+      "Bash(rm:*)",
+      "Bash(rg:*)",
+      "Bash(awk:*)",
+      "Bash(perl:*)",
+      "Bash(sed:*)",
+      "Bash(diff:*)",
+      "Bash(python test_table1_regenerated.py:*)",
+      "Bash(python test_prefix_fixed.py:*)",
+      "Bash(mkdir:*)",
+      "Bash(/Users/braun/GitHub/faust/build/bin/faust -lang c prefix.dsp -o /tmp/prefix.c)",
+      "Bash(./faust2impulse:*)",
+      "Bash(/tmp:*)",
+      "Bash(cp:*)",
+      "Bash(./filesCompare ir/jax/double/volume.ir reference/volume.ir)",
+      "Bash(../../../build/bin/faust:*)",
+      "Bash(/Users/braun/GitHub/faust/build/bin/faust:*)",
+      "Bash(python test:*)",
+      "Bash(python:*)",
+      "Bash(./filesCompare ir/jax/double/comb_delay1.ir reference/comb_delay1.ir)",
+      "Bash(build/bin/faust tests/impulse-tests/dsp/table1.dsp -lang jax -o table1_jax_new.py 2>&1)",
+      "Bash(./filesCompare ir/jax/double/prefix.ir reference/prefix.ir)"
     ],
     "deny": []
   }

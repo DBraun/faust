@@ -1,15 +1,8 @@
 # Faust JAX Backend Documentation
 
-The JAX backend allows Faust to generate Python code that uses JAX and Flax for efficient numerical computation with automatic differentiation support.
+The JAX backend allows Faust to generate Python code that uses JAX and Flax for efficient numerical computation with automatic differentiation support. For more information on developing backends for Faust, check out [`compiler/generator/template/README.md`](https://github.com/grame-cncm/faust/tree/master-dev/compiler/generator/template) and the related C++ files.
 
-## Installation
-
-### Prerequisites
-
-1. Python 3.9 or later
-2. Faust compiler built with JAX backend support (included in regular builds)
-
-### Installing JAX Dependencies
+## Installing JAX Dependencies
 
 JAX and its ecosystem can be installed in two ways:
 
@@ -26,6 +19,17 @@ pip install --upgrade jax jaxlib flax
 This installs the latest versions of core dependencies.
 
 For GPU support, see the [JAX installation guide](https://github.com/google/jax#installation).
+
+### Recommended Dependencies
+
+For full functionality:
+```bash
+# For loading audio files via the soundfile primitive
+pip install librosa
+
+# For real-time audio streaming
+pip install sounddevice
+```
 
 ## Usage
 

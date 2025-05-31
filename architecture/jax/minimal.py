@@ -194,19 +194,32 @@ def test(args):
 	logger.info("All done!")
 		
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 	import argparse
-	parser = argparse.ArgumentParser(description='Run a JAX/Flax model converted from Faust code')
-	parser.add_argument('-sr', '--sample-rate', type=int, default=44100, help='Sample rate (such as 44100)')
-	parser.add_argument('-d', '--duration', type=float, default=None, help='Output duration in seconds')
-	parser.add_argument('--random', action='store_true',
-		help="Whether the default audio is random. By default it's an impulse.")
-	parser.add_argument('--seed', default=0, type=int, help="Seed for random number generator (default: 0)")
-	parser.add_argument('-i', '--input', type=str, default=None, help='Filepath for input audio WAV')
-	parser.add_argument('-o', '--output', type=str, default=None, help='Filepath for output audio WAV')
-	parser.add_argument('--log-level', default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], 
-						help='Set the logger level (default: INFO)')
+	parser = argparse.ArgumentParser(description="Run a JAX/Flax model converted from Faust code")
+	parser.add_argument("-sr", "--sample-rate", type=int, default=44100, help="Sample rate (such as 44100)")
+	parser.add_argument("-d", "--duration", type=float, default=None, help="Output duration in seconds")
+	parser.add_argument("--unroll", type=int, default=1, help="Unroll size (default is 1)")
+	parser.add_argument("--random", default=False, action=argparse.BooleanOptionalAction,
+		help="Whether the default audio is random. By default it\"s an impulse.")
+	parser.add_argument("--seed", default=0, type=int, help="Seed for random number generator (default: 0)")
+	parser.add_argument("-i", "--input", type=str, default=None, help="Filepath for input audio WAV")
+	parser.add_argument("-o", "--output", type=str, default=None, help="Filepath for output audio WAV")
+	parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+						help="Set the logger level (default: INFO)")
+	parser.add_argument("--jit", default=False, action=argparse.BooleanOptionalAction,
+                        help="Whether to use JIT.")
+	parser.add_argument("--benchmark", type=int, default=0, action=argparse.BooleanOptionalAction,
+                        help="Number of loops for a speed benchmark with tqdm (default=0).")
+	parser.add_argument("--platform", default="cpu", choices=["cpu", "gpu", "metal", "tpu"])
+	parser.add_argument("--verbose", default=False, action=argparse.BooleanOptionalAction,
+						help="Whether to print the variables of the DSP")
+	parser.add_argument("--realtime", default=False, action=argparse.BooleanOptionalAction,
+						help="Run the DSP with silent input and send the output to an audio device in real-time.")
 
 	args = parser.parse_args()
+	
+	# Global flag to set a specific platform, must be used at startup.
+	jax.config.update("jax_platform_name", args.platform)
 
 	test(args)

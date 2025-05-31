@@ -1,0 +1,123 @@
+#
+# Makefile for testing JAX backend with minimal.py architecture
+#
+
+system := $(shell uname -s)
+system := $(shell echo $(system) | grep MINGW > /dev/null && echo MINGW || echo $(system))
+ifeq ($(system), MINGW)
+ FAUST ?= ../../build/bin/faust.exe
+else
+ FAUST ?= ../../build/bin/faust
+endif
+
+PYTHON ?= python3
+ARCHITECTURE ?= ../../architecture/jax/minimal.py
+FAUSTOPTIONS ?= -lang jax -a $(ARCHITECTURE)
+
+# Find all DSP files in the dsps directory
+dspfiles := $(wildcard dsps/*.dsp)
+
+# Output directory for generated Python files
+outdir := generated
+
+# Target for each DSP file
+pyfiles := $(dspfiles:dsps/%.dsp=$(outdir)/%.py)
+testfiles := $(dspfiles:dsps/%.dsp=$(outdir)/%.test)
+
+# Prevent automatic deletion of intermediate .py files
+.SECONDARY: $(pyfiles)
+
+.PHONY: all test clean help
+
+# Generate individual test targets
+test-%: $(outdir)/%.test
+	@if grep -q "PASSED" $<; then \
+		echo "✓ Test $* passed"; \
+	else \
+		echo "✗ Test $* failed"; \
+		echo "Check logs:"; \
+		echo "  - Compilation: $(outdir)/$*.compile.log"; \
+		echo "  - Output: $(outdir)/$*.output.log"; \
+		exit 1; \
+	fi
+
+# Compile only target
+compile-%: $(outdir)/%.py
+	@echo "✓ Compiled $*.dsp to $(outdir)/$*.py"
+
+# Run only target (assumes already compiled)
+# todo: use --jit
+run-%: $(outdir)/%.py
+	@echo "Running $*.py..."
+	@$(PYTHON) $< --duration 0.1
+
+all: test
+
+test: $(outdir) $(testfiles)
+	@echo "===== JAX Backend Test Summary ====="
+	@echo "Total tests: $(words $(testfiles))"
+	@echo "Passed: $$(grep -l PASSED $(outdir)/*.test 2>/dev/null | wc -l | tr -d ' ')"
+	@echo "Failed: $$(grep -l FAILED $(outdir)/*.test 2>/dev/null | wc -l | tr -d ' ')"
+	@failed=$$(grep -l FAILED $(outdir)/*.test 2>/dev/null | sed 's|$(outdir)/||g' | sed 's|\.test||g'); \
+	if [ -n "$$failed" ]; then \
+		echo "Failed tests:"; \
+		for f in $$failed; do echo "  - $$f"; done; \
+		exit 1; \
+	fi
+
+help:
+	@echo "===== FAUST JAX Backend Tests ====="
+	@echo "This Makefile tests the JAX backend by compiling DSP files from the dsps/ directory"
+	@echo "and running them with the minimal.py architecture."
+	@echo ""
+	@echo "Usage:"
+	@echo "  make                    : Run all tests (default)"
+	@echo "  make test               : Run all tests"
+	@echo "  make test-<name>        : Test a specific DSP file"
+	@echo "  make compile-<name>     : Only compile a specific DSP file"
+	@echo "  make run-<name>         : Run a previously compiled DSP file"
+	@echo "  make clean              : Remove generated files"
+	@echo "  make help               : Show this help message"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make test-simple_gain   : Test only simple_gain.dsp"
+	@echo "  make compile-stereo_pan : Only compile stereo_pan.dsp"
+	@echo "  make run-stereo_pan     : Run the compiled stereo_pan.py"
+	@echo ""
+	@echo "To add a test:"
+	@echo "  1. Place a .dsp file in the dsps/ directory"
+	@echo "  2. Run 'make' or 'make test-<filename>'"
+	@echo ""
+	@echo "Options:"
+	@echo "  FAUST='path/to/faust'       : Specify Faust compiler path"
+	@echo "  PYTHON='python3'            : Specify Python interpreter"
+	@echo "  FAUSTOPTIONS='-lang jax...' : Additional Faust options"
+
+# Create output directory
+$(outdir):
+	@mkdir -p $(outdir)
+
+# Rule to compile DSP to Python
+$(outdir)/%.py: dsps/%.dsp | $(outdir)
+	@echo "Compiling $<..."
+	@$(FAUST) $(FAUSTOPTIONS) -I ../../libraries/ $< -o $@ 2>&1 | tee $(outdir)/$*.compile.log || \
+		(echo "FAILED: Compilation error" > $(outdir)/$*.test && exit 1)
+
+# Rule to run Python file and create test result
+# todo: use --jit
+$(outdir)/%.test: $(outdir)/%.py
+	@echo "Running $<..."
+	@if $(PYTHON) $< --duration 0.1 > $(outdir)/$*.output.log 2>&1; then \
+		echo "PASSED" > $@; \
+		echo "✓ $(notdir $<) passed"; \
+	else \
+		echo "FAILED: Runtime error" > $@; \
+		echo "✗ $(notdir $<) failed"; \
+		echo "  Error output:"; \
+		tail -n 10 $(outdir)/$*.output.log | sed 's/^/    /'; \
+	fi
+
+clean:
+	@echo "Cleaning generated files..."
+	@rm -rf $(outdir)
+	@echo "Done."
