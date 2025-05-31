@@ -112,7 +112,7 @@ ir/$(outdir)/jax_%.py: dsp/%.dsp
 	cd $(dir $<); $(FAUST) -lang jax $(notdir $<) -a ../archs/$(arch) $(FAUSTOPTIONS) > ../$@ || (rm -f ../$@; false)
 
 ir/$(outdir)/%.ir: ir/$(outdir)/jax_%.py reference/%.ir
-	python3  $< > $@
+	python3 $< > $@
 	$(COMPARE) $@ reference/$(notdir $@) $(precision)
 
 # Rule for running without comparison
