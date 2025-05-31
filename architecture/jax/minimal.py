@@ -356,8 +356,8 @@ def test(args):
 	logger.info(f"Number of input channels: {model.num_inputs}")
 	logger.info(f"Number of output channels: {model.num_outputs}")
 
-	json_obj = model.json_metadata
-	logger.debug(f"JSON info: {json_obj}")
+	# json_obj = model.json_metadata
+	# logger.debug(f"JSON info: {json_obj}")
 
 	key = random.key(args.seed)
 
@@ -389,19 +389,21 @@ def test(args):
 	if args.verbose:
 		print("variables:", variables)
 
-	def forward(x: jnp.ndarray):
+	def forward(variables, x: jnp.ndarray):
 		y = model.apply(variables, x, length=N_SAMPLES, unroll=args.unroll, rngs={"rng_stream": key})
 		return y
 	
 	if args.jit:
 		forward = jax.jit(forward)
+
+	if args.benchmark:
 		import tqdm
 		for _ in range(3):
-			y = forward(input_audio).block_until_ready()
-		for _ in tqdm.trange(1000):
-			y = forward(input_audio).block_until_ready()
+			y = forward(variables, input_audio).block_until_ready()
+		for _ in tqdm.trange(args.benchmark):
+			y = forward(variables, input_audio).block_until_ready()
 
-	y = forward(input_audio)
+	y = forward(variables, input_audio)
 
 	_, mod_vars = model.apply(variables, mutable="intermediates", rngs={"rng_stream": key}, method="unnormalize")
 	if args.verbose:
@@ -527,6 +529,8 @@ if __name__ == "__main__":
 						help="Set the logger level (default: INFO)")
 	parser.add_argument("--jit", default=False, action=argparse.BooleanOptionalAction,
                         help="Whether to use JIT.")
+	parser.add_argument("--benchmark", type=int, default=0, action=argparse.BooleanOptionalAction,
+                        help="Number of loops for a speed benchmark with tqdm (default=0).")
 	parser.add_argument("--platform", default="cpu", choices=["cpu", "gpu", "metal", "tpu"])
 	parser.add_argument("--verbose", default=False, action=argparse.BooleanOptionalAction,
 						help="Whether to print the variables of the DSP")

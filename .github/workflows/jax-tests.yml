@@ -8,55 +8,106 @@ on:
     branches: [ master-dev ]
 
 jobs:
-  test-jax:
-    # Uncomment the line below to restrict to grame-cncm repository only
-    # if: github.repository_owner == 'grame-cncm' || github.event_name == 'pull_request'
+  build-faust:
+    # Build Faust once and share with other jobs
     runs-on: ubuntu-latest
     
-    strategy:
-      matrix:
-        python-version: ['3.11']
-    
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Checkout submodules
       run: git submodule update --init --recursive
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
 
     - name: Install system dependencies
       run: |
         sudo apt-get update -qq
-        sudo apt-get install -y build-essential cmake pkg-config
+        sudo apt-get install -y build-essential cmake pkg-config libmicrohttpd-dev
 
-    - name: Build Faust with JAX backend
+    - name: Build Faust
+      run: make
+
+    - name: Upload Faust build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: faust-build
+        path: |
+          build/bin/
+          build/lib/
+          architecture/
+          libraries/
+        retention-days: 1
+
+  test-jax-impulse:
+    # Run JAX impulse tests
+    needs: build-faust
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    - name: Checkout submodules
+      run: git submodule update --init --recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Download Faust build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: faust-build
+
+    - name: Make binaries executable
       run: |
-        cd build
-        rm -rf faustdir
-        mkdir faustdir && cd faustdir
-        cmake -C ../backends/regular.cmake -C ../targets/regular.cmake \
-              -DCMAKE_BUILD_TYPE=Release -DINCLUDE_HTTP=OFF -DINCLUDE_OSC=OFF ..
-        make -j$(nproc)
+        chmod +x build/bin/*
 
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         cd tests/impulse-tests
         pip install -r requirements.txt
-        # Install JAX and Flax separately to avoid version conflicts
-        pip install --upgrade jax jaxlib
-        pip install --upgrade flax
+        pip install --upgrade jax jaxlib flax numpy tqdm
 
     - name: Build test tools
       run: |
         cd tests/impulse-tests
         make filesCompare
 
-    - name: Run JAX tests
+    - name: Run JAX impulse tests
       run: |
         cd tests/impulse-tests
         make jax
+
+  test-jax-minimal:
+    # Test JAX compilation with minimal.py architecture
+    needs: build-faust
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    - name: Checkout submodules
+      run: git submodule update --init --recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Download Faust build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: faust-build
+
+    - name: Make binaries executable
+      run: |
+        chmod +x build/bin/*
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade jax jaxlib flax numpy tqdm librosa scipy
+
+    - name: Run JAX minimal architecture tests
+      run: |
+        cd tests/jax-tests
+        make
 

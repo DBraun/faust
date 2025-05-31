@@ -671,24 +671,25 @@ void JAXCodeContainer::produceClass()
     }
     back(1, *fOut);
 
+    // todo: enable this. It's disabled for now because it makes generated files very long, which is bad for LLM usage.
     // JSON generation
-    tab(n + 1, *fOut);
-    *fOut << "@property";
-    tab(n + 1, *fOut);
-    *fOut << "def json_metadata(self):";
-    {
-        string json;
-        if (gGlobal->gFloatSize == 1) {
-            json = generateJSON<float>();
-        } else {
-            json = generateJSON<double>();
-        }
-        tab(n + 2, *fOut);
-        *fOut << "json_str = \"\"\"" << flattenJSONforPython(json) << "\"\"\"";
-        tab(n + 2, *fOut);
-        *fOut << "return json.loads(json_str)";
-        tab(n + 1, *fOut);
-    }
+    // tab(n + 1, *fOut);
+    // *fOut << "@property";
+    // tab(n + 1, *fOut);
+    // *fOut << "def json_metadata(self):";
+    // {
+    //     string json;
+    //     if (gGlobal->gFloatSize == 1) {
+    //         json = generateJSON<float>();
+    //     } else {
+    //         json = generateJSON<double>();
+    //     }
+    //     tab(n + 2, *fOut);
+    //     *fOut << "json_str = \"\"\"" << flattenJSONforPython(json) << "\"\"\"";
+    //     tab(n + 2, *fOut);
+    //     *fOut << "return json.loads(json_str)";
+    //     tab(n + 1, *fOut);
+    // }
 
     // Setup method - handles only immutable instance attributes and constants
     tab(n + 1, *fOut);
