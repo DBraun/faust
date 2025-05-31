@@ -356,8 +356,8 @@ def test(args):
 	logger.info(f"Number of input channels: {model.num_inputs}")
 	logger.info(f"Number of output channels: {model.num_outputs}")
 
-	# json_obj = model.getJSON()
-	# logger.debug(f"JSON info: {json_obj}")
+	json_obj = model.json_metadata
+	logger.debug(f"JSON info: {json_obj}")
 
 	key = random.key(args.seed)
 
@@ -386,7 +386,8 @@ def test(args):
 			input_audio = input_audio.at[:,0].set(1.)
 
 	variables = model.init({"params": key, "rng_stream": key}, input_audio, length=N_SAMPLES, unroll=args.unroll)
-	# print("variables:", variables)
+	if args.verbose:
+		print("variables:", variables)
 
 	def forward(x: jnp.ndarray):
 		y = model.apply(variables, x, length=N_SAMPLES, unroll=args.unroll, rngs={"rng_stream": key})
@@ -403,7 +404,8 @@ def test(args):
 	y = forward(input_audio)
 
 	_, mod_vars = model.apply(variables, mutable="intermediates", rngs={"rng_stream": key}, method="unnormalize")
-	print("mod_vars", mod_vars)
+	if args.verbose:
+		print("mod_vars", mod_vars)
 
 	assert y.ndim == 2
 	assert y.shape[0] == model.num_outputs
@@ -427,7 +429,6 @@ def realtime_audio_example(unroll: int = 1):
 		import sounddevice as sd
 	except ImportError:
 		print("sounddevice not installed. Install with: pip install sounddevice")
-		print("Falling back to offline example.")
 		return
 	
 	import time
@@ -526,8 +527,11 @@ if __name__ == "__main__":
 						help="Set the logger level (default: INFO)")
 	parser.add_argument("--jit", default=False, action=argparse.BooleanOptionalAction,
                         help="Whether to use JIT.")
-	parser.add_argument("--platform", default="gpu", choices=["cpu", "gpu", "METAL", "tpu"])
-	parser.add_argument("--realtime", default=False, action=argparse.BooleanOptionalAction)
+	parser.add_argument("--platform", default="cpu", choices=["cpu", "gpu", "metal", "tpu"])
+	parser.add_argument("--verbose", default=False, action=argparse.BooleanOptionalAction,
+						help="Whether to print the variables of the DSP")
+	parser.add_argument("--realtime", default=False, action=argparse.BooleanOptionalAction,
+						help="Run the DSP with silent input and send the output to an audio device in real-time.")
 
 	args = parser.parse_args()
 	

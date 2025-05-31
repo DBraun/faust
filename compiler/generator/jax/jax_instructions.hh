@@ -244,6 +244,9 @@ class JAXInstVisitor : public TextInstVisitor {
     
     // This bool indicates we're in the setup method context where constants should be accessed as self._varname
     bool fInSetup = false;
+
+    // This bool indicates we're in the tick method context where waveforms should be accessed as varname instead of self._varname
+    bool fInTick = false;
     
     // This bool indicates we're processing static init instructions (inline subcontainers)
     bool fInStaticInit = false;
@@ -755,7 +758,7 @@ class JAXInstVisitor : public TextInstVisitor {
         // Check if this is a UI parameter (access from params dict in tick)
         else if (fUIParamVars.find(named->fName) != fUIParamVars.end()) {
             *fOut << "params[\"" << named->fName << "\"]";
-        } 
+        }
         // Check if this is a constant (either tracked at compile time or runtime)
         // Note: pfPerm variables are NOT constants - they are state variables
         else if ((named->fName.find("pfPerm") != 0) &&  // Exclude pfPerm variables
@@ -769,6 +772,8 @@ class JAXInstVisitor : public TextInstVisitor {
             // In static init, ftbl0* and itbl0*SIG* tables are local variables
             if (fInStaticInit && (named->fName.find("ftbl0") == 0 || 
                                   (named->fName.find("itbl0") == 0 && named->fName.find("SIG") != std::string::npos))) {
+                *fOut << named->fName;
+            } else if (fInTick && (named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos)) {
                 *fOut << named->fName;
             } else {
                 *fOut << "self._" << named->fName;

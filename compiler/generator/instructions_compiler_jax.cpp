@@ -22,7 +22,6 @@
 #include "instructions_compiler_jax.hh"
 #include "ppsig.hh"
 #include "sigtyperules.hh"
-#include "global.hh"
 #include "jax_instructions.hh"
 
 using namespace std;

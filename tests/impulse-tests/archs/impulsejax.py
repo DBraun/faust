@@ -70,6 +70,7 @@ except ImportError:
 <<includeclass>>
 
 	def load_soundfile(self, filepath):
+		# This pre-computed sine is desired for the impulse-tests.
 		audio = jnp.sin(jnp.linspace(0, 2*jnp.pi, num=4096, endpoint=False, dtype=FAUSTFLOAT))
 		audio = jnp.stack([audio, audio])
 		return audio, 44100
@@ -224,6 +225,7 @@ except ImportError:
 				# Regular parameter
 				if zone.startswith("fButton"):
 					normalized_value = getattr(self, zone)
+					# Press buttons for exactly 64 samples, which is for desired for the impulse-tests.
 					params[zone] = jnp.where(i > 63, jnp.zeros_like(normalized_value), jnp.ones_like(normalized_value))
 				else:
 					normalized_value = getattr(self, zone)
@@ -321,17 +323,14 @@ except ImportError:
 		return jnp.transpose(outputs, axes=(1,0))
 
 
-def test(args, N_SAMPLES, OFFSET, print_header=True):
+def main(args, N_SAMPLES, OFFSET, print_header=True):
 
 	from jax import random
 	from scipy.io import wavfile
 
 	model = mydsp(sample_rate=args.sample_rate)
 
-	# json_obj = model.getJSON()
-	# print('json_obj: ', json_obj)
-
-	key = random.PRNGKey(0)
+	key = random.key(0)
 
 	BLOCK_SIZE = 1
 
@@ -393,8 +392,11 @@ if __name__ == '__main__':
 	parser.add_argument('-sr', '--sample-rate', type=int, default=44100, help='Sample rate (such as 44100)')
 	parser.add_argument('--random', type=bool, default=False, help="Whether the default audio is random. By default it's an impulse.")
 	parser.add_argument('-o', '--output', type=str, default=None, help='Filepath for output audio WAV')
+	parser.add_argument('-d', '--duration', type=int, default=15000, help='duration')
 
 	args = parser.parse_args()
 
-	test(args, 15000, 0)
-	test(args, 15000, 15000, print_header=False)
+	duration = args.duration
+
+	main(args, duration, 0)
+	main(args, duration, duration, print_header=False)
