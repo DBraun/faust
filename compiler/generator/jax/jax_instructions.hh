@@ -762,17 +762,13 @@ class JAXInstVisitor : public TextInstVisitor {
                  (fConstantVars.find(named->fName) != fConstantVars.end() ||
                   (named->fName.find("iConst") == 0) ||
                   (named->fName.find("fConst") == 0) ||
-                  (named->fName == "ftbl0mydspSIG0") ||  // Only the static table is a constant
-                  (named->fName.find("ftbl0") == 0) ||  // All static tables
-                  (named->fName.find("itbl0") == 0 && named->fName.find("mydspSIG") != std::string::npos) ||  // Integer static tables (only SIG tables)
-                  (named->fName.find("fmydspWave") == 0 && named->fName.find("_idx") == std::string::npos) ||  // Wave data but not index
-                  (named->fName.find("fmydspSIG") == 0 && named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos) ||
-                  (named->fName.find("imydspWave") == 0 && named->fName.find("_idx") == std::string::npos) ||  // Integer wave data but not index
-                  (named->fName.find("imydspSIG") == 0 && named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos)
+                  (named->fName.find("ftbl0") == 0 && named->fName.find("SIG") != std::string::npos) ||  // Float static tables (only SIG tables)
+                  (named->fName.find("itbl0") == 0 && named->fName.find("SIG") != std::string::npos) ||  // Integer static tables (only SIG tables)
+                  (named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos)
                  )) {
-            // In static init, ftbl0* and itbl0*mydspSIG* tables are local variables
+            // In static init, ftbl0* and itbl0*SIG* tables are local variables
             if (fInStaticInit && (named->fName.find("ftbl0") == 0 || 
-                                  (named->fName.find("itbl0") == 0 && named->fName.find("mydspSIG") != std::string::npos))) {
+                                  (named->fName.find("itbl0") == 0 && named->fName.find("SIG") != std::string::npos))) {
                 *fOut << named->fName;
             } else {
                 *fOut << "self._" << named->fName;
@@ -790,12 +786,12 @@ class JAXInstVisitor : public TextInstVisitor {
         }
         // Special handling for temporary variables in setup (inline subcontainer variables)
         else if (fInSetup && 
-                 ((named->fName.find("fmydspSIG") == 0 && 
+                 ((named->fName.find("SIG") != std::string::npos && 
                    (named->fName.find("_idx") != std::string::npos || named->fName.find("Wave0") != std::string::npos)) ||
                   // Also handle inline subcontainer state variables (iVec, fVec, iRec, fRec) in static init
                   (fInStaticInit && (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos)) ||
                   // Also handle inline subcontainer waveform variables in static init
-                  (fInStaticInit && (named->fName.find("imydspSIG") == 0 || named->fName.find("imydspWave") == 0)))) {
+                  (fInStaticInit && named->fName.find("Wave") != std::string::npos))) {
             // These are temporary local variables used in setup for filling tables
             *fOut << named->fName;
         }
@@ -1227,8 +1223,8 @@ class JAXInstVisitor : public TextInstVisitor {
                 
                 virtual void visit(IndexedAddress* indexed) {
                     if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
-                        if (named->fName.find("ftbl0") == 0 || 
-                            (named->fName.find("itbl0") == 0 && named->fName.find("mydspSIG") != std::string::npos)) {
+                        if ((named->fName.find("ftbl0") == 0 && named->fName.find("SIG") != std::string::npos) || 
+                            (named->fName.find("itbl0") == 0 && named->fName.find("SIG") != std::string::npos)) {
                             fAccessesStaticTable = true;
                         } else if (named->fName.find("ftbl") == 0 || named->fName.find("itbl") == 0) {
                             fAccessesRWTable = true;
@@ -1239,8 +1235,8 @@ class JAXInstVisitor : public TextInstVisitor {
                 // Also check LoadVarInst for table accesses
                 virtual void visit(LoadVarInst* inst) {
                     if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
-                        if (named->fName.find("ftbl0") == 0 || 
-                            (named->fName.find("itbl0") == 0 && named->fName.find("mydspSIG") != std::string::npos)) {
+                        if ((named->fName.find("ftbl0") == 0 && named->fName.find("SIG") != std::string::npos) || 
+                            (named->fName.find("itbl0") == 0 && named->fName.find("SIG") != std::string::npos)) {
                             fAccessesStaticTable = true;
                         } else if (named->fName.find("ftbl") == 0 || named->fName.find("itbl") == 0) {
                             fAccessesRWTable = true;

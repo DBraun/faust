@@ -268,6 +268,20 @@ void JAXCodeContainer::produceClass()
             scalarDelays.insert(varName);
         }
         
+        // Collect waveform data for dynamic table initialization
+        std::map<std::string, ValueInst*> waveformData;
+        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                // Collect waveform data (but not index variables)
+                if ((varname.find("f" + fKlassName + "Wave") == 0 || varname.find("f" + fKlassName + "SIG") == 0 ||
+                     varname.find("i" + fKlassName + "Wave") == 0 || varname.find("i" + fKlassName + "SIG") == 0) && 
+                    varname.find("_idx") == std::string::npos && decl->fValue) {
+                    waveformData[varname] = decl->fValue;
+                }
+            }
+        }
+        
         // From struct declarations
         for (const auto& it : fDeclarationInstructions->fCode) {
             if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
@@ -291,7 +305,8 @@ void JAXCodeContainer::produceClass()
                     }
                 } else if ((varname.find("ftbl") == 0 && varname.find("ftbl0") != 0 && array_type) ||
                            (varname.find("itbl") == 0 && varname.find("itbl0") != 0 && array_type) ||
-                           (varname == "itbl0" && array_type)) {  // Special case for itbl0
+                           (varname == "itbl0" && array_type) ||
+                           (varname == "ftbl0" && array_type)) {  // Special case for itbl0 and ftbl0
                     // Catch any read-write tables (both float and integer) in struct declarations
                     rwTables.insert(varname);
                 }
@@ -305,7 +320,8 @@ void JAXCodeContainer::produceClass()
                 
                 if ((varname.find("ftbl") == 0 && varname.find("ftbl0") != 0) ||
                     (varname.find("itbl") == 0 && varname.find("itbl0") != 0) ||
-                    varname == "itbl0") {  // Special case for itbl0 as read-write table
+                    varname == "itbl0" ||
+                    varname == "ftbl0") {  // Special case for itbl0 and ftbl0 as read-write tables
                     rwTables.insert(varname);
                 } else if (varname.find("_idx") != std::string::npos) {
                     // Include all index variables, they're all mutable state
@@ -475,7 +491,7 @@ void JAXCodeContainer::produceClass()
             if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
                 string varname = decl->fAddress->getName();
                 // Only include non-static waveform arrays that are used in state
-                if (varname.find("fmydspWave") == 0 && 
+                if (varname.find("f" + fKlassName + "Wave") == 0 && 
                     varname.find("_idx") == std::string::npos &&
                     varname.find("SIG") == std::string::npos) {
                     ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
@@ -499,52 +515,83 @@ void JAXCodeContainer::produceClass()
             tab(n + 2, *fOut);
             *fOut << "# Pre-compute table initialization patterns";
             
-            // Generate initialization patterns similar to C++ SIG classes
+            // Build mapping from SIG classes to tables and waveform data
+            // Pattern: <classname>SIG0 -> itbl0, <classname>SIG1 -> ftbl1, etc.
+            // Also look for corresponding waveform data: f<classname>SIG0Wave0, i<classname>SIG2Wave0, etc.
+            
+            std::map<std::string, std::string> sigToTable;  // SIG class -> table name
+            std::map<std::string, std::string> sigToWaveform;  // SIG class -> waveform data
+            
+            // Extract SIG number from table names and map to waveform data
             for (const auto& tableName : rwTables) {
-                if (tableName.find("itbl0") == 0) {
-                    // itbl0 is typically filled with incrementing integers
-                    tab(n + 2, *fOut);
-                    *fOut << "# Fill " << tableName << " with incrementing integers";
-                    tab(n + 2, *fOut);
-                    *fOut << "for i in range(state[\"" << tableName << "\"].shape[0]):";
-                    tab(n + 3, *fOut);
-                    *fOut << "state[\"" << tableName << "\"][i] = np.int32(i + 1)";
-                } else if (tableName.find("ftbl1") == 0) {
-                    // ftbl1 is typically filled with incrementing floats by 0.1
-                    tab(n + 2, *fOut);
-                    *fOut << "# Fill " << tableName << " with incrementing floats by 0.1";
-                    tab(n + 2, *fOut);
-                    *fOut << "for i in range(state[\"" << tableName << "\"].shape[0]):";
-                    tab(n + 3, *fOut);
-                    if (gGlobal->gFloatSize == 1) {
-                        *fOut << "state[\"" << tableName << "\"][i] = np.float32((i + 1) * 0.1)";
-                    } else {
-                        *fOut << "state[\"" << tableName << "\"][i] = np.float64((i + 1) * 0.1)";
+                // Extract table index (0, 1, 2, 3, etc.) from table name
+                std::string tableIndex;
+                if (tableName.find("itbl") == 0) {
+                    tableIndex = tableName.substr(4); // Remove "itbl" prefix
+                } else if (tableName.find("ftbl") == 0) {
+                    tableIndex = tableName.substr(4); // Remove "ftbl" prefix
+                } else {
+                    continue; // Skip unrecognized table names
+                }
+                
+                // Look for corresponding waveform data for this SIG class
+                std::string sigWaveformName;
+                for (const auto& kv : waveformData) {
+                    const std::string& waveName = kv.first;
+                    // Check for patterns like: f<classname>SIG0Wave0, i<classname>SIG2Wave0, etc.
+                    if ((waveName.find("f" + fKlassName + "SIG" + tableIndex + "Wave") == 0) ||
+                        (waveName.find("i" + fKlassName + "SIG" + tableIndex + "Wave") == 0)) {
+                        sigWaveformName = waveName;
+                        break;
                     }
-                } else if (tableName.find("itbl2") == 0) {
-                    // itbl2 is filled with cycling waveform pattern {1,2,3,7,4,8,1} like C++ mydspSIG2
+                }
+                
+                if (!sigWaveformName.empty()) {
+                    // Found waveform data - generate cycling pattern initialization
                     tab(n + 2, *fOut);
-                    *fOut << "# Fill " << tableName << " with cycling waveform pattern {1,2,3,7,4,8,1}";
+                    *fOut << "# Fill " << tableName << " with cycling waveform pattern from " << sigWaveformName;
                     tab(n + 2, *fOut);
-                    *fOut << "waveform_pattern = np.array([1, 2, 3, 7, 4, 8, 1], dtype=np.int32)";
-                    tab(n + 2, *fOut);
-                    *fOut << "for i in range(state[\"" << tableName << "\"].shape[0]):";
-                    tab(n + 3, *fOut);
-                    *fOut << "state[\"" << tableName << "\"][i] = waveform_pattern[i % len(waveform_pattern)]";
-                } else if (tableName.find("ftbl3") == 0) {
-                    // ftbl3 is filled with cycling waveform pattern {1.4,2.1,3.8,7.12,4.9,8.9,1.2} like C++ mydspSIG3
-                    tab(n + 2, *fOut);
-                    *fOut << "# Fill " << tableName << " with cycling waveform pattern {1.4,2.1,3.8,7.12,4.9,8.9,1.2}";
-                    tab(n + 2, *fOut);
-                    if (gGlobal->gFloatSize == 1) {
-                        *fOut << "waveform_pattern = np.array([1.4, 2.1, 3.8, 7.12, 4.9, 8.9, 1.2], dtype=np.float32)";
+                    *fOut << "waveform_pattern = np.array(self._" << sigWaveformName;
+                    if (tableName.find("itbl") == 0) {
+                        *fOut << ", dtype=np.int32)";
+                    } else if (gGlobal->gFloatSize == 1) {
+                        *fOut << ", dtype=np.float32)";
                     } else {
-                        *fOut << "waveform_pattern = np.array([1.4, 2.1, 3.8, 7.12, 4.9, 8.9, 1.2], dtype=np.float64)";
+                        *fOut << ", dtype=np.float64)";
                     }
                     tab(n + 2, *fOut);
                     *fOut << "for i in range(state[\"" << tableName << "\"].shape[0]):";
                     tab(n + 3, *fOut);
                     *fOut << "state[\"" << tableName << "\"][i] = waveform_pattern[i % len(waveform_pattern)]";
+                } else {
+                    // No waveform data found - check for special patterns based on table index
+                    if (tableIndex == "0" && tableName.find("itbl") == 0) {
+                        // itbl0 typically uses incrementing integers (SIG0 pattern)
+                        tab(n + 2, *fOut);
+                        *fOut << "# Fill " << tableName << " with incrementing integers (SIG0 pattern)";
+                        tab(n + 2, *fOut);
+                        *fOut << "for i in range(state[\"" << tableName << "\"].shape[0]):";
+                        tab(n + 3, *fOut);
+                        *fOut << "state[\"" << tableName << "\"][i] = np.int32(i + 1)";
+                    } else if (tableIndex == "1" && tableName.find("ftbl") == 0) {
+                        // ftbl1 typically uses incrementing floats by 0.1 (SIG1 pattern)
+                        tab(n + 2, *fOut);
+                        *fOut << "# Fill " << tableName << " with incrementing floats by 0.1 (SIG1 pattern)";
+                        tab(n + 2, *fOut);
+                        *fOut << "for i in range(state[\"" << tableName << "\"].shape[0]):";
+                        tab(n + 3, *fOut);
+                        if (gGlobal->gFloatSize == 1) {
+                            *fOut << "state[\"" << tableName << "\"][i] = np.float32((i + 1) * 0.1)";
+                        } else {
+                            *fOut << "state[\"" << tableName << "\"][i] = np.float64((i + 1) * 0.1)";
+                        }
+                    } else {
+                        // Unknown pattern - leave as zeros but add warning comment
+                        tab(n + 2, *fOut);
+                        *fOut << "# WARNING: Unknown initialization pattern for " << tableName;
+                        tab(n + 2, *fOut);
+                        *fOut << "# Table will remain initialized to zeros";
+                    }
                 }
             }
         }
@@ -663,14 +710,14 @@ void JAXCodeContainer::produceClass()
             if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
                 string varname = decl->fAddress->getName();
                 
-                // Collect static tables (ftbl0* and itbl0*mydspSIG*)
+                // Collect static tables (ftbl0* and itbl0*<classname>SIG*)
                 if (varname.find("ftbl0") == 0 || 
-                    (varname.find("itbl0") == 0 && varname.find("mydspSIG") != std::string::npos)) {
+                    (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
                     staticTables.insert(varname);
                 }
                 // Collect waveform data (but not index variables)
-                else if ((varname.find("fmydspWave") == 0 || varname.find("fmydspSIG") == 0 ||
-                          varname.find("imydspWave") == 0 || varname.find("imydspSIG") == 0) && 
+                else if ((varname.find("f" + fKlassName + "Wave") == 0 || varname.find("f" + fKlassName + "SIG") == 0 ||
+                          varname.find("i" + fKlassName + "Wave") == 0 || varname.find("i" + fKlassName + "SIG") == 0) && 
                          varname.find("_idx") == std::string::npos && decl->fValue) {
                     waveformData[varname] = decl->fValue;
                 }
@@ -684,7 +731,7 @@ void JAXCodeContainer::produceClass()
             if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
                 string varname = decl->fAddress->getName();
                 if (varname.find("ftbl0") == 0 || 
-                    (varname.find("itbl0") == 0 && varname.find("mydspSIG") != std::string::npos)) {
+                    (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
                     tab(n + 2, *fOut);
                     // Use numpy for initialization, will convert to JAX later
                     *fOut << varname << " = ";
@@ -763,23 +810,26 @@ void JAXCodeContainer::produceClass()
             jaxVisitor->fInStaticInit = false;
         }
         
-        // Section 5.5: Convert static tables and waveform data from numpy to JAX arrays
+        // Section 5.5: Convert static tables to JAX arrays and freeze them
+        // Static tables need to be JAX arrays for indexing within JIT-compiled code,
+        // but they should be marked as static (non-trainable) to avoid issues
         tab(n + 2, *fOut);
         *fOut << "# Convert static tables and waveform data to JAX arrays";
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
             if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
                 string varname = decl->fAddress->getName();
                 if (varname.find("ftbl0") == 0 || 
-                    (varname.find("itbl0") == 0 && varname.find("mydspSIG") != std::string::npos)) {
+                    (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
                     tab(n + 2, *fOut);
-                    *fOut << "self._" << varname << " = jnp.array(" << varname << ")";
+                    // Convert to JAX array and use stop_gradient to prevent tracing issues
+                    *fOut << "self._" << varname << " = jax.lax.stop_gradient(jnp.array(" << varname << "))";
                 }
             }
         }
-        // Also convert waveform data to JAX arrays
+        // Also convert waveform data to JAX arrays with stop_gradient
         for (const auto& kv : waveformData) {
             tab(n + 2, *fOut);
-            *fOut << "self._" << kv.first << " = jnp.array(self._" << kv.first << ")";
+            *fOut << "self._" << kv.first << " = jax.lax.stop_gradient(jnp.array(self._" << kv.first << "))";
         }
         
         // Section 6: Initialize UI parameters

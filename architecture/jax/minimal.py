@@ -356,8 +356,8 @@ def test(args):
 	logger.info(f"Number of input channels: {model.num_inputs}")
 	logger.info(f"Number of output channels: {model.num_outputs}")
 
-	json_obj = model.getJSON()
-	logger.debug(f"JSON info: {json_obj}")
+	# json_obj = model.getJSON()
+	# logger.debug(f"JSON info: {json_obj}")
 
 	key = random.key(args.seed)
 
@@ -385,8 +385,8 @@ def test(args):
 			input_audio = jnp.zeros((N_CHANNELS, N_SAMPLES), dtype=FAUSTFLOAT)
 			input_audio = input_audio.at[:,0].set(1.)
 
-	variables = model.init({"params": key, "rng_stream": key}, input_audio, N_SAMPLES)
-	print("variables:", variables)
+	variables = model.init({"params": key, "rng_stream": key}, input_audio, length=N_SAMPLES, unroll=args.unroll)
+	# print("variables:", variables)
 
 	def forward(x: jnp.ndarray):
 		y = model.apply(variables, x, length=N_SAMPLES, unroll=args.unroll, rngs={"rng_stream": key})

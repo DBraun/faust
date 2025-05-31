@@ -328,7 +328,7 @@ def test(args, N_SAMPLES, OFFSET, print_header=True):
 
 	model = mydsp(sample_rate=args.sample_rate)
 
-	json_obj = model.getJSON()
+	# json_obj = model.getJSON()
 	# print('json_obj: ', json_obj)
 
 	key = random.PRNGKey(0)
