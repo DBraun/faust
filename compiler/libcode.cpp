@@ -654,6 +654,10 @@ static void compileJAX(Tree signals, int numInputs, int numOutputs, ostream* out
     gGlobal->gNeedManualPow =
         false;  // Standard pow function will be used in pow(x,y) when y in an integer
     gGlobal->gFAUSTFLOAT2Internal = true;
+    
+    // JAX backend works better with inline tables since it can't generate separate classes
+    // like C++. This ensures subcontainer waveform data is properly merged.
+    gGlobal->gInlineTable = true;
     gContainer = JAXCodeContainer::createContainer(gGlobal->gClassName, numInputs, numOutputs, out);
 
     if (gGlobal->gVectorSwitch) {

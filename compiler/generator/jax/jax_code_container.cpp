@@ -157,15 +157,29 @@ std::map<std::string, ValueInst*> JAXCodeContainer::collectWaveformData()
     for (const auto& it : fGlobalDeclarationInstructions->fCode) {
         if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
             string varname = decl->fAddress->getName();
+            
             // Collect waveform data (but not index variables)
+            // Check for ftbl0<classname>SIG* and itbl0<classname>SIG* patterns (for subcontainer tables)
+            bool isWaveformData = false;
+            
+            // Original patterns for inline tables
             if ((varname.find("f" + fKlassName + "Wave") == 0 || varname.find("f" + fKlassName + "SIG") == 0 ||
-                 varname.find("i" + fKlassName + "Wave") == 0 || varname.find("i" + fKlassName + "SIG") == 0) && 
-                varname.find("_idx") == std::string::npos && decl->fValue) {
-                waveformData[varname] = decl->fValue;
+                 varname.find("i" + fKlassName + "Wave") == 0 || varname.find("i" + fKlassName + "SIG") == 0)) {
+                isWaveformData = true;
+            }
+            // New patterns for subcontainer tables (ftbl0*SIG* and itbl0*SIG*)
+            else if ((varname.find("ftbl0") == 0 && varname.find("SIG") != std::string::npos) ||
+                     (varname.find("itbl0") == 0 && varname.find("SIG") != std::string::npos)) {
+                isWaveformData = true;
+            }
+            
+            if (isWaveformData && varname.find("_idx") == std::string::npos) {
+                // For subcontainer tables, the initial value might be null because 
+                // the initialization happens in static init, not in the declaration
+                waveformData[varname] = decl->fValue;  // Can be null
             }
         }
     }
-    
     return waveformData;
 }
 
@@ -207,8 +221,22 @@ void JAXCodeContainer::produceClass()
         tab(n, *fOut);
     }
 
-    // Merge sub containers. TODO: explain this.
-    mergeSubContainers();
+
+    // Handle sub containers based on gInlineTable setting
+    if (gGlobal->gInlineTable) {
+        // Inline tables: merge sub containers into main class
+        mergeSubContainers();
+    } else {
+        // Generate separate sub containers (but JAX doesn't support separate classes)
+        // For JAX, we'll merge anyway but preserve the subcontainer function structure
+        mergeSubContainers();
+        
+        // TODO: JAX needs special handling for subcontainers since it can't generate
+        // separate classes like C++. We should either:
+        // 1. Allow -it flag for JAX backend, OR
+        // 2. Implement proper subcontainer function generation for JAX
+    }
+    
     
     // Extract pfPerm initialization values BEFORE generating methods
     // This ensures they're available when _initialize_carry is generated
@@ -824,10 +852,17 @@ void JAXCodeContainer::produceClass()
         *fOut << "# Initialize waveform data";
         // Keep using numpy for waveform data during setup
         for (const auto& kv : waveformData) {
-            tab(n + 2, *fOut);
-            *fOut << "self._" << kv.first << " = ";
-            kv.second->accept(jaxVisitor);
-            jaxVisitor->fConstantVars.insert(kv.first);
+            if (kv.second != nullptr) {
+                tab(n + 2, *fOut);
+                *fOut << "self._" << kv.first << " = ";
+                kv.second->accept(jaxVisitor);
+                jaxVisitor->fConstantVars.insert(kv.first);
+            } else {
+                // For subcontainer tables without initial value, the initialization
+                // will be handled by the inline subcontainer processing below
+                tab(n + 2, *fOut);
+                *fOut << "# " << kv.first << " will be initialized by subcontainer code";
+            }
         }
         
         // Section 5: Process inline subcontainers (for filling static tables)
