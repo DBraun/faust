@@ -831,6 +831,19 @@ void JAXCodeContainer::produceClass()
         }
         
         // Section 5: Process inline subcontainers (for filling static tables)
+        // 
+        // NOTE: This section is a partial implementation of inline subcontainer support.
+        // In the C++ backend, constructs like ba.tabulate generate separate classes
+        // (e.g., mydspSIG0) with their own initialization functions (fillmydspSIG0, etc.).
+        // The JAX backend currently lacks this infrastructure, so we attempt to inline
+        // the initialization code directly. This leads to several issues:
+        // 
+        // 1. Missing function calls (fillmydspSIG0SIG0, instanceInitmydspSIG0SIG0)
+        // 2. Unknown array sizes for local variables (defaulting to 4)
+        // 3. Incomplete initialization patterns
+        // 
+        // This is why tests like waveform_tabulate fail - they rely on proper
+        // inline subcontainer support.
         if (fStaticInitInstructions->fCode.size() > 0) {
             tab(n + 2, *fOut);
             *fOut << "# Process inline subcontainers for static table initialization";
@@ -941,12 +954,26 @@ void JAXCodeContainer::produceClass()
                         }
                     } else {
                         // Default size of 4 for arrays without explicit size
+                        // This is a WORKAROUND for incomplete inline subcontainer support.
+                        // 
+                        // Background: Some Faust constructs (like ba.tabulate) generate inline
+                        // subcontainers that initialize tables. These subcontainers may declare
+                        // local arrays whose sizes we cannot determine from static analysis.
+                        // 
+                        // The C++ backend generates separate classes (e.g., mydspSIG0) with proper
+                        // initialization functions. The JAX backend currently doesn't support this,
+                        // so we fall back to a hardcoded size of 4.
+                        // 
+                        // This happens to work for some tests (like waveform_tabulate which uses
+                        // size 4), but it's fragile and could fail for other sizes.
+                        // 
+                        // TODO: Implement proper inline subcontainer support to eliminate this hack
                         if (varname[0] == 'i') {
-                            *fOut << "np.zeros((4,), dtype=np.int32)";
+                            *fOut << "np.zeros((4,), dtype=np.int32)  # WARNING: default size 4 for " << varname;
                         } else if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.zeros((4,), dtype=np.float32)";
+                            *fOut << "np.zeros((4,), dtype=np.float32)  # WARNING: default size 4 for " << varname;
                         } else {
-                            *fOut << "np.zeros((4,), dtype=np.float64)";
+                            *fOut << "np.zeros((4,), dtype=np.float64)  # WARNING: default size 4 for " << varname;
                         }
                     }
                 } else if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end() && 
