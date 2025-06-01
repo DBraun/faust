@@ -38,7 +38,8 @@
       "Bash(then echo \"$f\")",
       "Bash(fi)",
       "Bash(done)",
-      "Bash(! grep -q \"PASSED\" \"$f\")"
+      "Bash(! grep -q \"PASSED\" \"$f\")",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

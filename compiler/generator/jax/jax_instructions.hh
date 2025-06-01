@@ -26,15 +26,19 @@
 
 #include "struct_manager.hh"
 #include "text_instructions.hh"
+#include "jax_state_manager.hh"
+#include "jax_variable_classifier.hh"
 
 // Visitor used to initialize array fields into the DSP structure
 struct JAXInitFieldsVisitor : public DispatchVisitor {
     std::ostream* fOut;
     int           fTab;
     std::set<std::string>* fScalarDelayVars;
+    JAXVariableClassifier fClassifier;
 
-    JAXInitFieldsVisitor(std::ostream* out, int tab = 0, std::set<std::string>* scalarDelayVars = nullptr) 
-        : fOut(out), fTab(tab), fScalarDelayVars(scalarDelayVars) {}
+    JAXInitFieldsVisitor(std::ostream* out, int tab = 0, std::set<std::string>* scalarDelayVars = nullptr,
+                         const std::string& className = "mydsp") 
+        : fOut(out), fTab(tab), fScalarDelayVars(scalarDelayVars), fClassifier(className) {}
 
     virtual void visit(DeclareVarInst* inst)
     {        
@@ -62,12 +66,8 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
             if (inst->fAddress) {
                 if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
                     // Skip UI parameters - they're handled separately
-                    // UI parameters typically have names like fButton0, fHslider0, etc.
-                    if (named->fName.find("Button") != std::string::npos ||
-                        named->fName.find("Hslider") != std::string::npos ||
-                        named->fName.find("Vslider") != std::string::npos ||
-                        named->fName.find("Checkbox") != std::string::npos ||
-                        named->fName.find("Entry") != std::string::npos) {
+                    auto category = fClassifier.classifyVariable(named->fName);
+                    if (category == JAXVariableClassifier::VarCategory::UI_PARAMETER) {
                         return;  // Skip UI parameters
                     }
                     
@@ -113,14 +113,16 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
         ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(typed);
         faustassert(array_type);
 
+        // Always use numpy for initialization (static context)
         if (isIntPtrType(typed->getType())) {
-            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+            // Create a temporary JAXStringTypeManager to use its helper methods
+            JAXStringTypeManager typeManager("", "", "");
+            *fOut << typeManager.generateZeroArray(array_type->fSize, Typed::kInt32, true);
         } else if (isRealPtrType(typed->getType())) {
-            if (gGlobal->gFloatSize == 1) {
-                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
-            } else {
-                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
-            }
+            // Create a temporary JAXStringTypeManager to use its helper methods
+            JAXStringTypeManager typeManager("", "", "");
+            Typed::VarType floatType = (gGlobal->gFloatSize == 1) ? Typed::kFloat : Typed::kDouble;
+            *fOut << typeManager.generateZeroArray(array_type->fSize, floatType, true);
         }
     }
 
@@ -135,19 +137,17 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
                     inst->fAddress->accept(this);
                     *fOut << " = ";
                     // Determine type from the value
+                    JAXStringTypeManager typeManager("", "", "");
                     if (Int32NumInst* intVal = dynamic_cast<Int32NumInst*>(inst->fValue)) {
-                        *fOut << "np.int32(" << intVal->fNum << ")";
+                        *fOut << typeManager.wrapLiteral(std::to_string(intVal->fNum), Typed::kInt32, true);
                     } else if (FloatNumInst* floatVal = dynamic_cast<FloatNumInst*>(inst->fValue)) {
-                        *fOut << "np.float32(" << checkFloat(floatVal->fNum) << ")";
+                        *fOut << typeManager.wrapLiteral(checkFloat(floatVal->fNum), Typed::kFloat, true);
                     } else if (DoubleNumInst* doubleVal = dynamic_cast<DoubleNumInst*>(inst->fValue)) {
-                        *fOut << "np.float64(" << checkDouble(doubleVal->fNum) << ")";
+                        *fOut << typeManager.wrapLiteral(checkDouble(doubleVal->fNum), Typed::kDouble, true);
                     } else {
                         // Default case - determine from global float size
-                        if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.float32(0)";
-                        } else {
-                            *fOut << "np.float64(0)";
-                        }
+                        Typed::VarType floatType = (gGlobal->gFloatSize == 1) ? Typed::kFloat : Typed::kDouble;
+                        *fOut << typeManager.wrapLiteral("0", floatType, true);
                     }
                     return;
                 }
@@ -160,35 +160,38 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
     // Needed for waveforms
     virtual void visit(Int32ArrayNumInst* inst)
     {
-        *fOut << "np.array(";
+        JAXStringTypeManager typeManager("", "", "");
+        *fOut << typeManager.getTypePrefix(true) << ".array(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << inst->fNumTable[i];
             sep = ',';
         }
-        *fOut << "], dtype=np.int32)";
+        *fOut << "], dtype=" << typeManager.getDTypeString(Typed::kInt32, true) << ")";
     }
 
     virtual void visit(FloatArrayNumInst* inst)
     {
-        *fOut << "np.array(";
+        JAXStringTypeManager typeManager("", "", "");
+        *fOut << typeManager.getTypePrefix(true) << ".array(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << checkFloat(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << "], dtype=np.float32)";
+        *fOut << "], dtype=" << typeManager.getFloatTypeString(true) << ")";
     }
 
     virtual void visit(DoubleArrayNumInst* inst)
     {
-        *fOut << "np.array(";
+        JAXStringTypeManager typeManager("", "", "");
+        *fOut << typeManager.getTypePrefix(true) << ".array(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << checkDouble(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << "], dtype=np.float64)";
+        *fOut << "], dtype=" << typeManager.getDTypeString(Typed::kDouble, true) << ")";
     }
 };
 
@@ -198,7 +201,18 @@ class JAXInstVisitor : public TextInstVisitor {
     std::set<std::string> fUIParamVars;  // Track UI parameter variables
     std::set<std::string> fConstantVars;  // Track constant variables
     
+    // State management (mutable so it can be modified in const contexts)
+    mutable JAXStateManager fStateManager;
+    
+    // Variable classification
+    JAXVariableClassifier fClassifier;
+    
    private:
+    // Helper to get the JAX type manager
+    JAXStringTypeManager* getJAXTypeManager() const {
+        return static_cast<JAXStringTypeManager*>(fTypeManager);
+    }
+    
     /*
      Global functions names table as a static variable in the visitor
      so that each function prototype is generated as most once in the module.
@@ -237,26 +251,20 @@ class JAXInstVisitor : public TextInstVisitor {
     // Map to store pfPerm initialization values
     std::map<std::string, ValueInst*> fPfPermInitValues;
 
-    // This bool indicates that we should use the numpy functions, so the prefix "np."
-    // If false, use jax.numpy "jnp."
-    // We want to use numpy when initializing arrays and sound files because it's faster than JAX.
-    bool fUseNumpy = true;
+    // DEPRECATED: These boolean flags are replaced by fStateManager
+    // bool fUseNumpy = true;
+    // bool fInSetup = false;
+    // bool fInTick = false;
+    // bool fInStaticInit = false;
+    // bool fInInlineSubcontainer = false;
+    // std::set<std::string> fInlineSubcontainerLocals;
     
-    // This bool indicates we're in the setup method context where constants should be accessed as self._varname
-    bool fInSetup = false;
-
-    // This bool indicates we're in the tick method context where waveforms should be accessed as varname instead of self._varname
-    bool fInTick = false;
-    
-    // This bool indicates we're processing static init instructions (inline subcontainers)
-    bool fInStaticInit = false;
-    // This bool indicates we're processing inline subcontainer code (table filling)
-    bool fInInlineSubcontainer = false;
-    // Set of local variables in inline subcontainer code
-    std::set<std::string> fInlineSubcontainerLocals;
+    // Helper method to check if we should use numpy (for backward compatibility)
+    bool fUseNumpy() const { return fStateManager.useNumpy(); }
 
     JAXInstVisitor(std::ostream* out, const std::string& struct_name, int tab = 0)
-        : TextInstVisitor(out, ".", new JAXStringTypeManager(xfloat(), "*", struct_name), tab)
+        : TextInstVisitor(out, ".", new JAXStringTypeManager(xfloat(), "*", struct_name), tab),
+          fClassifier(struct_name)
     {
         // Mark all math.h functions as generated...
         gFunctionSymbolTable["abs"] = true;
@@ -483,8 +491,7 @@ class JAXInstVisitor : public TextInstVisitor {
         *fOut << "self.add_button(" << quote(inst->fZone) << ", ui_path, "
               << quote(inst->fLabel) << ", unnorm_funcs)";
         EndLine(' ');
-        // Track this UI parameter
-        fUIParamVars.insert(inst->fZone);
+        // Note: UI parameter tracking is now handled by the classifier
     }
 
     virtual void visit(AddSliderInst* inst)
@@ -564,11 +571,7 @@ class JAXInstVisitor : public TextInstVisitor {
         if (fIsArrayIndex) {
             *fOut << inst->fNum;
         } else {
-            if (fUseNumpy) {
-                *fOut << "np.int32(" << inst->fNum << ")";
-            } else {
-                *fOut << "jnp.int32(" << inst->fNum << ")";
-            }
+            *fOut << getJAXTypeManager()->wrapLiteral(std::to_string(inst->fNum), Typed::kInt32, fUseNumpy());
         }
     }
 
@@ -577,63 +580,51 @@ class JAXInstVisitor : public TextInstVisitor {
         if (fIsArrayIndex) {
             *fOut << inst->fNum;
         } else {
-            if (fUseNumpy) {
-                *fOut << "np.int64(" << inst->fNum << ")";
-            } else {
-                *fOut << "jnp.int64(" << inst->fNum << ")";
-            }
+            *fOut << getJAXTypeManager()->wrapLiteral(std::to_string(inst->fNum), Typed::kInt64, fUseNumpy());
         }
     }
 
     virtual void visit(FloatNumInst* inst) 
     { 
-        if (fUseNumpy) {
-            *fOut << "np.float32(" << checkFloat(inst->fNum) << ")";
-        } else {
-            *fOut << "jnp.float32(" << checkFloat(inst->fNum) << ")";
-        }
+        *fOut << getJAXTypeManager()->wrapLiteral(checkFloat(inst->fNum), Typed::kFloat, fUseNumpy());
     }
 
     virtual void visit(DoubleNumInst* inst) 
     { 
-        if (fUseNumpy) {
-            *fOut << "np.float64(" << checkDouble(inst->fNum) << ")";
-        } else {
-            *fOut << "jnp.float64(" << checkDouble(inst->fNum) << ")";
-        }
+        *fOut << getJAXTypeManager()->wrapLiteral(checkDouble(inst->fNum), Typed::kDouble, fUseNumpy());
     }
 
     virtual void visit(Int32ArrayNumInst* inst)
     {
-        *fOut << (fUseNumpy ? "np.array(" : "jnp.array(");
+        *fOut << getJAXTypeManager()->getTypePrefix(fUseNumpy()) << ".array(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << inst->fNumTable[i];
             sep = ',';
         }
-        *fOut << "], dtype=" << (fUseNumpy ? "np.int32)" : "jnp.int32)");
+        *fOut << "], dtype=" << getJAXTypeManager()->getDTypeString(Typed::kInt32, fUseNumpy()) << ")";
     }
 
     virtual void visit(FloatArrayNumInst* inst)
     {
-        *fOut << (fUseNumpy ? "np.array(" : "jnp.array(");
+        *fOut << getJAXTypeManager()->getTypePrefix(fUseNumpy()) << ".array(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << checkFloat(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << "], dtype=" << (fUseNumpy ? "np.float32)" : "jnp.float32)");
+        *fOut << "], dtype=" << getJAXTypeManager()->getFloatTypeString(fUseNumpy()) << ")";
     }
 
     virtual void visit(DoubleArrayNumInst* inst)
     {
-        *fOut << (fUseNumpy ? "np.array(" : "jnp.array(");
+        *fOut << getJAXTypeManager()->getTypePrefix(fUseNumpy()) << ".array(";
         char sep = '[';
         for (size_t i = 0; i < inst->fNumTable.size(); i++) {
             *fOut << sep << checkDouble(inst->fNumTable[i]);
             sep = ',';
         }
-        *fOut << "], dtype=" << (fUseNumpy ? "np.float64)" : "jnp.float64)");
+        *fOut << "], dtype=" << getJAXTypeManager()->getDTypeString(Typed::kDouble, fUseNumpy()) << ")";
     }
 
     virtual void visit(BinopInst* inst)
@@ -750,79 +741,129 @@ class JAXInstVisitor : public TextInstVisitor {
     }
 
     virtual void visit(NamedAddress* named)
-    {        
-        // Special case: fSampleRate should always use self.sample_rate
-        if (named->fName == "fSampleRate") {
+    {
+        const std::string& varName = named->fName;
+        auto category = fClassifier.classifyVariable(varName);
+        
+        // Special case: fSampleRate always uses self.sample_rate
+        if (varName == "fSampleRate") {
             *fOut << "self.sample_rate";
+            return;
         }
-        // Check if this is a UI parameter (access from params dict in tick)
-        else if (fUIParamVars.find(named->fName) != fUIParamVars.end()) {
-            *fOut << "params[\"" << named->fName << "\"]";
+        
+        // Special case: inline subcontainer local variables
+        if (fStateManager.inInlineSubcontainer() && 
+            fStateManager.isInlineSubcontainerLocal(varName)) {
+            *fOut << varName;
+            return;
         }
-        // Special case for soundfile variables - access as module attributes
-        else if (named->fName.find("fSoundfile") == 0 && named->fName.find("ca") == std::string::npos) {
-            *fOut << "self." << named->fName;
-        }
-        // Check if this is a constant (either tracked at compile time or runtime)
-        // Note: pfPerm variables are NOT constants - they are state variables
-        else if ((named->fName.find("pfPerm") != 0) &&  // Exclude pfPerm variables
-                 (fConstantVars.find(named->fName) != fConstantVars.end() ||
-                  (named->fName.find("iConst") == 0) ||
-                  (named->fName.find("fConst") == 0) ||
-                  (named->fName.find("ftbl0") == 0 && named->fName.find("SIG") != std::string::npos) ||  // Float static tables (only SIG tables)
-                  (named->fName.find("itbl0") == 0 && named->fName.find("SIG") != std::string::npos) ||  // Integer static tables (only SIG tables)
-                  (named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos)
-                 )) {
-            // In static init, ftbl0* and itbl0*SIG* tables are local variables
-            if (fInStaticInit && (named->fName.find("ftbl0") == 0 || 
-                                  (named->fName.find("itbl0") == 0 && named->fName.find("SIG") != std::string::npos))) {
-                *fOut << named->fName;
-            } else if (fInTick && (named->fName.find("Wave") != std::string::npos && named->fName.find("_idx") == std::string::npos)) {
-                *fOut << named->fName;
+        
+        // Special case: pfPerm variables are state variables, not constants
+        if (varName.find("pfPerm") == 0) {
+            if ((named->isStruct() || named->isStaticStruct()) && 
+                !fStateManager.inSetup() && !fStateManager.inStaticInit()) {
+                *fOut << "state[\"" << varName << "\"]";
             } else {
-                *fOut << "self._" << named->fName;
+                *fOut << varName;
             }
-        } 
-        // Check if this is a bargraph variable - use local variable instead of state
-        else if (isBargraphVar(named->fName)) {
-            *fOut << named->fName;
+            return;
         }
-        // Special handling for read-write tables in static init (they're not available yet)
-        else if (fInStaticInit && named->fName.find("ftbl") == 0 && named->fName.find("ftbl0") != 0) {
-            // This shouldn't happen - read-write tables shouldn't be accessed in setup()
-            // For now, we'll output the table name and let the Python runtime error catch it
-            *fOut << named->fName;
-        }
-        // Special handling for temporary variables in setup (inline subcontainer variables)
-        else if (fInSetup && 
-                 ((named->fName.find("SIG") != std::string::npos && 
-                   (named->fName.find("_idx") != std::string::npos || named->fName.find("Wave0") != std::string::npos)) ||
-                  // Also handle inline subcontainer state variables (iVec, fVec, iRec, fRec) in static init
-                  (fInStaticInit && (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos)) ||
-                  // Also handle inline subcontainer waveform variables in static init
-                  (fInStaticInit && named->fName.find("Wave") != std::string::npos))) {
-            // These are temporary local variables used in setup for filling tables
-            *fOut << named->fName;
-        }
-        // When processing inline subcontainer code, check if variable is local
-        else if (fInInlineSubcontainer && 
-                 fInlineSubcontainerLocals.find(named->fName) != fInlineSubcontainerLocals.end()) {
-            *fOut << named->fName;
-        }
-        else {
-            // kStaticStruct are actually merged in the main DSP
-            // Special case: if we're in static init and this is a Vec/Rec variable, treat as local
-            if (fInStaticInit && (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos)) {
-                *fOut << named->fName;
-            }
-            // Don't wrap in state[...] if we're in setup/static init context
-            else if ((named->isStruct() || named->isStaticStruct()) && !fInSetup && !fInStaticInit) {
-                *fOut << "state[\"";
-                *fOut << named->fName;
-                *fOut << "\"]";
-            } else {
-                *fOut << named->fName;
-            }
+        
+        switch (category) {
+            case JAXVariableClassifier::VarCategory::UI_PARAMETER:
+                // UI parameters are accessed from params dict in tick
+                *fOut << "params[\"" << varName << "\"]";
+                break;
+                
+            case JAXVariableClassifier::VarCategory::SOUNDFILE:
+                // Soundfile variables are module attributes
+                *fOut << "self." << varName;
+                break;
+                
+            case JAXVariableClassifier::VarCategory::CONSTANT:
+                // Constants are instance attributes with _ prefix
+                // Also check if it's been tracked during compilation
+                if (fConstantVars.find(varName) != fConstantVars.end()) {
+                    *fOut << "self._" << varName;
+                } else {
+                    *fOut << "self._" << varName;
+                }
+                break;
+                
+            case JAXVariableClassifier::VarCategory::STATIC_TABLE:
+                // Static tables: local in static init, instance attr elsewhere
+                if (fStateManager.inStaticInit()) {
+                    *fOut << varName;
+                } else {
+                    *fOut << "self._" << varName;
+                }
+                break;
+                
+            case JAXVariableClassifier::VarCategory::WAVEFORM_DATA:
+                // Waveform data: local in tick, instance attr elsewhere
+                if (fStateManager.inTick()) {
+                    // In tick, waveform data is converted to local JAX arrays
+                    *fOut << varName;
+                } else {
+                    // In all other contexts (setup, static_init, inline_subcontainer),
+                    // waveform data is accessed as instance attributes
+                    *fOut << "self._" << varName;
+                }
+                break;
+                
+            case JAXVariableClassifier::VarCategory::READ_WRITE_TABLE:
+                // Read-write tables in static init shouldn't happen
+                if (fStateManager.inStaticInit()) {
+                    *fOut << varName;  // Will cause runtime error
+                } else if ((named->isStruct() || named->isStaticStruct()) && 
+                          !fStateManager.inSetup() && !fStateManager.inStaticInit()) {
+                    *fOut << "state[\"" << varName << "\"]";
+                } else {
+                    *fOut << varName;
+                }
+                break;
+                
+            case JAXVariableClassifier::VarCategory::BARGRAPH:
+                // Bargraphs are always local variables
+                *fOut << varName;
+                break;
+                
+            case JAXVariableClassifier::VarCategory::DELAY_LINE:
+                // Delay lines: handle special cases for static init
+                if (fStateManager.inStaticInit()) {
+                    *fOut << varName;  // Local in static init
+                } else if ((named->isStruct() || named->isStaticStruct()) && 
+                          !fStateManager.inSetup() && !fStateManager.inStaticInit()) {
+                    *fOut << "state[\"" << varName << "\"]";
+                } else {
+                    *fOut << varName;
+                }
+                break;
+                
+            case JAXVariableClassifier::VarCategory::STATE_VARIABLE:
+                // State variables like IOTA
+                if ((named->isStruct() || named->isStaticStruct()) && 
+                    !fStateManager.inSetup() && !fStateManager.inStaticInit()) {
+                    *fOut << "state[\"" << varName << "\"]";
+                } else {
+                    *fOut << varName;
+                }
+                break;
+                
+            case JAXVariableClassifier::VarCategory::INDEX_VARIABLE:
+            case JAXVariableClassifier::VarCategory::TEMPORARY:
+            case JAXVariableClassifier::VarCategory::OTHER:
+            default:
+                // Handle special cases for setup context
+                if (fStateManager.inSetup() && varName.find("SIG") != std::string::npos) {
+                    *fOut << varName;  // Local temporary in setup
+                } else if ((named->isStruct() || named->isStaticStruct()) && 
+                          !fStateManager.inSetup() && !fStateManager.inStaticInit()) {
+                    *fOut << "state[\"" << varName << "\"]";
+                } else {
+                    *fOut << varName;
+                }
+                break;
         }
     }
 
@@ -836,7 +877,7 @@ class JAXInstVisitor : public TextInstVisitor {
             // Check if this is a scalar delay variable
             if (isScalarDelayVar(named->fName)) {
                 // For scalar delays in static init, use local variable
-                if (fInStaticInit && (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos)) {
+                if (fStateManager.inStaticInit() && (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos)) {
                     *fOut << named->fName;
                 } else {
                     *fOut << "state[\"" << named->fName << "\"]";
@@ -845,7 +886,7 @@ class JAXInstVisitor : public TextInstVisitor {
             }
         }
         
-        if (fUseNumpy) {
+        if (fUseNumpy()) {
             indexed->fAddress->accept(this);
             DeclareStructTypeInst* struct_type = isStructType(indexed->getName());
             if (struct_type) {
@@ -865,6 +906,7 @@ class JAXInstVisitor : public TextInstVisitor {
             }
 
         } else {
+            // JAX mode - use .at[].set() syntax for array modifications
             indexed->fAddress->accept(this);
             DeclareStructTypeInst* struct_type = isStructType(indexed->getName());
             if (struct_type) {
@@ -960,13 +1002,13 @@ class JAXInstVisitor : public TextInstVisitor {
     
     // Helper to check if a variable is a bargraph
     bool isBargraphVar(const std::string& name) {
-        return name.find("fVbargraph") == 0 || name.find("fHbargraph") == 0;
+        return fClassifier.classifyVariable(name) == JAXVariableClassifier::VarCategory::BARGRAPH;
     }
 
     virtual void visit(StoreVarInst* inst)
     {
         // Check if we're storing to a local variable in static init
-        if (fInStaticInit && inst->fAddress) {
+        if (fStateManager.inStaticInit() && inst->fAddress) {
             if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
                 if (named->fName.find("Vec") != std::string::npos || named->fName.find("Rec") != std::string::npos) {
                     // Direct assignment to local variable
@@ -1012,11 +1054,8 @@ class JAXInstVisitor : public TextInstVisitor {
                         } else {
                             needsCast = true;
                             // Determine float precision based on global settings
-                            if (fUseNumpy) {
-                                castType = (gGlobal->gFloatSize == 1) ? "np.float32" : "np.float64";
-                            } else {
-                                castType = (gGlobal->gFloatSize == 1) ? "jnp.float32" : "jnp.float64";
-                            }
+                            Typed::VarType floatType = (gGlobal->gFloatSize == 1) ? Typed::kFloat : Typed::kDouble;
+                            castType = getJAXTypeManager()->getDTypeString(floatType, fUseNumpy());
                         }
                     }
                     
@@ -1038,7 +1077,9 @@ class JAXInstVisitor : public TextInstVisitor {
         std::string targetVar;
         if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
             targetVar = named->fName;
-            if (isBargraphVar(targetVar)) {
+            auto varCategory = fClassifier.classifyVariable(targetVar);
+            
+            if (varCategory == JAXVariableClassifier::VarCategory::BARGRAPH) {
                 // Generate temporary variable and sow() call for bargraph
                 *fOut << targetVar << " = ";
                 
@@ -1050,11 +1091,8 @@ class JAXInstVisitor : public TextInstVisitor {
                 if (isFloatVariable(targetVar) && isIntegerExpression(inst->fValue)) {
                     needsCast = true;
                     // Determine float precision based on global settings
-                    if (fUseNumpy) {
-                        castType = (gGlobal->gFloatSize == 1) ? "np.float32" : "np.float64";
-                    } else {
-                        castType = (gGlobal->gFloatSize == 1) ? "jnp.float32" : "jnp.float64";
-                    }
+                    Typed::VarType floatType = (gGlobal->gFloatSize == 1) ? Typed::kFloat : Typed::kDouble;
+                    castType = getJAXTypeManager()->getDTypeString(floatType, fUseNumpy());
                 }
                 
                 if (needsCast) {
@@ -1079,12 +1117,14 @@ class JAXInstVisitor : public TextInstVisitor {
         fIsStoringLhs = false;
         *fOut << " = ";
 
-        if (fWillSetArray) {
+        if (fWillSetArray && !fUseNumpy()) {
             inst->fAddress->accept(this);
             *fOut << ".set(";
             inst->fValue->accept(this);
             *fOut << ")";
         } else {
+            // Reset fWillSetArray if we're in numpy mode
+            fWillSetArray = false;
             // Check if we need type casting
             bool needsCast = false;
             std::string castType;
@@ -1098,11 +1138,8 @@ class JAXInstVisitor : public TextInstVisitor {
                 } else {
                     needsCast = true;
                     // Determine float precision based on global settings
-                    if (fUseNumpy) {
-                        castType = (gGlobal->gFloatSize == 1) ? "np.float32" : "np.float64";
-                    } else {
-                        castType = (gGlobal->gFloatSize == 1) ? "jnp.float32" : "jnp.float64";
-                    }
+                    Typed::VarType floatType = (gGlobal->gFloatSize == 1) ? Typed::kFloat : Typed::kDouble;
+                    castType = getJAXTypeManager()->getDTypeString(floatType, fUseNumpy());
                 }
             }
             
@@ -1121,7 +1158,7 @@ class JAXInstVisitor : public TextInstVisitor {
     virtual void visit(::CastInst* inst)
     {
         if (isIntType(inst->fType->getType())) {
-            *fOut << "jnp.int32(";
+            *fOut << getJAXTypeManager()->getIntTypeString(fUseNumpy()) << "(";
             inst->fInst->accept(this);
             *fOut << ")";
         } else {
@@ -1157,7 +1194,7 @@ class JAXInstVisitor : public TextInstVisitor {
         std::string name = (gPolyMathLibTable.find(inst->fName) != gPolyMathLibTable.end())
                                ? gPolyMathLibTable[inst->fName]
                                : inst->fName;
-        if (fUseNumpy && name.rfind("jnp.") == 0) {
+        if (fUseNumpy() && name.rfind("jnp.") == 0) {
             // turn "jnp." into "np."
             name = name.substr(1, name.size() - 1);
         }
@@ -1224,7 +1261,7 @@ class JAXInstVisitor : public TextInstVisitor {
         }
         
         // Skip loops based on context
-        if (fInStaticInit || fInInlineSubcontainer) {
+        if (fStateManager.inStaticInit() || fStateManager.inInlineSubcontainer()) {
             // Check if this loop accesses tables we should skip
             struct TableChecker : public DispatchVisitor {
                 bool fAccessesRWTable = false;
@@ -1267,7 +1304,7 @@ class JAXInstVisitor : public TextInstVisitor {
             inst->fCode->accept(&checker);
             
             // In static init, skip read-write table loops
-            if (fInStaticInit && checker.fAccessesRWTable) {
+            if (fStateManager.inStaticInit() && checker.fAccessesRWTable) {
                 tab(fTab, *fOut);
                 *fOut << "# Skipping loop that fills read-write table - handled in _initialize_carry";
                 tab(fTab, *fOut);
@@ -1275,7 +1312,7 @@ class JAXInstVisitor : public TextInstVisitor {
             }
             
             // In inline subcontainer (_initialize_carry), skip static table loops
-            if (fInInlineSubcontainer && checker.fAccessesStaticTable) {
+            if (fStateManager.inInlineSubcontainer() && checker.fAccessesStaticTable) {
                 tab(fTab, *fOut);
                 *fOut << "# Skipping loop that fills static table - already handled in setup";
                 tab(fTab, *fOut);

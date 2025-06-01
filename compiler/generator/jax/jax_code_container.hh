@@ -39,6 +39,9 @@ class JAXCodeContainer : public virtual CodeContainer {
     std::ostream*          fOut;
 
     virtual void produceClass();
+    
+    // Helper method to collect waveform data from global declarations
+    std::map<std::string, ValueInst*> collectWaveformData();
 
     // Not used
     virtual void produceInternal() {}

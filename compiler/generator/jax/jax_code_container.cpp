@@ -148,6 +148,27 @@ inline string flattenJSONforPython(const string& src)
     return dst;
 }
 
+// Helper method to collect waveform data from global declarations
+// This eliminates duplicated code in produceInit, produceBuildUserInterface, and generateCompute
+std::map<std::string, ValueInst*> JAXCodeContainer::collectWaveformData()
+{
+    std::map<std::string, ValueInst*> waveformData;
+    
+    for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+        if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+            string varname = decl->fAddress->getName();
+            // Collect waveform data (but not index variables)
+            if ((varname.find("f" + fKlassName + "Wave") == 0 || varname.find("f" + fKlassName + "SIG") == 0 ||
+                 varname.find("i" + fKlassName + "Wave") == 0 || varname.find("i" + fKlassName + "SIG") == 0) && 
+                varname.find("_idx") == std::string::npos && decl->fValue) {
+                waveformData[varname] = decl->fValue;
+            }
+        }
+    }
+    
+    return waveformData;
+}
+
 void JAXCodeContainer::produceClass()
 {
     int n = 0;
@@ -267,18 +288,7 @@ void JAXCodeContainer::produceClass()
         }
         
         // Collect waveform data for dynamic table initialization
-        std::map<std::string, ValueInst*> waveformData;
-        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                // Collect waveform data (but not index variables)
-                if ((varname.find("f" + fKlassName + "Wave") == 0 || varname.find("f" + fKlassName + "SIG") == 0 ||
-                     varname.find("i" + fKlassName + "Wave") == 0 || varname.find("i" + fKlassName + "SIG") == 0) && 
-                    varname.find("_idx") == std::string::npos && decl->fValue) {
-                    waveformData[varname] = decl->fValue;
-                }
-            }
-        }
+        std::map<std::string, ValueInst*> waveformData = collectWaveformData();
         
         // From struct declarations
         for (const auto& it : fDeclarationInstructions->fCode) {
@@ -415,7 +425,7 @@ void JAXCodeContainer::produceClass()
                 
                 // Use the actual initialization value
                 if (jaxVisitor->fPfPermInitValues.find(varName) != jaxVisitor->fPfPermInitValues.end()) {
-                    jaxVisitor->fUseNumpy = true;  // Ensure we use numpy for initialization
+                    // numpy is already used in setup context
                     jaxVisitor->fPfPermInitValues[varName]->accept(jaxVisitor);
                 } else {
                     // Default to 0 if no initialization value found
@@ -708,16 +718,20 @@ void JAXCodeContainer::produceClass()
             // Process inline subcontainer code
             // This time we're not in static init, so read-write tables will be accessed from state
             gGlobal->gJAXVisitor->Tab(n + 2);
-            jaxVisitor->fInStaticInit = false;
-            jaxVisitor->fInSetup = false;
-            jaxVisitor->fInInlineSubcontainer = true;
-            // Pass the set of local variables to the visitor
-            for (const auto& varname : extractor.fLocalVars) {
-                jaxVisitor->fInlineSubcontainerLocals.insert(varname);
+            {
+                // Use RAII context scope for inline subcontainer processing
+                JAXStateManager::ContextScope scope(jaxVisitor->fStateManager, JAXStateManager::Context::INLINE_SUBCONTAINER);
+                
+                // Pass the set of local variables to the visitor
+                for (const auto& varname : extractor.fLocalVars) {
+                    jaxVisitor->fStateManager.addInlineSubcontainerLocal(varname);
+                }
+                
+                inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
+                
+                // Clear local variables
+                jaxVisitor->fStateManager.clearInlineSubcontainerLocals();
             }
-            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
-            jaxVisitor->fInInlineSubcontainer = false;
-            jaxVisitor->fInlineSubcontainerLocals.clear();
         }
         
         // If we skipped all loops and there's no other code, add a pass statement
@@ -757,14 +771,14 @@ void JAXCodeContainer::produceClass()
     *fOut << "def setup(self):";
     {
         JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
-        jaxVisitor->fUseNumpy = true;
-        jaxVisitor->fInSetup = true;
+        // Use RAII context scope for setup method
+        JAXStateManager::ContextScope setupScope(jaxVisitor->fStateManager, JAXStateManager::Context::SETUP);
         
         // Section 1: Initialize constants
         // Note: sample_rate is accessed directly as self.sample_rate, no need to store it
         
         // Section 2: Collect all static tables and waveform data
-        std::map<std::string, ValueInst*> waveformData;
+        std::map<std::string, ValueInst*> waveformData = collectWaveformData();
         std::set<std::string> staticTables;
         
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
@@ -775,12 +789,6 @@ void JAXCodeContainer::produceClass()
                 if (varname.find("ftbl0") == 0 || 
                     (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
                     staticTables.insert(varname);
-                }
-                // Collect waveform data (but not index variables)
-                else if ((varname.find("f" + fKlassName + "Wave") == 0 || varname.find("f" + fKlassName + "SIG") == 0 ||
-                          varname.find("i" + fKlassName + "Wave") == 0 || varname.find("i" + fKlassName + "SIG") == 0) && 
-                         varname.find("_idx") == std::string::npos && decl->fValue) {
-                    waveformData[varname] = decl->fValue;
                 }
             }
         }
@@ -968,9 +976,12 @@ void JAXCodeContainer::produceClass()
                 tab(n + 2, *fOut);
             }
             gGlobal->gJAXVisitor->Tab(n + 2);
-            jaxVisitor->fInStaticInit = true;
-            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
-            jaxVisitor->fInStaticInit = false;
+            {
+                // Use INLINE_SUBCONTAINER context to handle variable access correctly
+                // But we need to keep useNumpy() returning true (inherited from SETUP)
+                JAXStateManager::ContextScope scope(jaxVisitor->fStateManager, JAXStateManager::Context::STATIC_INIT);
+                inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
+            }
         }
         
         // Section 5.5: Convert static tables to JAX arrays and freeze them
@@ -1030,15 +1041,14 @@ void JAXCodeContainer::produceClass()
         
         ConstantInitExtractor extractor(fOut, n + 2, jaxVisitor);
         fInitInstructions->accept(&extractor);
-        
-        // Reset context flags
-        jaxVisitor->fInSetup = false;
     }
+    // Setup context scope ends here automatically
 
     // Compute
-    jaxVisitor->fInTick = true;
-    generateCompute(n + 1);
-    jaxVisitor->fInTick = false;
+    {
+        JAXStateManager::ContextScope tickScope(jaxVisitor->fStateManager, JAXStateManager::Context::TICK);
+        generateCompute(n + 1);
+    }
 }
 
 void JAXCodeContainer::generateCompute(int n)
@@ -1050,20 +1060,8 @@ void JAXCodeContainer::generateCompute(int n)
     tab(n + 1, *fOut);
     gGlobal->gJAXVisitor->Tab(n + 1);
 
-    // todo: this section below repeats code elsewhere
     // Collect waveform data for dynamic table initialization
-    std::map<std::string, ValueInst*> waveformData;
-    for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-        if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-            string varname = decl->fAddress->getName();
-            // Collect waveform data (but not index variables)
-            if ((varname.find("f" + fKlassName + "Wave") == 0 || varname.find("f" + fKlassName + "SIG") == 0 ||
-                    varname.find("i" + fKlassName + "Wave") == 0 || varname.find("i" + fKlassName + "SIG") == 0) && 
-                varname.find("_idx") == std::string::npos && decl->fValue) {
-                waveformData[varname] = decl->fValue;
-            }
-        }
-    }
+    std::map<std::string, ValueInst*> waveformData = collectWaveformData();
 
     if (waveformData.size() > 0) {
         *fOut << "# Convert waveform data to JAX arrays";
@@ -1077,14 +1075,12 @@ void JAXCodeContainer::generateCompute(int n)
     }
 
     // Generates local variables declaration and setup
-    gGlobal->gJAXVisitor->fUseNumpy = false;
     generateComputeBlock(gGlobal->gJAXVisitor);
 
     auto loop = fCurLoop->generateOneSample();
     loop->accept(gGlobal->gJAXVisitor);
 
     generatePostComputeBlock(gGlobal->gJAXVisitor);
-    gGlobal->gJAXVisitor->fUseNumpy = true;
 
     tab(n, *fOut);
     *fOut << "# fmt: on";

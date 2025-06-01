@@ -746,6 +746,141 @@ class JAXStringTypeManager : public StringTypeManager {
 
         fTypeDirectTable[Typed::kUint_ptr] = "uintptr_t";
     }
+    
+    // Enhanced functionality for JAX backend
+    
+    /**
+     * Get the appropriate prefix (np or jnp) based on context
+     */
+    std::string getTypePrefix(bool useNumpy) const {
+        return useNumpy ? "np" : "jnp";
+    }
+    
+    /**
+     * Get float type string based on global precision setting
+     */
+    std::string getFloatTypeString(bool useNumpy) const {
+        std::string prefix = getTypePrefix(useNumpy);
+        return (gGlobal->gFloatSize == 1) ? prefix + ".float32" : prefix + ".float64";
+    }
+    
+    /**
+     * Get int type string
+     */
+    std::string getIntTypeString(bool useNumpy) const {
+        return getTypePrefix(useNumpy) + ".int32";
+    }
+    
+    /**
+     * Wrap a numeric literal with appropriate type cast
+     */
+    std::string wrapLiteral(const std::string& value, Typed::VarType type, bool useNumpy) const {
+        if (type == Typed::kInt32) {
+            return getTypePrefix(useNumpy) + ".int32(" + value + ")";
+        } else if (type == Typed::kInt64) {
+            return getTypePrefix(useNumpy) + ".int64(" + value + ")";
+        } else if (type == Typed::kFloat || type == Typed::kFloatMacro) {
+            if (gGlobal->gFloatSize == 1) {
+                return getTypePrefix(useNumpy) + ".float32(" + value + ")";
+            } else {
+                return getTypePrefix(useNumpy) + ".float64(" + value + ")";
+            }
+        } else if (type == Typed::kDouble) {
+            return getTypePrefix(useNumpy) + ".float64(" + value + ")";
+        }
+        return value;
+    }
+    
+    /**
+     * Generate a zero array initialization
+     */
+    std::string generateZeroArray(int size, Typed::VarType type, bool useNumpy) const {
+        std::string prefix = getTypePrefix(useNumpy);
+        std::string dtype;
+        
+        if (type == Typed::kInt32) {
+            dtype = prefix + ".int32";
+        } else if (type == Typed::kInt64) {
+            dtype = prefix + ".int64";
+        } else if (type == Typed::kFloat || type == Typed::kFloatMacro) {
+            dtype = (gGlobal->gFloatSize == 1) ? prefix + ".float32" : prefix + ".float64";
+        } else if (type == Typed::kDouble) {
+            dtype = prefix + ".float64";
+        } else {
+            dtype = prefix + ".float32";  // Default
+        }
+        
+        return prefix + ".zeros((" + std::to_string(size) + ",), dtype=" + dtype + ")";
+    }
+    
+    /**
+     * Generate min function call
+     */
+    std::string generateMin(const std::string& a, const std::string& b, bool useNumpy) const {
+        return getTypePrefix(useNumpy) + ".minimum(" + a + ", " + b + ")";
+    }
+    
+    /**
+     * Generate max function call
+     */
+    std::string generateMax(const std::string& a, const std::string& b, bool useNumpy) const {
+        return getTypePrefix(useNumpy) + ".maximum(" + a + ", " + b + ")";
+    }
+    
+    /**
+     * Generate abs function call
+     */
+    std::string generateAbs(const std::string& x, bool useNumpy) const {
+        return getTypePrefix(useNumpy) + ".abs(" + x + ")";
+    }
+    
+    /**
+     * Cast to specific numpy type
+     */
+    std::string castToNumpy(const std::string& value, Typed::VarType type) const {
+        return wrapLiteral(value, type, true);
+    }
+    
+    /**
+     * Cast to specific JAX type
+     */
+    std::string castToJAX(const std::string& value, Typed::VarType type) const {
+        return wrapLiteral(value, type, false);
+    }
+    
+    /**
+     * Check if a type is numeric (int or float variants)
+     */
+    bool isNumericType(Typed::VarType type) const {
+        return type == Typed::kInt32 || type == Typed::kInt64 ||
+               type == Typed::kFloat || type == Typed::kDouble ||
+               type == Typed::kFloatMacro;
+    }
+    
+    /**
+     * Get the numpy/jax dtype string for a given type
+     */
+    std::string getDTypeString(Typed::VarType type, bool useNumpy) const {
+        std::string prefix = getTypePrefix(useNumpy);
+        
+        switch (type) {
+            case Typed::kInt32: return prefix + ".int32";
+            case Typed::kInt64: return prefix + ".int64";
+            case Typed::kFloat:
+            case Typed::kFloatMacro:
+                return (gGlobal->gFloatSize == 1) ? prefix + ".float32" : prefix + ".float64";
+            case Typed::kDouble: return prefix + ".float64";
+            case Typed::kBool: return prefix + ".bool_";
+            default: return prefix + ".float32";  // Default to float32
+        }
+    }
+    
+    /**
+     * Get the appropriate float Typed::VarType based on global precision
+     */
+    Typed::VarType getFloatVarType() const {
+        return (gGlobal->gFloatSize == 1) ? Typed::kFloat : Typed::kDouble;
+    }
 
     virtual std::string generateType(Typed* type, NamedTyped::Attribute attr = NamedTyped::kDefault)
     {
