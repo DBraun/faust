@@ -32,11 +32,6 @@ dspfiles := $(filter-out dsp/osc_enable.dsp,$(dspfiles))
 # todo: don't ignore bells.dsp (perceptually it sounds the same but is off due to precision issues)
 dspfiles := $(filter-out dsp/bells.dsp,$(dspfiles))
 
-# TODO: fix soundfile cache variable handling in JAX backend
-# The issue is that cache variables like fSoundfile0ca are referenced without
-# the state dictionary prefix after being assigned from state["fSoundfile0"]
-dspfiles := $(filter-out dsp/sound.dsp,$(dspfiles))
-
 # ignore noise files because we use jax.random.PRNG instead of a linear congruential generator (LCG) method
 dspfiles := $(filter-out $(wildcard dsp/noise*.dsp),$(dspfiles))
 
