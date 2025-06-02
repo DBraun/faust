@@ -231,6 +231,13 @@ except ImportError:
 		# Bargraphs are output-only, no parameters needed
 		pass
 
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
+
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""
 		Unnormalize all UI parameters from [-1, 1] to their original ranges.

@@ -164,6 +164,20 @@ for block_idx in range(num_blocks):
 - **State Management**: Proper handling of delays and stateful operations
 - **RNG Support**: Compatible with Flax's RNG system via `self.make_rng("rng_stream")` for stochastic DSPs
 
+### Random Number Generation
+
+The JAX backend supports native JAX random number generation through foreign functions. You can use JAX's PRNG system directly:
+
+```faust
+import("stdfaust.lib");
+
+// Use JAX's random uniform function
+jax_noise = ffunction(float self.random_uniform(), "", "");
+process = jax_noise;
+```
+
+This generates code that calls `self.random_uniform()` which uses JAX's PRNG system with proper RNG key management via `self.make_rng("rng_stream")`. This is more efficient and better integrated with JAX than using the traditional Faust noise generators based on linear congruential generators.
+
 ## Performance Optimizations
 
 ### Circular Buffer Optimization for Delay Lines
