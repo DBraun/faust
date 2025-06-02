@@ -107,6 +107,7 @@ jobs:
         pip install --upgrade jax jaxlib flax numpy tqdm librosa scipy
 
     - name: Run JAX minimal architecture tests
+      shell: bash
       run: |
         cd tests/jax-tests
         make
