@@ -39,7 +39,8 @@
       "Bash(fi)",
       "Bash(done)",
       "Bash(! grep -q \"PASSED\" \"$f\")",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(./filesCompare ir/jax/double/APF.ir reference/APF.ir)"
     ],
     "deny": []
   }
