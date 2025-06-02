@@ -824,13 +824,71 @@ void JAXCodeContainer::produceClass()
         // Section 3: Initialize static tables as instance attributes
         tab(n + 2, *fOut);
         *fOut << "# Initialize static tables";
+        
+        // First, detect tables used in inline subcontainer code that might not be declared
+        struct TableDetector : public DispatchVisitor {
+            std::set<std::string> fTablesUsed;
+            
+            virtual void visit(StoreVarInst* inst) {
+                string varname = inst->fAddress->getName();
+                if ((varname.find("ftbl0") == 0 || varname.find("itbl0") == 0) &&
+                    varname.find("_idx") == std::string::npos) {
+                    fTablesUsed.insert(varname);
+                }
+                DispatchVisitor::visit(inst);
+            }
+            
+            virtual void visit(LoadVarInst* inst) {
+                string varname = inst->fAddress->getName();
+                if ((varname.find("ftbl0") == 0 || varname.find("itbl0") == 0) &&
+                    varname.find("_idx") == std::string::npos) {
+                    fTablesUsed.insert(varname);
+                }
+                DispatchVisitor::visit(inst);
+            }
+        };
+        
+        TableDetector detector;
+        if (fStaticInitInstructions->fCode.size() > 0) {
+            // Detect tables in the inlined static init instructions
+            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&detector);
+        }
+        
+        // Declare any tables found in inline subcontainer code but not in global declarations
+        for (const auto& tableName : detector.fTablesUsed) {
+            bool found = false;
+            for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+                if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                    if (decl->fAddress->getName() == tableName) {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!found) {
+                tab(n + 2, *fOut);
+                *fOut << "# Table used in inline subcontainer but not declared globally";
+                tab(n + 2, *fOut);
+                // Determine size and type from usage pattern (default to 65537 for sine tables)
+                if (tableName.find("ftbl0") == 0) {
+                    *fOut << tableName << " = np.zeros((65537,), dtype=np.float" 
+                          << (gGlobal->gFloatSize == 1 ? "32" : "64") << ")";
+                } else {
+                    *fOut << tableName << " = np.zeros((65537,), dtype=np.int32)";
+                }
+                jaxVisitor->fConstantVars.insert(tableName);
+            }
+        }
+        
+        // Now declare tables from global declarations
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
             if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
                 string varname = decl->fAddress->getName();
                 if (varname.find("ftbl0") == 0 || 
                     (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
                     tab(n + 2, *fOut);
-                    // Use numpy for initialization, will convert to JAX later
+                    // Initialize as local variable first, will be converted to instance attribute later
                     *fOut << varname << " = ";
                     ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
                     if (array_type) {
@@ -1051,15 +1109,13 @@ void JAXCodeContainer::produceClass()
         // but they should be marked as static (non-trainable) to avoid issues
         tab(n + 2, *fOut);
         *fOut << "# Convert static tables and waveform data to JAX arrays";
-        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                if (varname.find("ftbl0") == 0 || 
-                    (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
-                    tab(n + 2, *fOut);
-                    // Convert to JAX array
-                    *fOut << "self._" << varname << " = jnp.array(" << varname << ")";
-                }
+        
+        // Convert all tables that were detected or declared
+        for (const auto& tableName : jaxVisitor->fConstantVars) {
+            if ((tableName.find("ftbl0") == 0 || tableName.find("itbl0") == 0) &&
+                tableName.find("_idx") == std::string::npos) {
+                tab(n + 2, *fOut);
+                *fOut << "self._" << tableName << " = jnp.array(" << tableName << ")";
             }
         }
         
