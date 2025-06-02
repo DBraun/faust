@@ -23,11 +23,26 @@
 #include "ppsig.hh"
 #include "sigtyperules.hh"
 #include "jax_instructions.hh"
+#include "fir_function_builder.hh"
 
 using namespace std;
 
 StatementInst* InstructionsCompilerJAX::generateShiftArray(const string& vname, int delay)
 {
+    // JAX Circular Buffer Implementation Strategy:
+    // 
+    // For small delay arrays (mxd < gMaxCopyDelay), we preserve the original jnp.roll behavior
+    // because these are typically used in recursive filter structures where the shift operation
+    // is tightly coupled with the algorithm (e.g., IIR filters, recursive delays).
+    // 
+    // Circular buffers are applied selectively to:
+    // 1. Larger delay lines that benefit from O(1) access vs O(n) roll operations
+    // 2. Variable delay lines where dynamic indexing is required
+    // 3. Simple delay taps that don't rely on the roll semantics
+    //
+    // This hybrid approach maintains compatibility with complex filter designs while
+    // optimizing performance for straightforward delay operations.
+    
     Values truncated_args;
     truncated_args.push_back(IB::genLoadArrayStructVar(vname));
     truncated_args.push_back(IB::genLoadStackVar("1"));
@@ -79,14 +94,25 @@ ValueInst* InstructionsCompilerJAX::generateDelayLine(ValueInst* exp, BasicTyped
         // (will be used by generateDelayAccess)
         
     } else if (mxd < gGlobal->gMaxCopyDelay) {
+        // Small delay arrays (typically 2-16 elements): Use traditional roll-based approach
+        // 
+        // These arrays are commonly used in recursive filter structures (IIR filters, 
+        // feedback delays) where the shift semantics are integral to the algorithm.
+        // Examples: tf_exp.dsp (3-element arrays for biquad sections)
+        //          vcf_wah_pedals.dsp, zita_rev1.dsp (filter matrices)
+        //
+        // The roll operation maintains the expected array state for recursive feedback,
+        // ensuring compatibility with complex filter designs.
+        
         // Generates table init
         generateInitArray(vname, ctype, mxd + 1);
 
-        // Generate table use
+        // Generate table use: write to index [0]
         pushComputeDSPMethod(IB::genControlInst(
             ccs, IB::genStoreArrayStructVar(vname, IB::genInt32NumInst(0), exp)));
 
         // Generates post processing copy code to update delay values
+        // This creates the jnp.roll operation that shifts array elements
         pushPostComputeDSPMethod(IB::genControlInst(ccs, generateShiftArray(vname, mxd)));
 
     } else {
@@ -189,6 +215,30 @@ ValueInst* InstructionsCompilerJAX::generateDelayAccess(Tree sig, Tree exp, Tree
         } else {
             // Variable delay or delay != 1, use array access
             return IB::genLoadArrayStructVar(vname, IB::genInt32NumInst(0));
+        }
+    } else if (fCircularBufferVars.find(vname) != fCircularBufferVars.end()) {
+        // Circular buffer delay access for larger delay lines
+        //
+        // This provides O(1) performance for delay access instead of O(n) roll operations.
+        // Used for:
+        // - Variable delay lines (e.g., comb_delay1.dsp with modulated delay time)
+        // - Large delay buffers where roll operations would be expensive
+        // - Simple delay taps that don't require complex shift semantics
+        
+        int d;
+        if (isSigInt(delay, &d)) {
+            // Constant delay - can optimize index calculation
+            string idx_name = vname + "_idx";
+            int buffer_size = fDelayLineSizes[vname];
+            
+            // Calculate delayed index: (idx - d + buffer_size) % buffer_size
+            // Note: We add buffer_size before modulo to handle negative values correctly
+            FIRIndex curr_idx = FIRIndex(IB::genLoadStructVar(idx_name));
+            FIRIndex delay_idx = (curr_idx - FIRIndex(d) + FIRIndex(buffer_size)) % FIRIndex(buffer_size);
+            return IB::genLoadArrayStructVar(vname, delay_idx);
+        } else {
+            // Variable delay - handled by JAXInstVisitor LoadVarInst for dynamic indexing
+            return InstructionsCompiler::generateDelayAccess(sig, exp, delay);
         }
     } else {
         // For all other cases, use the default implementation

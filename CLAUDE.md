@@ -90,9 +90,29 @@ Located in `/generator`:
 - `llvm_code_container.*` - LLVM IR backend
 - `wasm_*_code_container.*` - WebAssembly backends
 - `rust_code_container.*` - Rust backend
-- `jax_code_container.*` - JAX backend
+- `jax_code_container.*` - JAX backend (with circular buffer optimization)
 - `julia_code_container.*` - Julia backend
 - `template.*` - A template starting point for making a new backend
+
+#### JAX Backend Circular Buffer Optimization
+
+The JAX backend implements a hybrid approach for delay line optimization:
+
+**Circular Buffers** (O(1) performance):
+- Used for larger delay lines (> gMaxCopyDelay, typically > 16 samples)
+- Applied to variable delay lines (e.g., modulated delays, chorus effects)
+- Replaces expensive `jnp.roll` operations with modular arithmetic
+- Examples: comb_delay1.dsp, echo.dsp, freeverb.dsp, smoothdelay.dsp
+
+**Roll Operations** (preserved for compatibility):
+- Used for small recursive delay arrays (≤ 16 samples)
+- Maintained for IIR filters where shift semantics are integral
+- Ensures compatibility with complex filter feedback structures
+- Examples: tf_exp.dsp (biquad sections), vcf_wah_pedals.dsp, zita_rev1.dsp
+
+**Implementation files:**
+- `compiler/generator/instructions_compiler_jax.cpp/hh` - Compiler logic
+- `compiler/generator/jax/jax_instructions.hh` - Visitor for array access conversion
 
 ### Adding New Features
 

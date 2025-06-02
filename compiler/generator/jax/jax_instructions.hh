@@ -34,11 +34,18 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
     std::ostream* fOut;
     int           fTab;
     std::set<std::string>* fScalarDelayVars;
+    std::set<std::string>* fCircularBufferVars;
+    std::map<std::string, int>* fDelayLineSizes;
     JAXVariableClassifier fClassifier;
 
-    JAXInitFieldsVisitor(std::ostream* out, int tab = 0, std::set<std::string>* scalarDelayVars = nullptr,
+    JAXInitFieldsVisitor(std::ostream* out, int tab = 0, 
+                         std::set<std::string>* scalarDelayVars = nullptr,
+                         std::set<std::string>* circularBufferVars = nullptr,
+                         std::map<std::string, int>* delayLineSizes = nullptr,
                          const std::string& className = "mydsp") 
-        : fOut(out), fTab(tab), fScalarDelayVars(scalarDelayVars), fClassifier(className) {}
+        : fOut(out), fTab(tab), fScalarDelayVars(scalarDelayVars), 
+          fCircularBufferVars(circularBufferVars), fDelayLineSizes(delayLineSizes),
+          fClassifier(className) {}
 
     virtual void visit(DeclareVarInst* inst)
     {        
@@ -60,6 +67,19 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
                 inst->fValue->accept(this);
             } else {
                 ZeroInitializer(fOut, inst->fType);
+            }
+            
+            // Initialize circular buffer index if needed
+            if (fCircularBufferVars && inst->fAddress) {
+                if (NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress)) {
+                    if (fCircularBufferVars->find(named->fName) != fCircularBufferVars->end()) {
+                        *fOut << " ";
+                        tab(fTab, *fOut);
+                        *fOut << "# Initialize circular buffer index\n";
+                        tab(fTab, *fOut);
+                        *fOut << "state[\"" << named->fName << "_idx\"] = np.int64(0) ";
+                    }
+                }
             }
         } else {
             // Handle non-array struct variables (like IOTA)
@@ -195,11 +215,24 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
     }
 };
 
+/**
+ * JAX Instruction Visitor with Circular Buffer Support
+ * 
+ * This visitor generates JAX/Python code from Faust IR instructions, with special
+ * handling for optimized delay line access patterns. It implements:
+ * 
+ * - Circular buffer array access conversion for efficient delay line operations
+ * - Variable classification for proper state management in JAX modules
+ * - Dynamic index handling for modulated delays (e.g., chorus, flangers)
+ * - Integration with JAX's immutable array semantics (.at[].set() operations)
+ */
 class JAXInstVisitor : public TextInstVisitor {
    public:
-    std::set<std::string> fScalarDelayVars;  // Track single-sample delay variables
-    std::set<std::string> fUIParamVars;  // Track UI parameter variables
-    std::set<std::string> fConstantVars;  // Track constant variables
+    std::set<std::string> fScalarDelayVars;      // Single-sample delay variables (optimized as scalars)
+    std::set<std::string> fUIParamVars;          // UI parameter variables
+    std::set<std::string> fConstantVars;         // Constant variables
+    std::set<std::string> fCircularBufferVars;   // Delay lines using circular buffer optimization
+    std::map<std::string, int> fDelayLineSizes;  // Buffer sizes for circular buffer index calculations
     
     // State management (mutable so it can be modified in const contexts)
     mutable JAXStateManager fStateManager;
@@ -460,6 +493,58 @@ class JAXInstVisitor : public TextInstVisitor {
     }
 
     virtual ~JAXInstVisitor() {}
+
+    virtual void visit(LoadVarInst* inst)
+    {
+        // JAX Circular Buffer Array Access Handler
+        //
+        // This visitor intercepts array load operations and converts them to circular buffer
+        // indexing when appropriate. This provides significant performance benefits by
+        // replacing O(n) jnp.roll operations with O(1) modular arithmetic.
+        //
+        // The circular buffer approach works by:
+        // 1. Maintaining a current write index for each delay line
+        // 2. Converting array[delay] to array[(current_idx - delay + size) % size]
+        // 3. Incrementing the write index after each sample
+        //
+        // This is applied selectively to avoid breaking recursive filter structures
+        // that depend on the specific semantics of roll operations.
+        
+        if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+            if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                if (fCircularBufferVars.find(named->fName) != fCircularBufferVars.end()) {
+                    // This array is marked for circular buffer optimization
+                    int bufferSize = fDelayLineSizes[named->fName];
+                    
+                    if (Int32NumInst* constIndex = dynamic_cast<Int32NumInst*>(indexed->getIndex())) {
+                        // Constant index access to circular buffer
+                        int delay = constIndex->fNum;
+                        
+                        if (delay == 0) {
+                            // Direct access at current write index (most recent sample)
+                            *fOut << "state[\"" << named->fName << "\"][state[\"" << named->fName << "_idx\"]]";
+                        } else {
+                            // Access with delay: read from (current_idx - delay + buffer_size) % buffer_size
+                            // Adding buffer_size ensures the result is positive before modulo
+                            *fOut << "state[\"" << named->fName << "\"][(((state[\"" << named->fName << "_idx\"] - " 
+                                  << delay << ") + " << bufferSize << ") % " << bufferSize << ")]";
+                        }
+                        return;
+                    } else {
+                        // Variable index access to circular buffer (e.g., modulated delay time)
+                        // This handles cases like comb_delay1.dsp where delay time is computed dynamically
+                        *fOut << "state[\"" << named->fName << "\"][((state[\"" << named->fName << "_idx\"] - ";
+                        indexed->getIndex()->accept(this);
+                        *fOut << " + " << bufferSize << ") % " << bufferSize << ").astype(jnp.int32)]";
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // Default handling for non-circular buffer access (including roll-based arrays)
+        TextInstVisitor::visit(inst);
+    }
 
     virtual void visit(AddMetaDeclareInst* inst)
     {

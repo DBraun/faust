@@ -166,6 +166,55 @@ for block_idx in range(num_blocks):
 
 ## Performance Optimizations
 
+### Circular Buffer Optimization for Delay Lines
+
+The JAX backend implements intelligent delay line optimization to minimize expensive `jnp.roll` operations. This is controlled by the `-mcd` (max copy delay) compiler flag.
+
+#### Compiler Flag: `-mcd <size>`
+
+The `-mcd` flag controls when circular buffers are used instead of roll operations:
+
+```bash
+# Default: small delays (≤16) use roll, larger delays use circular buffers
+./build/bin/faust -lang jax mydsp.dsp -o mydsp.py
+
+# Force more delays to use roll operations (may reduce performance)
+./build/bin/faust -lang jax -mcd 64 mydsp.dsp -o mydsp.py
+
+# Force more delays to use circular buffers (may break some filter designs)
+./build/bin/faust -lang jax -mcd 8 mydsp.dsp -o mydsp.py
+```
+
+#### How Circular Buffer Optimization Works
+
+**Roll Operations** (for small delays ≤ `-mcd` size, default 16):
+```python
+# Traditional approach for small recursive delays
+state["fRec0"] = state["fRec0"].at[0].set(new_value)
+output = state["fRec0"][1] + state["fRec0"][2]  # Read delayed values
+state["fRec0"] = jnp.roll(state["fRec0"], 1)    # O(n) shift operation
+```
+
+**Circular Buffers** (for larger delays > `-mcd` size):
+```python
+# Optimized approach using modular arithmetic
+state["fVec0"] = state["fVec0"].at[state["fVec0_idx"]].set(new_value)  # Write at current index
+delay1 = state["fVec0"][(((state["fVec0_idx"] - 1) + size) % size)]    # O(1) delayed access
+delay2 = state["fVec0"][(((state["fVec0_idx"] - 2) + size) % size)]    # O(1) delayed access
+state["fVec0_idx"] = ((state["fVec0_idx"] + 1) % size)                 # Increment index
+```
+
+#### When to Adjust `-mcd`
+
+- **Default (16)**: Works well for most DSPs. Small recursive filters use roll, large delays use circular buffers
+- **Increase `-mcd`**: If you have complex filter matrices that break with circular buffers
+- **Decrease `-mcd`**: If you want maximum performance and your DSP doesn't use complex recursive structures
+
+**Examples by DSP type:**
+- **Simple delays, echo effects**: Benefit from lower `-mcd` values (more circular buffers)
+- **Complex reverbs, filter banks**: May need higher `-mcd` values (preserve roll semantics)
+- **Variable/modulated delays**: Always use circular buffers regardless of `-mcd`
+
 ### Single-Sample Delay Optimization
 
 The JAX backend includes a special optimization for single-sample delays (`x'` in Faust), which are very common in DSP code. Instead of using arrays with roll operations, single-sample delays are implemented as scalar state variables.
