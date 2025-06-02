@@ -215,6 +215,123 @@ state["fVec0_idx"] = ((state["fVec0_idx"] + 1) % size)                 # Increme
 - **Complex reverbs, filter banks**: May need higher `-mcd` values (preserve roll semantics)
 - **Variable/modulated delays**: Always use circular buffers regardless of `-mcd`
 
+#### How to Detect if `-mcd` is Breaking Your DSP
+
+Several methods can help you determine if your `-mcd` setting is causing problems:
+
+**1. Impulse Response Testing** (Most Reliable)
+Compare impulse responses with different `-mcd` values:
+
+```bash
+# Test with current setting
+./build/bin/faust -lang jax -mcd 16 mydsp.dsp -o mydsp_mcd16.py
+python3 mydsp_mcd16.py > output_mcd16.txt
+
+# Test with higher setting (more roll operations)
+./build/bin/faust -lang jax -mcd 64 mydsp.dsp -o mydsp_mcd64.py
+python3 mydsp_mcd64.py > output_mcd64.txt
+
+# Compare outputs
+diff output_mcd16.txt output_mcd64.txt
+```
+
+If the outputs differ, your DSP is likely breaking with the lower `-mcd` value.
+
+**2. Listen for Audio Artifacts**
+Process real audio and listen for:
+- **Metallic/digital distortion** - Often indicates incorrect delay line behavior
+- **Pitch shifting** - Can happen when circular buffer indexing is wrong
+- **Loss of reverb tail** - Common in complex reverb algorithms
+- **Unstable oscillations** - May indicate feedback loop issues
+
+**3. Check for Mathematical Instability**
+Monitor for numerical issues:
+
+```python
+# Add to your DSP processing loop
+outputs = model.apply(variables, inputs)
+
+# Check for NaN/Inf
+if jnp.any(jnp.isnan(outputs)) or jnp.any(jnp.isinf(outputs)):
+    print("WARNING: NaN or Inf detected - likely unstable!")
+
+# Check for explosive growth
+if jnp.max(jnp.abs(outputs)) > 100.0:
+    print("WARNING: Output magnitude very large - possible instability!")
+```
+
+**4. DSP-Specific Guidelines**
+
+**Increase `-mcd` (use more roll operations) if your DSP has:**
+- Complex filter matrices or nested feedback
+- Recursive structures with interdependent delays
+- Reverb algorithms (especially algorithmic reverbs)
+- Physical modeling with complex delay networks
+- Variable delay lines with feedback
+
+**Keep `-mcd` low (more circular buffers) if your DSP has:**
+- Simple delay effects (echo, chorus, flanger)
+- Long delay lines without complex feedback
+- Pure feedforward processing
+- Granular synthesis
+- Simple comb filters
+
+**5. Systematic Testing Approach**
+
+```bash
+# Start conservative (high mcd)
+./build/bin/faust -lang jax -mcd 64 mydsp.dsp -o test.py
+python3 test.py > baseline.txt
+
+# Test progressively lower values
+for mcd in 32 16 8 4; do
+    ./build/bin/faust -lang jax -mcd $mcd mydsp.dsp -o test.py
+    python3 test.py > test_$mcd.txt
+    
+    if ! diff baseline.txt test_$mcd.txt > /dev/null; then
+        echo "DSP breaks with -mcd $mcd"
+        break
+    else
+        echo "-mcd $mcd works fine"
+    fi
+done
+```
+
+**6. Look at Generated Code**
+Examine the generated Python to understand what's happening:
+
+```bash
+# Generate with verbose output to see delay line decisions
+./build/bin/faust -lang jax -mcd 16 mydsp.dsp -o mydsp.py
+
+# Look for patterns in the generated code
+grep -n "jnp.roll\|_idx" mydsp.py
+```
+
+**Red flags in generated code:**
+- Small arrays (≤16) using circular buffer patterns instead of `jnp.roll`
+- Complex interdependent delay access patterns
+- Feedback loops involving circular buffer variables
+
+**7. Reference Implementation Comparison**
+Compare against the C++ version:
+
+```bash
+# Generate C++ version
+./build/bin/faust -lang cpp mydsp.dsp -o mydsp.cpp
+
+# Compare impulse responses between C++ and JAX versions
+# (This requires building and running the C++ version)
+```
+
+**Quick Rule of Thumb:**
+- **Start with `-mcd 16`** (the default)
+- **If you hear artifacts or see different outputs**, increase to `-mcd 32` or `-mcd 64`
+- **If everything sounds identical**, you can try decreasing to `-mcd 8` for better performance
+- **For complex reverbs/physical models**, consider `-mcd 64` or higher
+
+The key insight is that if your DSP works correctly with a higher `-mcd` value but breaks with a lower one, the circular buffer optimization is interfering with delay line semantics that your algorithm depends on.
+
 ### Single-Sample Delay Optimization
 
 The JAX backend includes a special optimization for single-sample delays (`x'` in Faust), which are very common in DSP code. Instead of using arrays with roll operations, single-sample delays are implemented as scalar state variables.
