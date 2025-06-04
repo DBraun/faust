@@ -99,8 +99,7 @@ $(outdir):
 # Rule to compile DSP to Python
 $(outdir)/%.py: dsp/%.dsp | $(outdir)
 	@echo "Compiling $<..."
-	@set -o pipefail; \
-	if $(FAUST) $(FAUSTOPTIONS) -I ../../libraries/ $< -o $@ 2>&1 | tee $(outdir)/$*.compile.log; then \
+	if $(FAUST) $(FAUSTOPTIONS) -I ../../libraries/ $< $@ 2>&1 | tee $(outdir)/$*.compile.log; then \
 		echo "Compilation successful"; \
 	else \
 		echo "FAILED: Compilation error" > $(outdir)/$*.test; \
