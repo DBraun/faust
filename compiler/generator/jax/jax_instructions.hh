@@ -639,7 +639,7 @@ class JAXInstVisitor : public TextInstVisitor {
               << "bargraph(" << quote(inst->fZone) << ", ui_path, "
               << quote(inst->fLabel) << ", " 
               << checkReal(inst->fMin) << ", " 
-              << checkReal(inst->fMax) << ")";
+              << checkReal(inst->fMax) << ", unnorm_funcs)";
         EndLine(' ');
     }
 
@@ -647,7 +647,7 @@ class JAXInstVisitor : public TextInstVisitor {
     {
         // Always use setup-style (no state parameter)
         *fOut << "self.add_soundfile(" << quote(inst->fSFZone) << ", ui_path, "
-              << quote(inst->fLabel) << ", " << quote(inst->fURL) << ")";
+              << quote(inst->fLabel) << ", " << quote(inst->fURL) << ", unnorm_funcs)";
         EndLine(' ');
     }
 
