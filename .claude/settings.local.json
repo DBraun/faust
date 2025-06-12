@@ -40,7 +40,8 @@
       "Bash(done)",
       "Bash(! grep -q \"PASSED\" \"$f\")",
       "Bash(touch:*)",
-      "Bash(./filesCompare ir/jax/double/APF.ir reference/APF.ir)"
+      "Bash(./filesCompare ir/jax/double/APF.ir reference/APF.ir)",
+      "Bash(/mnt/c/Users/braun/GitHub/faust/build/bin/faust:*)"
     ],
     "deny": []
   }

@@ -292,6 +292,374 @@ void JAXCodeContainer::produceClass()
     tab(n + 1, *fOut);
     *fOut << "# fmt: off";
 
+    // Setup method - handles only immutable instance attributes and constants
+    tab(n + 1, *fOut);
+    *fOut << "def setup(self):";
+    {
+        JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
+        // Use RAII context scope for setup method
+        JAXStateManager::ContextScope setupScope(jaxVisitor->fStateManager, JAXStateManager::Context::SETUP);
+
+        // Section 1: Initialize constants
+        // Note: sample_rate is accessed directly as self.sample_rate, no need to store it
+
+        // Section 2: Collect all static tables and waveform data
+        std::map<std::string, ValueInst*> waveformData = collectWaveformData();
+        std::set<std::string> staticTables;
+
+        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+
+                // Collect static tables (ftbl0* and itbl0*<classname>SIG*)
+                if (varname.find("ftbl0") == 0 ||
+                    (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
+                    staticTables.insert(varname);
+                }
+            }
+        }
+
+        // Section 3: Initialize static tables as instance attributes
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize static tables";
+
+        // First, detect tables used in inline subcontainer code that might not be declared
+        struct TableDetector : public DispatchVisitor {
+            std::set<std::string> fTablesUsed;
+
+            virtual void visit(StoreVarInst* inst) {
+                string varname = inst->fAddress->getName();
+                if ((varname.find("ftbl0") == 0 || varname.find("itbl0") == 0) &&
+                    varname.find("_idx") == std::string::npos) {
+                    fTablesUsed.insert(varname);
+                }
+                DispatchVisitor::visit(inst);
+            }
+
+            virtual void visit(LoadVarInst* inst) {
+                string varname = inst->fAddress->getName();
+                if ((varname.find("ftbl0") == 0 || varname.find("itbl0") == 0) &&
+                    varname.find("_idx") == std::string::npos) {
+                    fTablesUsed.insert(varname);
+                }
+                DispatchVisitor::visit(inst);
+            }
+        };
+
+        TableDetector detector;
+        if (fStaticInitInstructions->fCode.size() > 0) {
+            // Detect tables in the inlined static init instructions
+            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&detector);
+        }
+
+        // Declare any tables found in inline subcontainer code but not in global declarations
+        for (const auto& tableName : detector.fTablesUsed) {
+            bool found = false;
+            for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+                if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                    if (decl->fAddress->getName() == tableName) {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found) {
+                tab(n + 2, *fOut);
+                *fOut << "# Table used in inline subcontainer but not declared globally";
+                tab(n + 2, *fOut);
+                // Determine size and type from usage pattern (default to 65537 for sine tables)
+                if (tableName.find("ftbl0") == 0) {
+                    *fOut << tableName << " = np.zeros((65537,), dtype=np.float"
+                          << (gGlobal->gFloatSize == 1 ? "32" : "64") << ")";
+                } else {
+                    *fOut << tableName << " = np.zeros((65537,), dtype=np.int32)";
+                }
+                jaxVisitor->fConstantVars.insert(tableName);
+            }
+        }
+
+        // Now declare tables from global declarations
+        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                string varname = decl->fAddress->getName();
+                if (varname.find("ftbl0") == 0 ||
+                    (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
+                    tab(n + 2, *fOut);
+                    // Initialize as local variable first, will be converted to instance attribute later
+                    *fOut << varname << " = ";
+                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                    if (array_type) {
+                        if (varname.find("itbl0") == 0) {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+                        } else {
+                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+                        }
+                    }
+                    jaxVisitor->fConstantVars.insert(varname);
+                }
+            }
+        }
+
+        // Section 4: Initialize waveform data
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize waveform data";
+        // Keep using numpy for waveform data during setup
+        for (const auto& kv : waveformData) {
+            if (kv.second != nullptr) {
+                tab(n + 2, *fOut);
+                *fOut << "self._" << kv.first << " = ";
+                kv.second->accept(jaxVisitor);
+                jaxVisitor->fConstantVars.insert(kv.first);
+            } else {
+                // For subcontainer tables without initial value, the initialization
+                // will be handled by the inline subcontainer processing below
+                tab(n + 2, *fOut);
+                *fOut << "# " << kv.first << " will be initialized by subcontainer code";
+            }
+        }
+
+        // Section 5: Process inline subcontainers (for filling static tables)
+        //
+        // NOTE: This section is a partial implementation of inline subcontainer support.
+        // In the C++ backend, constructs like ba.tabulate generate separate classes
+        // (e.g., mydspSIG0) with their own initialization functions (fillmydspSIG0, etc.).
+        // The JAX backend currently lacks this infrastructure, so we attempt to inline
+        // the initialization code directly. This leads to several issues:
+        //
+        // 1. Missing function calls (fillmydspSIG0SIG0, instanceInitmydspSIG0SIG0)
+        // 2. Unknown array sizes for local variables (defaulting to 4)
+        // 3. Incomplete initialization patterns
+        //
+        // This is why tests like waveform_tabulate fail - they rely on proper
+        // inline subcontainer support.
+        if (fStaticInitInstructions->fCode.size() > 0) {
+            tab(n + 2, *fOut);
+            *fOut << "# Process inline subcontainers for static table initialization";
+
+            // Extract and declare local variables needed for inline subcontainers
+            struct LocalVarExtractor : public DispatchVisitor {
+                std::set<std::string> fLocalVars;
+                std::map<std::string, int> fArraySizes;  // Track array sizes
+                std::set<std::string> fArrayVars;  // Track variables accessed as arrays
+
+                virtual void visit(StoreVarInst* inst) {
+                    // Check if storing to an indexed address (array access)
+                    if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+                        if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                            string indexed_varname = named->getName();
+                            if (indexed_varname.find("ftbl") != 0 && indexed_varname.find("itbl") != 0) {
+                                fLocalVars.insert(indexed_varname);
+                                fArrayVars.insert(indexed_varname);
+                            }
+                        }
+                    } else {
+                        // Regular (non-indexed) address
+                        string varname = inst->fAddress->getName();
+                        // Capture all variables that look like temporary/local variables
+                        // but exclude table names (ftbl* and itbl*)
+                        if (varname.find("ftbl") != 0 && varname.find("itbl") != 0 &&  // Exclude table names
+                            (varname.find("Vec") != std::string::npos ||
+                             varname.find("Rec") != std::string::npos ||
+                             varname.find("_idx") != std::string::npos)) {
+                            fLocalVars.insert(varname);
+                        }
+                    }
+                }
+
+                // Also check for array access in LoadVarInst
+                virtual void visit(LoadVarInst* inst) {
+                    if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+                        if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                            string indexed_varname = named->getName();
+                            if (indexed_varname.find("ftbl") != 0 && indexed_varname.find("itbl") != 0) {
+                                fLocalVars.insert(indexed_varname);
+                                fArrayVars.insert(indexed_varname);
+                            }
+                        }
+                    }
+                }
+
+                virtual void visit(DeclareVarInst* inst) {
+                    string varname = inst->fAddress->getName();
+                    // Check if this is an array declaration for a local variable
+                    if (varname.find("ftbl") != 0 && varname.find("itbl") != 0) {
+                        if (ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(inst->fType)) {
+                            fLocalVars.insert(varname);
+                            fArraySizes[varname] = array_type->fSize;
+                        }
+                    }
+                }
+            };
+
+            LocalVarExtractor extractor;
+            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&extractor);
+
+            // Remove iRec and iVec variables from fArrayVars if they are not actually accessed as arrays
+            // This handles the common pattern where these are used as scalars in inline subcontainers
+            std::set<std::string> toRemove;
+            for (const auto& varname : extractor.fLocalVars) {
+                if ((varname.find("iRec") == 0 || varname.find("iVec") == 0) &&
+                    extractor.fArrayVars.find(varname) != extractor.fArrayVars.end()) {
+                    // Check if this variable is really accessed as an array
+                    // For now, assume iRec/iVec variables in inline subcontainers are scalars unless proven otherwise
+                    toRemove.insert(varname);
+                }
+            }
+            for (const auto& varname : toRemove) {
+                extractor.fArrayVars.erase(varname);
+            }
+
+            // Declare local variables
+            // Special handling for iRec variables in inline subcontainers
+            // If iRec variable is not accessed as array, it's likely a scalar (common pattern in noise generators)
+            for (const auto& varname : extractor.fLocalVars) {
+                tab(n + 2, *fOut);
+                // Debug info
+                *fOut << "# " << varname;
+                if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end()) {
+                    *fOut << " (in fArraySizes, size=" << extractor.fArraySizes[varname] << ")";
+                }
+                if (extractor.fArrayVars.find(varname) != extractor.fArrayVars.end()) {
+                    *fOut << " (in fArrayVars)";
+                }
+                *fOut << endl;
+                tab(n + 2, *fOut);
+                *fOut << varname << " = ";
+
+                // Check if it's an array (either from array size info or array access detection)
+                // For inline subcontainer variables, only treat as array if explicitly accessed as array
+                if (extractor.fArrayVars.find(varname) != extractor.fArrayVars.end()) {
+                    // Variable was accessed as an array
+                    // Use size from fArraySizes if available, otherwise default to 4
+                    if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end()) {
+                        int size = extractor.fArraySizes[varname];
+                        if (varname[0] == 'i') {
+                            *fOut << "np.zeros((" << size << ",), dtype=np.int32)";
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((" << size << ",), dtype=np.float32)";
+                        } else {
+                            *fOut << "np.zeros((" << size << ",), dtype=np.float64)";
+                        }
+                    } else {
+                        // Default size of 4 for arrays without explicit size
+                        // This is a WORKAROUND for incomplete inline subcontainer support.
+                        //
+                        // Background: Some Faust constructs (like ba.tabulate) generate inline
+                        // subcontainers that initialize tables. These subcontainers may declare
+                        // local arrays whose sizes we cannot determine from static analysis.
+                        //
+                        // The C++ backend generates separate classes (e.g., mydspSIG0) with proper
+                        // initialization functions. The JAX backend currently doesn't support this,
+                        // so we fall back to a hardcoded size of 4.
+                        //
+                        // This happens to work for some tests (like waveform_tabulate which uses
+                        // size 4), but it's fragile and could fail for other sizes.
+                        //
+                        // TODO: Implement proper inline subcontainer support to eliminate this hack
+                        if (varname[0] == 'i') {
+                            *fOut << "np.zeros((4,), dtype=np.int32)  # WARNING: default size 4 for " << varname;
+                        } else if (gGlobal->gFloatSize == 1) {
+                            *fOut << "np.zeros((4,), dtype=np.float32)  # WARNING: default size 4 for " << varname;
+                        } else {
+                            *fOut << "np.zeros((4,), dtype=np.float64)  # WARNING: default size 4 for " << varname;
+                        }
+                    }
+                } else if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end() &&
+                           varname.find("iRec") != 0) {  // Only use array size for non-iRec variables
+                    int size = extractor.fArraySizes[varname];
+                    if (varname[0] == 'i') {
+                        *fOut << "np.zeros((" << size << ",), dtype=np.int32)";
+                    } else if (gGlobal->gFloatSize == 1) {
+                        *fOut << "np.zeros((" << size << ",), dtype=np.float32)";
+                    } else {
+                        *fOut << "np.zeros((" << size << ",), dtype=np.float64)";
+                    }
+                } else {
+                    // Scalar variable
+                    if (varname[0] == 'i' || varname.find("_idx") != std::string::npos) {
+                        *fOut << "np.int32(0)";
+                    } else if (gGlobal->gFloatSize == 1) {
+                        *fOut << "np.float32(0)";
+                    } else {
+                        *fOut << "np.float64(0)";
+                    }
+                }
+            }
+
+            // Process inline subcontainer code
+            if (!extractor.fLocalVars.empty()) {
+                tab(n + 2, *fOut);
+            }
+            gGlobal->gJAXVisitor->Tab(n + 2);
+            {
+                // Use INLINE_SUBCONTAINER context to handle variable access correctly
+                // But we need to keep useNumpy() returning true (inherited from SETUP)
+                JAXStateManager::ContextScope scope(jaxVisitor->fStateManager, JAXStateManager::Context::STATIC_INIT);
+                inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
+            }
+        }
+
+        // Section 5.5: Convert static tables to JAX arrays and freeze them
+        // Static tables need to be JAX arrays for indexing within JIT-compiled code,
+        // but they should be marked as static (non-trainable) to avoid issues
+        tab(n + 2, *fOut);
+        *fOut << "# Convert static tables and waveform data to JAX arrays";
+
+        // Convert all tables that were detected or declared
+        for (const auto& tableName : jaxVisitor->fConstantVars) {
+            if ((tableName.find("ftbl0") == 0 || tableName.find("itbl0") == 0) &&
+                tableName.find("_idx") == std::string::npos) {
+                tab(n + 2, *fOut);
+                *fOut << "self._" << tableName << " = jnp.array(" << tableName << ")";
+            }
+        }
+
+        // Section 6: Initialize UI parameters
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize UI parameters";
+        tab(n + 2, *fOut);
+        *fOut << "unnorm_funcs = {}";
+        tab(n + 2, *fOut);
+        *fOut << "ui_path = []";
+        tab(n + 2, *fOut);
+        gGlobal->gJAXVisitor->Tab(n + 2);
+        generateUserInterface(gGlobal->gJAXVisitor);
+        tab(n + 2, *fOut);
+        *fOut << "self._unnorm_funcs = unnorm_funcs";
+
+        // Section 7: Initialize constants from init instructions
+        tab(n + 2, *fOut);
+        *fOut << "# Initialize other constants";
+
+        struct ConstantInitExtractor : public DispatchVisitor {
+            std::ostream* fOut;
+            int fTab;
+            JAXInstVisitor* fJaxVisitor;
+
+            ConstantInitExtractor(std::ostream* out, int tab, JAXInstVisitor* visitor)
+                : fOut(out), fTab(tab), fJaxVisitor(visitor) {}
+
+            virtual void visit(StoreVarInst* inst) {
+                string varname = inst->fAddress->getName();
+                if (varname.find("Const") != std::string::npos) {
+                    fJaxVisitor->fConstantVars.insert(varname);
+                    tab(fTab, *fOut);
+                    inst->accept(fJaxVisitor);
+                } else if (varname.find("pfPerm") == 0) {
+                    // Store pfPerm initialization values for _initialize_carry
+                    fJaxVisitor->fPfPermInitValues[varname] = inst->fValue;
+                }
+            }
+        };
+
+        ConstantInitExtractor extractor(fOut, n + 2, jaxVisitor);
+        fInitInstructions->accept(&extractor);
+    }
+    // Setup context scope ends here automatically
+
     tab(n + 1, *fOut);
     *fOut << "def _initialize_carry(self, x: jnp.ndarray, length: int):";
     {
@@ -794,374 +1162,6 @@ void JAXCodeContainer::produceClass()
     //     tab(n + 1, *fOut);
     // }
 
-    // Setup method - handles only immutable instance attributes and constants
-    tab(n + 1, *fOut);
-    *fOut << "def setup(self):";
-    {
-        JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
-        // Use RAII context scope for setup method
-        JAXStateManager::ContextScope setupScope(jaxVisitor->fStateManager, JAXStateManager::Context::SETUP);
-        
-        // Section 1: Initialize constants
-        // Note: sample_rate is accessed directly as self.sample_rate, no need to store it
-        
-        // Section 2: Collect all static tables and waveform data
-        std::map<std::string, ValueInst*> waveformData = collectWaveformData();
-        std::set<std::string> staticTables;
-        
-        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                
-                // Collect static tables (ftbl0* and itbl0*<classname>SIG*)
-                if (varname.find("ftbl0") == 0 || 
-                    (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
-                    staticTables.insert(varname);
-                }
-            }
-        }
-        
-        // Section 3: Initialize static tables as instance attributes
-        tab(n + 2, *fOut);
-        *fOut << "# Initialize static tables";
-        
-        // First, detect tables used in inline subcontainer code that might not be declared
-        struct TableDetector : public DispatchVisitor {
-            std::set<std::string> fTablesUsed;
-            
-            virtual void visit(StoreVarInst* inst) {
-                string varname = inst->fAddress->getName();
-                if ((varname.find("ftbl0") == 0 || varname.find("itbl0") == 0) &&
-                    varname.find("_idx") == std::string::npos) {
-                    fTablesUsed.insert(varname);
-                }
-                DispatchVisitor::visit(inst);
-            }
-            
-            virtual void visit(LoadVarInst* inst) {
-                string varname = inst->fAddress->getName();
-                if ((varname.find("ftbl0") == 0 || varname.find("itbl0") == 0) &&
-                    varname.find("_idx") == std::string::npos) {
-                    fTablesUsed.insert(varname);
-                }
-                DispatchVisitor::visit(inst);
-            }
-        };
-        
-        TableDetector detector;
-        if (fStaticInitInstructions->fCode.size() > 0) {
-            // Detect tables in the inlined static init instructions
-            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&detector);
-        }
-        
-        // Declare any tables found in inline subcontainer code but not in global declarations
-        for (const auto& tableName : detector.fTablesUsed) {
-            bool found = false;
-            for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-                if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                    if (decl->fAddress->getName() == tableName) {
-                        found = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (!found) {
-                tab(n + 2, *fOut);
-                *fOut << "# Table used in inline subcontainer but not declared globally";
-                tab(n + 2, *fOut);
-                // Determine size and type from usage pattern (default to 65537 for sine tables)
-                if (tableName.find("ftbl0") == 0) {
-                    *fOut << tableName << " = np.zeros((65537,), dtype=np.float" 
-                          << (gGlobal->gFloatSize == 1 ? "32" : "64") << ")";
-                } else {
-                    *fOut << tableName << " = np.zeros((65537,), dtype=np.int32)";
-                }
-                jaxVisitor->fConstantVars.insert(tableName);
-            }
-        }
-        
-        // Now declare tables from global declarations
-        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                if (varname.find("ftbl0") == 0 || 
-                    (varname.find("itbl0") == 0 && varname.find(fKlassName + "SIG") != std::string::npos)) {
-                    tab(n + 2, *fOut);
-                    // Initialize as local variable first, will be converted to instance attribute later
-                    *fOut << varname << " = ";
-                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
-                    if (array_type) {
-                        if (varname.find("itbl0") == 0) {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
-                        } else if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
-                        } else {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
-                        }
-                    }
-                    jaxVisitor->fConstantVars.insert(varname);
-                }
-            }
-        }
-        
-        // Section 4: Initialize waveform data
-        tab(n + 2, *fOut);
-        *fOut << "# Initialize waveform data";
-        // Keep using numpy for waveform data during setup
-        for (const auto& kv : waveformData) {
-            if (kv.second != nullptr) {
-                tab(n + 2, *fOut);
-                *fOut << "self._" << kv.first << " = ";
-                kv.second->accept(jaxVisitor);
-                jaxVisitor->fConstantVars.insert(kv.first);
-            } else {
-                // For subcontainer tables without initial value, the initialization
-                // will be handled by the inline subcontainer processing below
-                tab(n + 2, *fOut);
-                *fOut << "# " << kv.first << " will be initialized by subcontainer code";
-            }
-        }
-        
-        // Section 5: Process inline subcontainers (for filling static tables)
-        // 
-        // NOTE: This section is a partial implementation of inline subcontainer support.
-        // In the C++ backend, constructs like ba.tabulate generate separate classes
-        // (e.g., mydspSIG0) with their own initialization functions (fillmydspSIG0, etc.).
-        // The JAX backend currently lacks this infrastructure, so we attempt to inline
-        // the initialization code directly. This leads to several issues:
-        // 
-        // 1. Missing function calls (fillmydspSIG0SIG0, instanceInitmydspSIG0SIG0)
-        // 2. Unknown array sizes for local variables (defaulting to 4)
-        // 3. Incomplete initialization patterns
-        // 
-        // This is why tests like waveform_tabulate fail - they rely on proper
-        // inline subcontainer support.
-        if (fStaticInitInstructions->fCode.size() > 0) {
-            tab(n + 2, *fOut);
-            *fOut << "# Process inline subcontainers for static table initialization";
-            
-            // Extract and declare local variables needed for inline subcontainers
-            struct LocalVarExtractor : public DispatchVisitor {
-                std::set<std::string> fLocalVars;
-                std::map<std::string, int> fArraySizes;  // Track array sizes
-                std::set<std::string> fArrayVars;  // Track variables accessed as arrays
-                
-                virtual void visit(StoreVarInst* inst) {
-                    // Check if storing to an indexed address (array access)
-                    if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
-                        if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
-                            string indexed_varname = named->getName();
-                            if (indexed_varname.find("ftbl") != 0 && indexed_varname.find("itbl") != 0) {
-                                fLocalVars.insert(indexed_varname);
-                                fArrayVars.insert(indexed_varname);
-                            }
-                        }
-                    } else {
-                        // Regular (non-indexed) address
-                        string varname = inst->fAddress->getName();
-                        // Capture all variables that look like temporary/local variables
-                        // but exclude table names (ftbl* and itbl*)
-                        if (varname.find("ftbl") != 0 && varname.find("itbl") != 0 &&  // Exclude table names
-                            (varname.find("Vec") != std::string::npos || 
-                             varname.find("Rec") != std::string::npos ||
-                             varname.find("_idx") != std::string::npos)) {
-                            fLocalVars.insert(varname);
-                        }
-                    }
-                }
-                
-                // Also check for array access in LoadVarInst
-                virtual void visit(LoadVarInst* inst) {
-                    if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
-                        if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
-                            string indexed_varname = named->getName();
-                            if (indexed_varname.find("ftbl") != 0 && indexed_varname.find("itbl") != 0) {
-                                fLocalVars.insert(indexed_varname);
-                                fArrayVars.insert(indexed_varname);
-                            }
-                        }
-                    }
-                }
-                
-                virtual void visit(DeclareVarInst* inst) {
-                    string varname = inst->fAddress->getName();
-                    // Check if this is an array declaration for a local variable
-                    if (varname.find("ftbl") != 0 && varname.find("itbl") != 0) {
-                        if (ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(inst->fType)) {
-                            fLocalVars.insert(varname);
-                            fArraySizes[varname] = array_type->fSize;
-                        }
-                    }
-                }
-            };
-            
-            LocalVarExtractor extractor;
-            inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&extractor);
-            
-            // Remove iRec and iVec variables from fArrayVars if they are not actually accessed as arrays
-            // This handles the common pattern where these are used as scalars in inline subcontainers
-            std::set<std::string> toRemove;
-            for (const auto& varname : extractor.fLocalVars) {
-                if ((varname.find("iRec") == 0 || varname.find("iVec") == 0) && 
-                    extractor.fArrayVars.find(varname) != extractor.fArrayVars.end()) {
-                    // Check if this variable is really accessed as an array
-                    // For now, assume iRec/iVec variables in inline subcontainers are scalars unless proven otherwise
-                    toRemove.insert(varname);
-                }
-            }
-            for (const auto& varname : toRemove) {
-                extractor.fArrayVars.erase(varname);
-            }
-            
-            // Declare local variables
-            // Special handling for iRec variables in inline subcontainers
-            // If iRec variable is not accessed as array, it's likely a scalar (common pattern in noise generators)
-            for (const auto& varname : extractor.fLocalVars) {
-                tab(n + 2, *fOut);
-                // Debug info
-                *fOut << "# " << varname;
-                if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end()) {
-                    *fOut << " (in fArraySizes, size=" << extractor.fArraySizes[varname] << ")";
-                }
-                if (extractor.fArrayVars.find(varname) != extractor.fArrayVars.end()) {
-                    *fOut << " (in fArrayVars)";
-                }
-                *fOut << endl;
-                tab(n + 2, *fOut);
-                *fOut << varname << " = ";
-                
-                // Check if it's an array (either from array size info or array access detection)
-                // For inline subcontainer variables, only treat as array if explicitly accessed as array
-                if (extractor.fArrayVars.find(varname) != extractor.fArrayVars.end()) {
-                    // Variable was accessed as an array
-                    // Use size from fArraySizes if available, otherwise default to 4
-                    if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end()) {
-                        int size = extractor.fArraySizes[varname];
-                        if (varname[0] == 'i') {
-                            *fOut << "np.zeros((" << size << ",), dtype=np.int32)";
-                        } else if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.zeros((" << size << ",), dtype=np.float32)";
-                        } else {
-                            *fOut << "np.zeros((" << size << ",), dtype=np.float64)";
-                        }
-                    } else {
-                        // Default size of 4 for arrays without explicit size
-                        // This is a WORKAROUND for incomplete inline subcontainer support.
-                        // 
-                        // Background: Some Faust constructs (like ba.tabulate) generate inline
-                        // subcontainers that initialize tables. These subcontainers may declare
-                        // local arrays whose sizes we cannot determine from static analysis.
-                        // 
-                        // The C++ backend generates separate classes (e.g., mydspSIG0) with proper
-                        // initialization functions. The JAX backend currently doesn't support this,
-                        // so we fall back to a hardcoded size of 4.
-                        // 
-                        // This happens to work for some tests (like waveform_tabulate which uses
-                        // size 4), but it's fragile and could fail for other sizes.
-                        // 
-                        // TODO: Implement proper inline subcontainer support to eliminate this hack
-                        if (varname[0] == 'i') {
-                            *fOut << "np.zeros((4,), dtype=np.int32)  # WARNING: default size 4 for " << varname;
-                        } else if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.zeros((4,), dtype=np.float32)  # WARNING: default size 4 for " << varname;
-                        } else {
-                            *fOut << "np.zeros((4,), dtype=np.float64)  # WARNING: default size 4 for " << varname;
-                        }
-                    }
-                } else if (extractor.fArraySizes.find(varname) != extractor.fArraySizes.end() && 
-                           varname.find("iRec") != 0) {  // Only use array size for non-iRec variables
-                    int size = extractor.fArraySizes[varname];
-                    if (varname[0] == 'i') {
-                        *fOut << "np.zeros((" << size << ",), dtype=np.int32)";
-                    } else if (gGlobal->gFloatSize == 1) {
-                        *fOut << "np.zeros((" << size << ",), dtype=np.float32)";
-                    } else {
-                        *fOut << "np.zeros((" << size << ",), dtype=np.float64)";
-                    }
-                } else {
-                    // Scalar variable
-                    if (varname[0] == 'i' || varname.find("_idx") != std::string::npos) {
-                        *fOut << "np.int32(0)";
-                    } else if (gGlobal->gFloatSize == 1) {
-                        *fOut << "np.float32(0)";
-                    } else {
-                        *fOut << "np.float64(0)";
-                    }
-                }
-            }
-            
-            // Process inline subcontainer code
-            if (!extractor.fLocalVars.empty()) {
-                tab(n + 2, *fOut);
-            }
-            gGlobal->gJAXVisitor->Tab(n + 2);
-            {
-                // Use INLINE_SUBCONTAINER context to handle variable access correctly
-                // But we need to keep useNumpy() returning true (inherited from SETUP)
-                JAXStateManager::ContextScope scope(jaxVisitor->fStateManager, JAXStateManager::Context::STATIC_INIT);
-                inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
-            }
-        }
-        
-        // Section 5.5: Convert static tables to JAX arrays and freeze them
-        // Static tables need to be JAX arrays for indexing within JIT-compiled code,
-        // but they should be marked as static (non-trainable) to avoid issues
-        tab(n + 2, *fOut);
-        *fOut << "# Convert static tables and waveform data to JAX arrays";
-        
-        // Convert all tables that were detected or declared
-        for (const auto& tableName : jaxVisitor->fConstantVars) {
-            if ((tableName.find("ftbl0") == 0 || tableName.find("itbl0") == 0) &&
-                tableName.find("_idx") == std::string::npos) {
-                tab(n + 2, *fOut);
-                *fOut << "self._" << tableName << " = jnp.array(" << tableName << ")";
-            }
-        }
-        
-        // Section 6: Initialize UI parameters
-        tab(n + 2, *fOut);
-        *fOut << "# Initialize UI parameters";
-        tab(n + 2, *fOut);
-        *fOut << "unnorm_funcs = {}";
-        tab(n + 2, *fOut);
-        *fOut << "ui_path = []";
-        tab(n + 2, *fOut);
-        gGlobal->gJAXVisitor->Tab(n + 2);
-        generateUserInterface(gGlobal->gJAXVisitor);
-        tab(n + 2, *fOut);
-        *fOut << "self._unnorm_funcs = unnorm_funcs";
-        
-        // Section 7: Initialize constants from init instructions
-        tab(n + 2, *fOut);
-        *fOut << "# Initialize other constants";
-        
-        struct ConstantInitExtractor : public DispatchVisitor {
-            std::ostream* fOut;
-            int fTab;
-            JAXInstVisitor* fJaxVisitor;
-            
-            ConstantInitExtractor(std::ostream* out, int tab, JAXInstVisitor* visitor) 
-                : fOut(out), fTab(tab), fJaxVisitor(visitor) {}
-                
-            virtual void visit(StoreVarInst* inst) {
-                string varname = inst->fAddress->getName();
-                if (varname.find("Const") != std::string::npos) {
-                    fJaxVisitor->fConstantVars.insert(varname);
-                    tab(fTab, *fOut);
-                    inst->accept(fJaxVisitor);
-                } else if (varname.find("pfPerm") == 0) {
-                    // Store pfPerm initialization values for _initialize_carry
-                    fJaxVisitor->fPfPermInitValues[varname] = inst->fValue;
-                }
-            }
-        };
-        
-        ConstantInitExtractor extractor(fOut, n + 2, jaxVisitor);
-        fInitInstructions->accept(&extractor);
-    }
-    // Setup context scope ends here automatically
-
     // Compute
     {
         JAXStateManager::ContextScope tickScope(jaxVisitor->fStateManager, JAXStateManager::Context::TICK);
@@ -1172,7 +1172,7 @@ void JAXCodeContainer::produceClass()
 void JAXCodeContainer::generateCompute(int n)
 {
     tab(n, *fOut);
-    *fOut << "def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:";
+    *fOut << "def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:";
     tab(n + 1, *fOut);
 
     tab(n + 1, *fOut);
