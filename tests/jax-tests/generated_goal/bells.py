@@ -95,59 +95,32 @@ class mydsp(nn.Module):
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
 		self._fConst0 = np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate))) 
-		
 		self._fConst1 = (np.float32(100.53097) / self._fConst0) 
-		
 		self._fConst2 = np.power((np.float32(1.0) - self._fConst1), np.float32(2.0)) 
-		
 		self._fConst3 = (np.float32(24876.438) / self._fConst0) 
-		
 		self._fConst4 = (np.float32(2.0) * (self._fConst1 - np.float32(1.0))) 
-		
 		self._fConst5 = (np.float32(0.00025257576) * self._fConst0) 
-		
 		self._fConst6 = (np.float32(0.5) * self._fConst0) 
-		
 		self._fConst7 = (np.float32(0.5) * (np.float32(1.0) - self._fConst2)) 
-		
 		self._fConst8 = (np.float32(8275.275) / self._fConst0) 
-		
 		self._fConst9 = (np.float32(0.0007592721) * self._fConst0) 
-		
 		self._fConst10 = (np.float32(8236.24) / self._fConst0) 
-		
 		self._fConst11 = (np.float32(0.0007628706) * self._fConst0) 
-		
 		self._fConst12 = (np.float32(2775.3606) / self._fConst0) 
-		
 		self._fConst13 = (np.float32(0.002263917) * self._fConst0) 
-		
 		self._fConst14 = (np.float32(2753.8428) / self._fConst0) 
-		
 		self._fConst15 = (np.float32(0.0022816064) * self._fConst0) 
-		
 		self._fConst16 = (np.float32(24924.258) / self._fConst0) 
-		
 		self._fConst17 = (np.float32(0.00025209118) * self._fConst0) 
-		
 		self._fConst18 = (np.float32(35478.215) / self._fConst0) 
-		
 		self._fConst19 = (np.float32(0.00017709982) * self._fConst0) 
-		
 		self._fConst20 = (np.float32(35407.31) / self._fConst0) 
-		
 		self._fConst21 = (np.float32(0.00017745448) * self._fConst0) 
-		
 		self._fConst22 = (np.float32(47774.59) / self._fConst0) 
-		
 		self._fConst23 = (np.float32(0.0001315173) * self._fConst0) 
-		
 		self._fConst24 = (np.float32(60754.96) / self._fConst0) 
-		
 		self._fConst25 = (np.float32(0.000103418475) * self._fConst0) 
-		
 		self._fConst26 = (np.float32(15770.537) / self._fConst0) 
-		
 		self._fConst27 = (np.float32(0.0003984129) * self._fConst0) 
 		
 	def _initialize_carry(self, x: jnp.ndarray, length: int):

@@ -633,6 +633,7 @@ void JAXCodeContainer::produceClass()
         // Section 7: Initialize constants from init instructions
         tab(n + 2, *fOut);
         *fOut << "# Initialize other constants";
+        tab(n + 2, *fOut);
 
         struct ConstantInitExtractor : public DispatchVisitor {
             std::ostream* fOut;
@@ -646,7 +647,6 @@ void JAXCodeContainer::produceClass()
                 string varname = inst->fAddress->getName();
                 if (varname.find("Const") != std::string::npos) {
                     fJaxVisitor->fConstantVars.insert(varname);
-                    tab(fTab, *fOut);
                     inst->accept(fJaxVisitor);
                 } else if (varname.find("pfPerm") == 0) {
                     // Store pfPerm initialization values for _initialize_carry
@@ -655,6 +655,7 @@ void JAXCodeContainer::produceClass()
             }
         };
 
+        gGlobal->gJAXVisitor->Tab(n + 2);
         ConstantInitExtractor extractor(fOut, n + 2, jaxVisitor);
         fInitInstructions->accept(&extractor);
     }

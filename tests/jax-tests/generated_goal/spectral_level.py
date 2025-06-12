@@ -110,2211 +110,1108 @@ class mydsp(nn.Module):
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
 		self._fConst0 = np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate))) 
-		
 		self._fConst1 = np.tan((np.float32(77.921364) / self._fConst0)) 
-		
 		self._fConst2 = np.power(self._fConst1, np.float32(2.0)) 
-		
 		self._fConst3 = (np.float32(1.0) / self._fConst2) 
-		
 		self._fConst4 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst3)) 
-		
 		self._fConst5 = (np.float32(1.0) / self._fConst1) 
-		
 		self._fConst6 = (((self._fConst5 + np.float32(-0.16840488)) / self._fConst1) + np.float32(1.0693583)) 
-		
 		self._fConst7 = (np.float32(1.0) / (((self._fConst5 + np.float32(0.16840488)) / self._fConst1) + np.float32(1.0693583))) 
-		
 		self._fConst8 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst3)) 
-		
 		self._fConst9 = (((self._fConst5 + np.float32(-0.51247865)) / self._fConst1) + np.float32(0.6896214)) 
-		
 		self._fConst10 = (np.float32(1.0) / (((self._fConst5 + np.float32(0.51247865)) / self._fConst1) + np.float32(0.6896214))) 
-		
 		self._fConst11 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst3)) 
-		
 		self._fConst12 = (((self._fConst5 + np.float32(-0.78241307)) / self._fConst1) + np.float32(0.2452915)) 
-		
 		self._fConst13 = (np.float32(1.0) / (((self._fConst5 + np.float32(0.78241307)) / self._fConst1) + np.float32(0.2452915))) 
-		
 		self._fConst14 = np.tan((np.float32(98.174774) / self._fConst0)) 
-		
 		self._fConst15 = np.power(self._fConst14, np.float32(2.0)) 
-		
 		self._fConst16 = (np.float32(1.0) / self._fConst15) 
-		
 		self._fConst17 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst16)) 
-		
 		self._fConst18 = (np.float32(1.0) / self._fConst14) 
-		
 		self._fConst19 = (((self._fConst18 + np.float32(-0.16840488)) / self._fConst14) + np.float32(1.0693583)) 
-		
 		self._fConst20 = (np.float32(1.0) / (((self._fConst18 + np.float32(0.16840488)) / self._fConst14) + np.float32(1.0693583))) 
-		
 		self._fConst21 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst16)) 
-		
 		self._fConst22 = (((self._fConst18 + np.float32(-0.51247865)) / self._fConst14) + np.float32(0.6896214)) 
-		
 		self._fConst23 = (np.float32(1.0) / (((self._fConst18 + np.float32(0.51247865)) / self._fConst14) + np.float32(0.6896214))) 
-		
 		self._fConst24 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst16)) 
-		
 		self._fConst25 = (((self._fConst18 + np.float32(-0.78241307)) / self._fConst14) + np.float32(0.2452915)) 
-		
 		self._fConst26 = (np.float32(1.0) / (((self._fConst18 + np.float32(0.78241307)) / self._fConst14) + np.float32(0.2452915))) 
-		
 		self._fConst27 = np.tan((np.float32(123.69246) / self._fConst0)) 
-		
 		self._fConst28 = np.power(self._fConst27, np.float32(2.0)) 
-		
 		self._fConst29 = (np.float32(1.0) / self._fConst28) 
-		
 		self._fConst30 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst29)) 
-		
 		self._fConst31 = (np.float32(1.0) / self._fConst27) 
-		
 		self._fConst32 = (((self._fConst31 + np.float32(-0.16840488)) / self._fConst27) + np.float32(1.0693583)) 
-		
 		self._fConst33 = (np.float32(1.0) / (((self._fConst31 + np.float32(0.16840488)) / self._fConst27) + np.float32(1.0693583))) 
-		
 		self._fConst34 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst29)) 
-		
 		self._fConst35 = (((self._fConst31 + np.float32(-0.51247865)) / self._fConst27) + np.float32(0.6896214)) 
-		
 		self._fConst36 = (np.float32(1.0) / (((self._fConst31 + np.float32(0.51247865)) / self._fConst27) + np.float32(0.6896214))) 
-		
 		self._fConst37 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst29)) 
-		
 		self._fConst38 = (((self._fConst31 + np.float32(-0.78241307)) / self._fConst27) + np.float32(0.2452915)) 
-		
 		self._fConst39 = (np.float32(1.0) / (((self._fConst31 + np.float32(0.78241307)) / self._fConst27) + np.float32(0.2452915))) 
-		
 		self._fConst40 = np.tan((np.float32(155.84273) / self._fConst0)) 
-		
 		self._fConst41 = np.power(self._fConst40, np.float32(2.0)) 
-		
 		self._fConst42 = (np.float32(1.0) / self._fConst41) 
-		
 		self._fConst43 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst42)) 
-		
 		self._fConst44 = (np.float32(1.0) / self._fConst40) 
-		
 		self._fConst45 = (((self._fConst44 + np.float32(-0.16840488)) / self._fConst40) + np.float32(1.0693583)) 
-		
 		self._fConst46 = (np.float32(1.0) / (((self._fConst44 + np.float32(0.16840488)) / self._fConst40) + np.float32(1.0693583))) 
-		
 		self._fConst47 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst42)) 
-		
 		self._fConst48 = (((self._fConst44 + np.float32(-0.51247865)) / self._fConst40) + np.float32(0.6896214)) 
-		
 		self._fConst49 = (np.float32(1.0) / (((self._fConst44 + np.float32(0.51247865)) / self._fConst40) + np.float32(0.6896214))) 
-		
 		self._fConst50 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst42)) 
-		
 		self._fConst51 = (((self._fConst44 + np.float32(-0.78241307)) / self._fConst40) + np.float32(0.2452915)) 
-		
 		self._fConst52 = (np.float32(1.0) / (((self._fConst44 + np.float32(0.78241307)) / self._fConst40) + np.float32(0.2452915))) 
-		
 		self._fConst53 = np.tan((np.float32(196.34955) / self._fConst0)) 
-		
 		self._fConst54 = np.power(self._fConst53, np.float32(2.0)) 
-		
 		self._fConst55 = (np.float32(1.0) / self._fConst54) 
-		
 		self._fConst56 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst55)) 
-		
 		self._fConst57 = (np.float32(1.0) / self._fConst53) 
-		
 		self._fConst58 = (((self._fConst57 + np.float32(-0.16840488)) / self._fConst53) + np.float32(1.0693583)) 
-		
 		self._fConst59 = (np.float32(1.0) / (((self._fConst57 + np.float32(0.16840488)) / self._fConst53) + np.float32(1.0693583))) 
-		
 		self._fConst60 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst55)) 
-		
 		self._fConst61 = (((self._fConst57 + np.float32(-0.51247865)) / self._fConst53) + np.float32(0.6896214)) 
-		
 		self._fConst62 = (np.float32(1.0) / (((self._fConst57 + np.float32(0.51247865)) / self._fConst53) + np.float32(0.6896214))) 
-		
 		self._fConst63 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst55)) 
-		
 		self._fConst64 = (((self._fConst57 + np.float32(-0.78241307)) / self._fConst53) + np.float32(0.2452915)) 
-		
 		self._fConst65 = (np.float32(1.0) / (((self._fConst57 + np.float32(0.78241307)) / self._fConst53) + np.float32(0.2452915))) 
-		
 		self._fConst66 = np.tan((np.float32(247.38492) / self._fConst0)) 
-		
 		self._fConst67 = np.power(self._fConst66, np.float32(2.0)) 
-		
 		self._fConst68 = (np.float32(1.0) / self._fConst67) 
-		
 		self._fConst69 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst68)) 
-		
 		self._fConst70 = (np.float32(1.0) / self._fConst66) 
-		
 		self._fConst71 = (((self._fConst70 + np.float32(-0.16840488)) / self._fConst66) + np.float32(1.0693583)) 
-		
 		self._fConst72 = (np.float32(1.0) / (((self._fConst70 + np.float32(0.16840488)) / self._fConst66) + np.float32(1.0693583))) 
-		
 		self._fConst73 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst68)) 
-		
 		self._fConst74 = (((self._fConst70 + np.float32(-0.51247865)) / self._fConst66) + np.float32(0.6896214)) 
-		
 		self._fConst75 = (np.float32(1.0) / (((self._fConst70 + np.float32(0.51247865)) / self._fConst66) + np.float32(0.6896214))) 
-		
 		self._fConst76 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst68)) 
-		
 		self._fConst77 = (((self._fConst70 + np.float32(-0.78241307)) / self._fConst66) + np.float32(0.2452915)) 
-		
 		self._fConst78 = (np.float32(1.0) / (((self._fConst70 + np.float32(0.78241307)) / self._fConst66) + np.float32(0.2452915))) 
-		
 		self._fConst79 = np.tan((np.float32(311.68546) / self._fConst0)) 
-		
 		self._fConst80 = np.power(self._fConst79, np.float32(2.0)) 
-		
 		self._fConst81 = (np.float32(1.0) / self._fConst80) 
-		
 		self._fConst82 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst81)) 
-		
 		self._fConst83 = (np.float32(1.0) / self._fConst79) 
-		
 		self._fConst84 = (((self._fConst83 + np.float32(-0.16840488)) / self._fConst79) + np.float32(1.0693583)) 
-		
 		self._fConst85 = (np.float32(1.0) / (((self._fConst83 + np.float32(0.16840488)) / self._fConst79) + np.float32(1.0693583))) 
-		
 		self._fConst86 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst81)) 
-		
 		self._fConst87 = (((self._fConst83 + np.float32(-0.51247865)) / self._fConst79) + np.float32(0.6896214)) 
-		
 		self._fConst88 = (np.float32(1.0) / (((self._fConst83 + np.float32(0.51247865)) / self._fConst79) + np.float32(0.6896214))) 
-		
 		self._fConst89 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst81)) 
-		
 		self._fConst90 = (((self._fConst83 + np.float32(-0.78241307)) / self._fConst79) + np.float32(0.2452915)) 
-		
 		self._fConst91 = (np.float32(1.0) / (((self._fConst83 + np.float32(0.78241307)) / self._fConst79) + np.float32(0.2452915))) 
-		
 		self._fConst92 = np.tan((np.float32(392.6991) / self._fConst0)) 
-		
 		self._fConst93 = np.power(self._fConst92, np.float32(2.0)) 
-		
 		self._fConst94 = (np.float32(1.0) / self._fConst93) 
-		
 		self._fConst95 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst94)) 
-		
 		self._fConst96 = (np.float32(1.0) / self._fConst92) 
-		
 		self._fConst97 = (((self._fConst96 + np.float32(-0.16840488)) / self._fConst92) + np.float32(1.0693583)) 
-		
 		self._fConst98 = (np.float32(1.0) / (((self._fConst96 + np.float32(0.16840488)) / self._fConst92) + np.float32(1.0693583))) 
-		
 		self._fConst99 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst94)) 
-		
 		self._fConst100 = (((self._fConst96 + np.float32(-0.51247865)) / self._fConst92) + np.float32(0.6896214)) 
-		
 		self._fConst101 = (np.float32(1.0) / (((self._fConst96 + np.float32(0.51247865)) / self._fConst92) + np.float32(0.6896214))) 
-		
 		self._fConst102 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst94)) 
-		
 		self._fConst103 = (((self._fConst96 + np.float32(-0.78241307)) / self._fConst92) + np.float32(0.2452915)) 
-		
 		self._fConst104 = (np.float32(1.0) / (((self._fConst96 + np.float32(0.78241307)) / self._fConst92) + np.float32(0.2452915))) 
-		
 		self._fConst105 = np.tan((np.float32(494.76984) / self._fConst0)) 
-		
 		self._fConst106 = np.power(self._fConst105, np.float32(2.0)) 
-		
 		self._fConst107 = (np.float32(1.0) / self._fConst106) 
-		
 		self._fConst108 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst107)) 
-		
 		self._fConst109 = (np.float32(1.0) / self._fConst105) 
-		
 		self._fConst110 = (((self._fConst109 + np.float32(-0.16840488)) / self._fConst105) + np.float32(1.0693583)) 
-		
 		self._fConst111 = (np.float32(1.0) / (((self._fConst109 + np.float32(0.16840488)) / self._fConst105) + np.float32(1.0693583))) 
-		
 		self._fConst112 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst107)) 
-		
 		self._fConst113 = (((self._fConst109 + np.float32(-0.51247865)) / self._fConst105) + np.float32(0.6896214)) 
-		
 		self._fConst114 = (np.float32(1.0) / (((self._fConst109 + np.float32(0.51247865)) / self._fConst105) + np.float32(0.6896214))) 
-		
 		self._fConst115 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst107)) 
-		
 		self._fConst116 = (((self._fConst109 + np.float32(-0.78241307)) / self._fConst105) + np.float32(0.2452915)) 
-		
 		self._fConst117 = (np.float32(1.0) / (((self._fConst109 + np.float32(0.78241307)) / self._fConst105) + np.float32(0.2452915))) 
-		
 		self._fConst118 = np.tan((np.float32(623.3709) / self._fConst0)) 
-		
 		self._fConst119 = np.power(self._fConst118, np.float32(2.0)) 
-		
 		self._fConst120 = (np.float32(1.0) / self._fConst119) 
-		
 		self._fConst121 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst120)) 
-		
 		self._fConst122 = (np.float32(1.0) / self._fConst118) 
-		
 		self._fConst123 = (((self._fConst122 + np.float32(-0.16840488)) / self._fConst118) + np.float32(1.0693583)) 
-		
 		self._fConst124 = (np.float32(1.0) / (((self._fConst122 + np.float32(0.16840488)) / self._fConst118) + np.float32(1.0693583))) 
-		
 		self._fConst125 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst120)) 
-		
 		self._fConst126 = (((self._fConst122 + np.float32(-0.51247865)) / self._fConst118) + np.float32(0.6896214)) 
-		
 		self._fConst127 = (np.float32(1.0) / (((self._fConst122 + np.float32(0.51247865)) / self._fConst118) + np.float32(0.6896214))) 
-		
 		self._fConst128 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst120)) 
-		
 		self._fConst129 = (((self._fConst122 + np.float32(-0.78241307)) / self._fConst118) + np.float32(0.2452915)) 
-		
 		self._fConst130 = (np.float32(1.0) / (((self._fConst122 + np.float32(0.78241307)) / self._fConst118) + np.float32(0.2452915))) 
-		
 		self._fConst131 = np.tan((np.float32(785.3982) / self._fConst0)) 
-		
 		self._fConst132 = np.power(self._fConst131, np.float32(2.0)) 
-		
 		self._fConst133 = (np.float32(1.0) / self._fConst132) 
-		
 		self._fConst134 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst133)) 
-		
 		self._fConst135 = (np.float32(1.0) / self._fConst131) 
-		
 		self._fConst136 = (((self._fConst135 + np.float32(-0.16840488)) / self._fConst131) + np.float32(1.0693583)) 
-		
 		self._fConst137 = (np.float32(1.0) / (((self._fConst135 + np.float32(0.16840488)) / self._fConst131) + np.float32(1.0693583))) 
-		
 		self._fConst138 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst133)) 
-		
 		self._fConst139 = (((self._fConst135 + np.float32(-0.51247865)) / self._fConst131) + np.float32(0.6896214)) 
-		
 		self._fConst140 = (np.float32(1.0) / (((self._fConst135 + np.float32(0.51247865)) / self._fConst131) + np.float32(0.6896214))) 
-		
 		self._fConst141 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst133)) 
-		
 		self._fConst142 = (((self._fConst135 + np.float32(-0.78241307)) / self._fConst131) + np.float32(0.2452915)) 
-		
 		self._fConst143 = (np.float32(1.0) / (((self._fConst135 + np.float32(0.78241307)) / self._fConst131) + np.float32(0.2452915))) 
-		
 		self._fConst144 = np.tan((np.float32(989.5397) / self._fConst0)) 
-		
 		self._fConst145 = np.power(self._fConst144, np.float32(2.0)) 
-		
 		self._fConst146 = (np.float32(1.0) / self._fConst145) 
-		
 		self._fConst147 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst146)) 
-		
 		self._fConst148 = (np.float32(1.0) / self._fConst144) 
-		
 		self._fConst149 = (((self._fConst148 + np.float32(-0.16840488)) / self._fConst144) + np.float32(1.0693583)) 
-		
 		self._fConst150 = (np.float32(1.0) / (((self._fConst148 + np.float32(0.16840488)) / self._fConst144) + np.float32(1.0693583))) 
-		
 		self._fConst151 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst146)) 
-		
 		self._fConst152 = (((self._fConst148 + np.float32(-0.51247865)) / self._fConst144) + np.float32(0.6896214)) 
-		
 		self._fConst153 = (np.float32(1.0) / (((self._fConst148 + np.float32(0.51247865)) / self._fConst144) + np.float32(0.6896214))) 
-		
 		self._fConst154 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst146)) 
-		
 		self._fConst155 = (((self._fConst148 + np.float32(-0.78241307)) / self._fConst144) + np.float32(0.2452915)) 
-		
 		self._fConst156 = (np.float32(1.0) / (((self._fConst148 + np.float32(0.78241307)) / self._fConst144) + np.float32(0.2452915))) 
-		
 		self._fConst157 = np.tan((np.float32(1246.7418) / self._fConst0)) 
-		
 		self._fConst158 = np.power(self._fConst157, np.float32(2.0)) 
-		
 		self._fConst159 = (np.float32(1.0) / self._fConst158) 
-		
 		self._fConst160 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst159)) 
-		
 		self._fConst161 = (np.float32(1.0) / self._fConst157) 
-		
 		self._fConst162 = (((self._fConst161 + np.float32(-0.16840488)) / self._fConst157) + np.float32(1.0693583)) 
-		
 		self._fConst163 = (np.float32(1.0) / (((self._fConst161 + np.float32(0.16840488)) / self._fConst157) + np.float32(1.0693583))) 
-		
 		self._fConst164 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst159)) 
-		
 		self._fConst165 = (((self._fConst161 + np.float32(-0.51247865)) / self._fConst157) + np.float32(0.6896214)) 
-		
 		self._fConst166 = (np.float32(1.0) / (((self._fConst161 + np.float32(0.51247865)) / self._fConst157) + np.float32(0.6896214))) 
-		
 		self._fConst167 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst159)) 
-		
 		self._fConst168 = (((self._fConst161 + np.float32(-0.78241307)) / self._fConst157) + np.float32(0.2452915)) 
-		
 		self._fConst169 = (np.float32(1.0) / (((self._fConst161 + np.float32(0.78241307)) / self._fConst157) + np.float32(0.2452915))) 
-		
 		self._fConst170 = np.tan((np.float32(1570.7964) / self._fConst0)) 
-		
 		self._fConst171 = np.power(self._fConst170, np.float32(2.0)) 
-		
 		self._fConst172 = (np.float32(1.0) / self._fConst171) 
-		
 		self._fConst173 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst172)) 
-		
 		self._fConst174 = (np.float32(1.0) / self._fConst170) 
-		
 		self._fConst175 = (((self._fConst174 + np.float32(-0.16840488)) / self._fConst170) + np.float32(1.0693583)) 
-		
 		self._fConst176 = (np.float32(1.0) / (((self._fConst174 + np.float32(0.16840488)) / self._fConst170) + np.float32(1.0693583))) 
-		
 		self._fConst177 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst172)) 
-		
 		self._fConst178 = (((self._fConst174 + np.float32(-0.51247865)) / self._fConst170) + np.float32(0.6896214)) 
-		
 		self._fConst179 = (np.float32(1.0) / (((self._fConst174 + np.float32(0.51247865)) / self._fConst170) + np.float32(0.6896214))) 
-		
 		self._fConst180 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst172)) 
-		
 		self._fConst181 = (((self._fConst174 + np.float32(-0.78241307)) / self._fConst170) + np.float32(0.2452915)) 
-		
 		self._fConst182 = (np.float32(1.0) / (((self._fConst174 + np.float32(0.78241307)) / self._fConst170) + np.float32(0.2452915))) 
-		
 		self._fConst183 = np.tan((np.float32(1979.0793) / self._fConst0)) 
-		
 		self._fConst184 = np.power(self._fConst183, np.float32(2.0)) 
-		
 		self._fConst185 = (np.float32(1.0) / self._fConst184) 
-		
 		self._fConst186 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst185)) 
-		
 		self._fConst187 = (np.float32(1.0) / self._fConst183) 
-		
 		self._fConst188 = (((self._fConst187 + np.float32(-0.16840488)) / self._fConst183) + np.float32(1.0693583)) 
-		
 		self._fConst189 = (np.float32(1.0) / (((self._fConst187 + np.float32(0.16840488)) / self._fConst183) + np.float32(1.0693583))) 
-		
 		self._fConst190 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst185)) 
-		
 		self._fConst191 = (((self._fConst187 + np.float32(-0.51247865)) / self._fConst183) + np.float32(0.6896214)) 
-		
 		self._fConst192 = (np.float32(1.0) / (((self._fConst187 + np.float32(0.51247865)) / self._fConst183) + np.float32(0.6896214))) 
-		
 		self._fConst193 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst185)) 
-		
 		self._fConst194 = (((self._fConst187 + np.float32(-0.78241307)) / self._fConst183) + np.float32(0.2452915)) 
-		
 		self._fConst195 = (np.float32(1.0) / (((self._fConst187 + np.float32(0.78241307)) / self._fConst183) + np.float32(0.2452915))) 
-		
 		self._fConst196 = np.tan((np.float32(2493.4836) / self._fConst0)) 
-		
 		self._fConst197 = np.power(self._fConst196, np.float32(2.0)) 
-		
 		self._fConst198 = (np.float32(1.0) / self._fConst197) 
-		
 		self._fConst199 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst198)) 
-		
 		self._fConst200 = (np.float32(1.0) / self._fConst196) 
-		
 		self._fConst201 = (((self._fConst200 + np.float32(-0.16840488)) / self._fConst196) + np.float32(1.0693583)) 
-		
 		self._fConst202 = (np.float32(1.0) / (((self._fConst200 + np.float32(0.16840488)) / self._fConst196) + np.float32(1.0693583))) 
-		
 		self._fConst203 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst198)) 
-		
 		self._fConst204 = (((self._fConst200 + np.float32(-0.51247865)) / self._fConst196) + np.float32(0.6896214)) 
-		
 		self._fConst205 = (np.float32(1.0) / (((self._fConst200 + np.float32(0.51247865)) / self._fConst196) + np.float32(0.6896214))) 
-		
 		self._fConst206 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst198)) 
-		
 		self._fConst207 = (((self._fConst200 + np.float32(-0.78241307)) / self._fConst196) + np.float32(0.2452915)) 
-		
 		self._fConst208 = (np.float32(1.0) / (((self._fConst200 + np.float32(0.78241307)) / self._fConst196) + np.float32(0.2452915))) 
-		
 		self._fConst209 = np.tan((np.float32(3141.5928) / self._fConst0)) 
-		
 		self._fConst210 = np.power(self._fConst209, np.float32(2.0)) 
-		
 		self._fConst211 = (np.float32(1.0) / self._fConst210) 
-		
 		self._fConst212 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst211)) 
-		
 		self._fConst213 = (np.float32(1.0) / self._fConst209) 
-		
 		self._fConst214 = (((self._fConst213 + np.float32(-0.16840488)) / self._fConst209) + np.float32(1.0693583)) 
-		
 		self._fConst215 = (np.float32(1.0) / (((self._fConst213 + np.float32(0.16840488)) / self._fConst209) + np.float32(1.0693583))) 
-		
 		self._fConst216 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst211)) 
-		
 		self._fConst217 = (((self._fConst213 + np.float32(-0.51247865)) / self._fConst209) + np.float32(0.6896214)) 
-		
 		self._fConst218 = (np.float32(1.0) / (((self._fConst213 + np.float32(0.51247865)) / self._fConst209) + np.float32(0.6896214))) 
-		
 		self._fConst219 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst211)) 
-		
 		self._fConst220 = (((self._fConst213 + np.float32(-0.78241307)) / self._fConst209) + np.float32(0.2452915)) 
-		
 		self._fConst221 = (np.float32(1.0) / (((self._fConst213 + np.float32(0.78241307)) / self._fConst209) + np.float32(0.2452915))) 
-		
 		self._fConst222 = np.tan((np.float32(3958.1587) / self._fConst0)) 
-		
 		self._fConst223 = np.power(self._fConst222, np.float32(2.0)) 
-		
 		self._fConst224 = (np.float32(1.0) / self._fConst223) 
-		
 		self._fConst225 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst224)) 
-		
 		self._fConst226 = (np.float32(1.0) / self._fConst222) 
-		
 		self._fConst227 = (((self._fConst226 + np.float32(-0.16840488)) / self._fConst222) + np.float32(1.0693583)) 
-		
 		self._fConst228 = (np.float32(1.0) / (((self._fConst226 + np.float32(0.16840488)) / self._fConst222) + np.float32(1.0693583))) 
-		
 		self._fConst229 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst224)) 
-		
 		self._fConst230 = (((self._fConst226 + np.float32(-0.51247865)) / self._fConst222) + np.float32(0.6896214)) 
-		
 		self._fConst231 = (np.float32(1.0) / (((self._fConst226 + np.float32(0.51247865)) / self._fConst222) + np.float32(0.6896214))) 
-		
 		self._fConst232 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst224)) 
-		
 		self._fConst233 = (((self._fConst226 + np.float32(-0.78241307)) / self._fConst222) + np.float32(0.2452915)) 
-		
 		self._fConst234 = (np.float32(1.0) / (((self._fConst226 + np.float32(0.78241307)) / self._fConst222) + np.float32(0.2452915))) 
-		
 		self._fConst235 = np.tan((np.float32(4986.9673) / self._fConst0)) 
-		
 		self._fConst236 = np.power(self._fConst235, np.float32(2.0)) 
-		
 		self._fConst237 = (np.float32(1.0) / self._fConst236) 
-		
 		self._fConst238 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst237)) 
-		
 		self._fConst239 = (np.float32(1.0) / self._fConst235) 
-		
 		self._fConst240 = (((self._fConst239 + np.float32(-0.16840488)) / self._fConst235) + np.float32(1.0693583)) 
-		
 		self._fConst241 = (np.float32(1.0) / (((self._fConst239 + np.float32(0.16840488)) / self._fConst235) + np.float32(1.0693583))) 
-		
 		self._fConst242 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst237)) 
-		
 		self._fConst243 = (((self._fConst239 + np.float32(-0.51247865)) / self._fConst235) + np.float32(0.6896214)) 
-		
 		self._fConst244 = (np.float32(1.0) / (((self._fConst239 + np.float32(0.51247865)) / self._fConst235) + np.float32(0.6896214))) 
-		
 		self._fConst245 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst237)) 
-		
 		self._fConst246 = (((self._fConst239 + np.float32(-0.78241307)) / self._fConst235) + np.float32(0.2452915)) 
-		
 		self._fConst247 = (np.float32(1.0) / (((self._fConst239 + np.float32(0.78241307)) / self._fConst235) + np.float32(0.2452915))) 
-		
 		self._fConst248 = np.tan((np.float32(6283.1855) / self._fConst0)) 
-		
 		self._fConst249 = np.power(self._fConst248, np.float32(2.0)) 
-		
 		self._fConst250 = (np.float32(1.0) / self._fConst249) 
-		
 		self._fConst251 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst250)) 
-		
 		self._fConst252 = (np.float32(1.0) / self._fConst248) 
-		
 		self._fConst253 = (((self._fConst252 + np.float32(-0.16840488)) / self._fConst248) + np.float32(1.0693583)) 
-		
 		self._fConst254 = (np.float32(1.0) / (((self._fConst252 + np.float32(0.16840488)) / self._fConst248) + np.float32(1.0693583))) 
-		
 		self._fConst255 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst250)) 
-		
 		self._fConst256 = (((self._fConst252 + np.float32(-0.51247865)) / self._fConst248) + np.float32(0.6896214)) 
-		
 		self._fConst257 = (np.float32(1.0) / (((self._fConst252 + np.float32(0.51247865)) / self._fConst248) + np.float32(0.6896214))) 
-		
 		self._fConst258 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst250)) 
-		
 		self._fConst259 = (((self._fConst252 + np.float32(-0.78241307)) / self._fConst248) + np.float32(0.2452915)) 
-		
 		self._fConst260 = (np.float32(1.0) / (((self._fConst252 + np.float32(0.78241307)) / self._fConst248) + np.float32(0.2452915))) 
-		
 		self._fConst261 = np.tan((np.float32(7916.3174) / self._fConst0)) 
-		
 		self._fConst262 = np.power(self._fConst261, np.float32(2.0)) 
-		
 		self._fConst263 = (np.float32(1.0) / self._fConst262) 
-		
 		self._fConst264 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst263)) 
-		
 		self._fConst265 = (np.float32(1.0) / self._fConst261) 
-		
 		self._fConst266 = (((self._fConst265 + np.float32(-0.16840488)) / self._fConst261) + np.float32(1.0693583)) 
-		
 		self._fConst267 = (np.float32(1.0) / (((self._fConst265 + np.float32(0.16840488)) / self._fConst261) + np.float32(1.0693583))) 
-		
 		self._fConst268 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst263)) 
-		
 		self._fConst269 = (((self._fConst265 + np.float32(-0.51247865)) / self._fConst261) + np.float32(0.6896214)) 
-		
 		self._fConst270 = (np.float32(1.0) / (((self._fConst265 + np.float32(0.51247865)) / self._fConst261) + np.float32(0.6896214))) 
-		
 		self._fConst271 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst263)) 
-		
 		self._fConst272 = (((self._fConst265 + np.float32(-0.78241307)) / self._fConst261) + np.float32(0.2452915)) 
-		
 		self._fConst273 = (np.float32(1.0) / (((self._fConst265 + np.float32(0.78241307)) / self._fConst261) + np.float32(0.2452915))) 
-		
 		self._fConst274 = np.tan((np.float32(9973.935) / self._fConst0)) 
-		
 		self._fConst275 = np.power(self._fConst274, np.float32(2.0)) 
-		
 		self._fConst276 = (np.float32(1.0) / self._fConst275) 
-		
 		self._fConst277 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst276)) 
-		
 		self._fConst278 = (np.float32(1.0) / self._fConst274) 
-		
 		self._fConst279 = (((self._fConst278 + np.float32(-0.16840488)) / self._fConst274) + np.float32(1.0693583)) 
-		
 		self._fConst280 = (np.float32(1.0) / (((self._fConst278 + np.float32(0.16840488)) / self._fConst274) + np.float32(1.0693583))) 
-		
 		self._fConst281 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst276)) 
-		
 		self._fConst282 = (((self._fConst278 + np.float32(-0.51247865)) / self._fConst274) + np.float32(0.6896214)) 
-		
 		self._fConst283 = (np.float32(1.0) / (((self._fConst278 + np.float32(0.51247865)) / self._fConst274) + np.float32(0.6896214))) 
-		
 		self._fConst284 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst276)) 
-		
 		self._fConst285 = (((self._fConst278 + np.float32(-0.78241307)) / self._fConst274) + np.float32(0.2452915)) 
-		
 		self._fConst286 = (np.float32(1.0) / (((self._fConst278 + np.float32(0.78241307)) / self._fConst274) + np.float32(0.2452915))) 
-		
 		self._fConst287 = np.tan((np.float32(12566.371) / self._fConst0)) 
-		
 		self._fConst288 = np.power(self._fConst287, np.float32(2.0)) 
-		
 		self._fConst289 = (np.float32(1.0) / self._fConst288) 
-		
 		self._fConst290 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst289)) 
-		
 		self._fConst291 = (np.float32(1.0) / self._fConst287) 
-		
 		self._fConst292 = (((self._fConst291 + np.float32(-0.16840488)) / self._fConst287) + np.float32(1.0693583)) 
-		
 		self._fConst293 = (np.float32(1.0) / (((self._fConst291 + np.float32(0.16840488)) / self._fConst287) + np.float32(1.0693583))) 
-		
 		self._fConst294 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst289)) 
-		
 		self._fConst295 = (((self._fConst291 + np.float32(-0.51247865)) / self._fConst287) + np.float32(0.6896214)) 
-		
 		self._fConst296 = (np.float32(1.0) / (((self._fConst291 + np.float32(0.51247865)) / self._fConst287) + np.float32(0.6896214))) 
-		
 		self._fConst297 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst289)) 
-		
 		self._fConst298 = (((self._fConst291 + np.float32(-0.78241307)) / self._fConst287) + np.float32(0.2452915)) 
-		
 		self._fConst299 = (np.float32(1.0) / (((self._fConst291 + np.float32(0.78241307)) / self._fConst287) + np.float32(0.2452915))) 
-		
 		self._fConst300 = np.tan((np.float32(15832.635) / self._fConst0)) 
-		
 		self._fConst301 = np.power(self._fConst300, np.float32(2.0)) 
-		
 		self._fConst302 = (np.float32(1.0) / self._fConst301) 
-		
 		self._fConst303 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst302)) 
-		
 		self._fConst304 = (np.float32(1.0) / self._fConst300) 
-		
 		self._fConst305 = (((self._fConst304 + np.float32(-0.16840488)) / self._fConst300) + np.float32(1.0693583)) 
-		
 		self._fConst306 = (np.float32(1.0) / (((self._fConst304 + np.float32(0.16840488)) / self._fConst300) + np.float32(1.0693583))) 
-		
 		self._fConst307 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst302)) 
-		
 		self._fConst308 = (((self._fConst304 + np.float32(-0.51247865)) / self._fConst300) + np.float32(0.6896214)) 
-		
 		self._fConst309 = (np.float32(1.0) / (((self._fConst304 + np.float32(0.51247865)) / self._fConst300) + np.float32(0.6896214))) 
-		
 		self._fConst310 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst302)) 
-		
 		self._fConst311 = (((self._fConst304 + np.float32(-0.78241307)) / self._fConst300) + np.float32(0.2452915)) 
-		
 		self._fConst312 = (np.float32(1.0) / (((self._fConst304 + np.float32(0.78241307)) / self._fConst300) + np.float32(0.2452915))) 
-		
 		self._fConst313 = np.tan((np.float32(19947.87) / self._fConst0)) 
-		
 		self._fConst314 = np.power(self._fConst313, np.float32(2.0)) 
-		
 		self._fConst315 = (np.float32(1.0) / self._fConst314) 
-		
 		self._fConst316 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst315)) 
-		
 		self._fConst317 = (np.float32(1.0) / self._fConst313) 
-		
 		self._fConst318 = (((self._fConst317 + np.float32(-0.16840488)) / self._fConst313) + np.float32(1.0693583)) 
-		
 		self._fConst319 = (np.float32(1.0) / (((self._fConst317 + np.float32(0.16840488)) / self._fConst313) + np.float32(1.0693583))) 
-		
 		self._fConst320 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst315)) 
-		
 		self._fConst321 = (((self._fConst317 + np.float32(-0.51247865)) / self._fConst313) + np.float32(0.6896214)) 
-		
 		self._fConst322 = (np.float32(1.0) / (((self._fConst317 + np.float32(0.51247865)) / self._fConst313) + np.float32(0.6896214))) 
-		
 		self._fConst323 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst315)) 
-		
 		self._fConst324 = (((self._fConst317 + np.float32(-0.78241307)) / self._fConst313) + np.float32(0.2452915)) 
-		
 		self._fConst325 = (np.float32(1.0) / (((self._fConst317 + np.float32(0.78241307)) / self._fConst313) + np.float32(0.2452915))) 
-		
 		self._fConst326 = np.tan((np.float32(25132.742) / self._fConst0)) 
-		
 		self._fConst327 = np.power(self._fConst326, np.float32(2.0)) 
-		
 		self._fConst328 = (np.float32(1.0) / self._fConst327) 
-		
 		self._fConst329 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst328)) 
-		
 		self._fConst330 = (np.float32(1.0) / self._fConst326) 
-		
 		self._fConst331 = (((self._fConst330 + np.float32(-0.16840488)) / self._fConst326) + np.float32(1.0693583)) 
-		
 		self._fConst332 = (np.float32(1.0) / (((self._fConst330 + np.float32(0.16840488)) / self._fConst326) + np.float32(1.0693583))) 
-		
 		self._fConst333 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst328)) 
-		
 		self._fConst334 = (((self._fConst330 + np.float32(-0.51247865)) / self._fConst326) + np.float32(0.6896214)) 
-		
 		self._fConst335 = (np.float32(1.0) / (((self._fConst330 + np.float32(0.51247865)) / self._fConst326) + np.float32(0.6896214))) 
-		
 		self._fConst336 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst328)) 
-		
 		self._fConst337 = (((self._fConst330 + np.float32(-0.78241307)) / self._fConst326) + np.float32(0.2452915)) 
-		
 		self._fConst338 = (np.float32(1.0) / (((self._fConst330 + np.float32(0.78241307)) / self._fConst326) + np.float32(0.2452915))) 
-		
 		self._fConst339 = np.tan((np.float32(31665.27) / self._fConst0)) 
-		
 		self._fConst340 = np.power(self._fConst339, np.float32(2.0)) 
-		
 		self._fConst341 = (np.float32(1.0) / self._fConst340) 
-		
 		self._fConst342 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst341)) 
-		
 		self._fConst343 = (np.float32(1.0) / self._fConst339) 
-		
 		self._fConst344 = (((self._fConst343 + np.float32(-0.16840488)) / self._fConst339) + np.float32(1.0693583)) 
-		
 		self._fConst345 = (np.float32(1.0) / (((self._fConst343 + np.float32(0.16840488)) / self._fConst339) + np.float32(1.0693583))) 
-		
 		self._fConst346 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst341)) 
-		
 		self._fConst347 = (((self._fConst343 + np.float32(-0.51247865)) / self._fConst339) + np.float32(0.6896214)) 
-		
 		self._fConst348 = (np.float32(1.0) / (((self._fConst343 + np.float32(0.51247865)) / self._fConst339) + np.float32(0.6896214))) 
-		
 		self._fConst349 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst341)) 
-		
 		self._fConst350 = (((self._fConst343 + np.float32(-0.78241307)) / self._fConst339) + np.float32(0.2452915)) 
-		
 		self._fConst351 = (np.float32(1.0) / (((self._fConst343 + np.float32(0.78241307)) / self._fConst339) + np.float32(0.2452915))) 
-		
 		self._fConst352 = np.tan((np.float32(39895.74) / self._fConst0)) 
-		
 		self._fConst353 = np.power(self._fConst352, np.float32(2.0)) 
-		
 		self._fConst354 = (np.float32(1.0) / self._fConst353) 
-		
 		self._fConst355 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst354)) 
-		
 		self._fConst356 = (np.float32(1.0) / self._fConst352) 
-		
 		self._fConst357 = (((self._fConst356 + np.float32(-0.16840488)) / self._fConst352) + np.float32(1.0693583)) 
-		
 		self._fConst358 = (np.float32(1.0) / (((self._fConst356 + np.float32(0.16840488)) / self._fConst352) + np.float32(1.0693583))) 
-		
 		self._fConst359 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst354)) 
-		
 		self._fConst360 = (((self._fConst356 + np.float32(-0.51247865)) / self._fConst352) + np.float32(0.6896214)) 
-		
 		self._fConst361 = (np.float32(1.0) / (((self._fConst356 + np.float32(0.51247865)) / self._fConst352) + np.float32(0.6896214))) 
-		
 		self._fConst362 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst354)) 
-		
 		self._fConst363 = (((self._fConst356 + np.float32(-0.78241307)) / self._fConst352) + np.float32(0.2452915)) 
-		
 		self._fConst364 = (np.float32(1.0) / (((self._fConst356 + np.float32(0.78241307)) / self._fConst352) + np.float32(0.2452915))) 
-		
 		self._fConst365 = np.tan((np.float32(50265.484) / self._fConst0)) 
-		
 		self._fConst366 = np.power(self._fConst365, np.float32(2.0)) 
-		
 		self._fConst367 = (np.float32(1.0) / self._fConst366) 
-		
 		self._fConst368 = (np.float32(2.0) * (np.float32(1.0693583) - self._fConst367)) 
-		
 		self._fConst369 = (np.float32(1.0) / self._fConst365) 
-		
 		self._fConst370 = (((self._fConst369 + np.float32(-0.16840488)) / self._fConst365) + np.float32(1.0693583)) 
-		
 		self._fConst371 = (np.float32(1.0) / (((self._fConst369 + np.float32(0.16840488)) / self._fConst365) + np.float32(1.0693583))) 
-		
 		self._fConst372 = (np.float32(2.0) * (np.float32(0.6896214) - self._fConst367)) 
-		
 		self._fConst373 = (((self._fConst369 + np.float32(-0.51247865)) / self._fConst365) + np.float32(0.6896214)) 
-		
 		self._fConst374 = (np.float32(1.0) / (((self._fConst369 + np.float32(0.51247865)) / self._fConst365) + np.float32(0.6896214))) 
-		
 		self._fConst375 = (np.float32(2.0) * (np.float32(0.2452915) - self._fConst367)) 
-		
 		self._fConst376 = (((self._fConst369 + np.float32(-0.78241307)) / self._fConst365) + np.float32(0.2452915)) 
-		
 		self._fConst377 = (np.float32(1.0) / (((self._fConst369 + np.float32(0.78241307)) / self._fConst365) + np.float32(0.2452915))) 
-		
 		self._fConst378 = (np.float32(0.0001) / self._fConst366) 
-		
 		self._fConst379 = (self._fConst378 + np.float32(0.0004332272)) 
-		
 		self._fConst380 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst378)) 
-		
 		self._fConst381 = (self._fConst367 + np.float32(7.6217313)) 
-		
 		self._fConst382 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst367)) 
-		
 		self._fConst383 = (self._fConst367 + np.float32(53.53615)) 
-		
 		self._fConst384 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst367)) 
-		
 		self._fConst385 = (np.float32(0.0001) / self._fConst353) 
-		
 		self._fConst386 = (self._fConst385 + np.float32(0.0004332272)) 
-		
 		self._fConst387 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst385)) 
-		
 		self._fConst388 = (self._fConst354 + np.float32(7.6217313)) 
-		
 		self._fConst389 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst354)) 
-		
 		self._fConst390 = (self._fConst354 + np.float32(53.53615)) 
-		
 		self._fConst391 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst354)) 
-		
 		self._fConst392 = (np.float32(0.0001) / self._fConst340) 
-		
 		self._fConst393 = (self._fConst392 + np.float32(0.0004332272)) 
-		
 		self._fConst394 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst392)) 
-		
 		self._fConst395 = (self._fConst341 + np.float32(7.6217313)) 
-		
 		self._fConst396 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst341)) 
-		
 		self._fConst397 = (self._fConst341 + np.float32(53.53615)) 
-		
 		self._fConst398 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst341)) 
-		
 		self._fConst399 = (np.float32(0.0001) / self._fConst327) 
-		
 		self._fConst400 = (self._fConst399 + np.float32(0.0004332272)) 
-		
 		self._fConst401 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst399)) 
-		
 		self._fConst402 = (self._fConst328 + np.float32(7.6217313)) 
-		
 		self._fConst403 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst328)) 
-		
 		self._fConst404 = (self._fConst328 + np.float32(53.53615)) 
-		
 		self._fConst405 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst328)) 
-		
 		self._fConst406 = (np.float32(0.0001) / self._fConst314) 
-		
 		self._fConst407 = (self._fConst406 + np.float32(0.0004332272)) 
-		
 		self._fConst408 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst406)) 
-		
 		self._fConst409 = (self._fConst315 + np.float32(7.6217313)) 
-		
 		self._fConst410 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst315)) 
-		
 		self._fConst411 = (self._fConst315 + np.float32(53.53615)) 
-		
 		self._fConst412 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst315)) 
-		
 		self._fConst413 = (np.float32(0.0001) / self._fConst301) 
-		
 		self._fConst414 = (self._fConst413 + np.float32(0.0004332272)) 
-		
 		self._fConst415 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst413)) 
-		
 		self._fConst416 = (self._fConst302 + np.float32(7.6217313)) 
-		
 		self._fConst417 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst302)) 
-		
 		self._fConst418 = (self._fConst302 + np.float32(53.53615)) 
-		
 		self._fConst419 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst302)) 
-		
 		self._fConst420 = (np.float32(0.0001) / self._fConst288) 
-		
 		self._fConst421 = (self._fConst420 + np.float32(0.0004332272)) 
-		
 		self._fConst422 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst420)) 
-		
 		self._fConst423 = (self._fConst289 + np.float32(7.6217313)) 
-		
 		self._fConst424 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst289)) 
-		
 		self._fConst425 = (self._fConst289 + np.float32(53.53615)) 
-		
 		self._fConst426 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst289)) 
-		
 		self._fConst427 = (np.float32(0.0001) / self._fConst275) 
-		
 		self._fConst428 = (self._fConst427 + np.float32(0.0004332272)) 
-		
 		self._fConst429 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst427)) 
-		
 		self._fConst430 = (self._fConst276 + np.float32(7.6217313)) 
-		
 		self._fConst431 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst276)) 
-		
 		self._fConst432 = (self._fConst276 + np.float32(53.53615)) 
-		
 		self._fConst433 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst276)) 
-		
 		self._fConst434 = (np.float32(0.0001) / self._fConst262) 
-		
 		self._fConst435 = (self._fConst434 + np.float32(0.0004332272)) 
-		
 		self._fConst436 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst434)) 
-		
 		self._fConst437 = (self._fConst263 + np.float32(7.6217313)) 
-		
 		self._fConst438 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst263)) 
-		
 		self._fConst439 = (self._fConst263 + np.float32(53.53615)) 
-		
 		self._fConst440 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst263)) 
-		
 		self._fConst441 = (np.float32(0.0001) / self._fConst249) 
-		
 		self._fConst442 = (self._fConst441 + np.float32(0.0004332272)) 
-		
 		self._fConst443 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst441)) 
-		
 		self._fConst444 = (self._fConst250 + np.float32(7.6217313)) 
-		
 		self._fConst445 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst250)) 
-		
 		self._fConst446 = (self._fConst250 + np.float32(53.53615)) 
-		
 		self._fConst447 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst250)) 
-		
 		self._fConst448 = (np.float32(0.0001) / self._fConst236) 
-		
 		self._fConst449 = (self._fConst448 + np.float32(0.0004332272)) 
-		
 		self._fConst450 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst448)) 
-		
 		self._fConst451 = (self._fConst237 + np.float32(7.6217313)) 
-		
 		self._fConst452 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst237)) 
-		
 		self._fConst453 = (self._fConst237 + np.float32(53.53615)) 
-		
 		self._fConst454 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst237)) 
-		
 		self._fConst455 = (np.float32(0.0001) / self._fConst223) 
-		
 		self._fConst456 = (self._fConst455 + np.float32(0.0004332272)) 
-		
 		self._fConst457 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst455)) 
-		
 		self._fConst458 = (self._fConst224 + np.float32(7.6217313)) 
-		
 		self._fConst459 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst224)) 
-		
 		self._fConst460 = (self._fConst224 + np.float32(53.53615)) 
-		
 		self._fConst461 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst224)) 
-		
 		self._fConst462 = (np.float32(0.0001) / self._fConst210) 
-		
 		self._fConst463 = (self._fConst462 + np.float32(0.0004332272)) 
-		
 		self._fConst464 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst462)) 
-		
 		self._fConst465 = (self._fConst211 + np.float32(7.6217313)) 
-		
 		self._fConst466 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst211)) 
-		
 		self._fConst467 = (self._fConst211 + np.float32(53.53615)) 
-		
 		self._fConst468 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst211)) 
-		
 		self._fConst469 = (np.float32(0.0001) / self._fConst197) 
-		
 		self._fConst470 = (self._fConst469 + np.float32(0.0004332272)) 
-		
 		self._fConst471 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst469)) 
-		
 		self._fConst472 = (self._fConst198 + np.float32(7.6217313)) 
-		
 		self._fConst473 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst198)) 
-		
 		self._fConst474 = (self._fConst198 + np.float32(53.53615)) 
-		
 		self._fConst475 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst198)) 
-		
 		self._fConst476 = (np.float32(0.0001) / self._fConst184) 
-		
 		self._fConst477 = (self._fConst476 + np.float32(0.0004332272)) 
-		
 		self._fConst478 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst476)) 
-		
 		self._fConst479 = (self._fConst185 + np.float32(7.6217313)) 
-		
 		self._fConst480 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst185)) 
-		
 		self._fConst481 = (self._fConst185 + np.float32(53.53615)) 
-		
 		self._fConst482 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst185)) 
-		
 		self._fConst483 = (np.float32(0.0001) / self._fConst171) 
-		
 		self._fConst484 = (self._fConst483 + np.float32(0.0004332272)) 
-		
 		self._fConst485 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst483)) 
-		
 		self._fConst486 = (self._fConst172 + np.float32(7.6217313)) 
-		
 		self._fConst487 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst172)) 
-		
 		self._fConst488 = (self._fConst172 + np.float32(53.53615)) 
-		
 		self._fConst489 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst172)) 
-		
 		self._fConst490 = (np.float32(0.0001) / self._fConst158) 
-		
 		self._fConst491 = (self._fConst490 + np.float32(0.0004332272)) 
-		
 		self._fConst492 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst490)) 
-		
 		self._fConst493 = (self._fConst159 + np.float32(7.6217313)) 
-		
 		self._fConst494 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst159)) 
-		
 		self._fConst495 = (self._fConst159 + np.float32(53.53615)) 
-		
 		self._fConst496 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst159)) 
-		
 		self._fConst497 = (np.float32(0.0001) / self._fConst145) 
-		
 		self._fConst498 = (self._fConst497 + np.float32(0.0004332272)) 
-		
 		self._fConst499 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst497)) 
-		
 		self._fConst500 = (self._fConst146 + np.float32(7.6217313)) 
-		
 		self._fConst501 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst146)) 
-		
 		self._fConst502 = (self._fConst146 + np.float32(53.53615)) 
-		
 		self._fConst503 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst146)) 
-		
 		self._fConst504 = (np.float32(0.0001) / self._fConst132) 
-		
 		self._fConst505 = (self._fConst504 + np.float32(0.0004332272)) 
-		
 		self._fConst506 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst504)) 
-		
 		self._fConst507 = (self._fConst133 + np.float32(7.6217313)) 
-		
 		self._fConst508 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst133)) 
-		
 		self._fConst509 = (self._fConst133 + np.float32(53.53615)) 
-		
 		self._fConst510 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst133)) 
-		
 		self._fConst511 = (np.float32(0.0001) / self._fConst119) 
-		
 		self._fConst512 = (self._fConst511 + np.float32(0.0004332272)) 
-		
 		self._fConst513 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst511)) 
-		
 		self._fConst514 = (self._fConst120 + np.float32(7.6217313)) 
-		
 		self._fConst515 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst120)) 
-		
 		self._fConst516 = (self._fConst120 + np.float32(53.53615)) 
-		
 		self._fConst517 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst120)) 
-		
 		self._fConst518 = (np.float32(0.0001) / self._fConst106) 
-		
 		self._fConst519 = (self._fConst518 + np.float32(0.0004332272)) 
-		
 		self._fConst520 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst518)) 
-		
 		self._fConst521 = (self._fConst107 + np.float32(7.6217313)) 
-		
 		self._fConst522 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst107)) 
-		
 		self._fConst523 = (self._fConst107 + np.float32(53.53615)) 
-		
 		self._fConst524 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst107)) 
-		
 		self._fConst525 = (np.float32(0.0001) / self._fConst93) 
-		
 		self._fConst526 = (self._fConst525 + np.float32(0.0004332272)) 
-		
 		self._fConst527 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst525)) 
-		
 		self._fConst528 = (self._fConst94 + np.float32(7.6217313)) 
-		
 		self._fConst529 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst94)) 
-		
 		self._fConst530 = (self._fConst94 + np.float32(53.53615)) 
-		
 		self._fConst531 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst94)) 
-		
 		self._fConst532 = (np.float32(0.0001) / self._fConst80) 
-		
 		self._fConst533 = (self._fConst532 + np.float32(0.0004332272)) 
-		
 		self._fConst534 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst532)) 
-		
 		self._fConst535 = (self._fConst81 + np.float32(7.6217313)) 
-		
 		self._fConst536 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst81)) 
-		
 		self._fConst537 = (self._fConst81 + np.float32(53.53615)) 
-		
 		self._fConst538 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst81)) 
-		
 		self._fConst539 = (np.float32(0.0001) / self._fConst67) 
-		
 		self._fConst540 = (self._fConst539 + np.float32(0.0004332272)) 
-		
 		self._fConst541 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst539)) 
-		
 		self._fConst542 = (self._fConst68 + np.float32(7.6217313)) 
-		
 		self._fConst543 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst68)) 
-		
 		self._fConst544 = (self._fConst68 + np.float32(53.53615)) 
-		
 		self._fConst545 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst68)) 
-		
 		self._fConst546 = (np.float32(0.0001) / self._fConst54) 
-		
 		self._fConst547 = (self._fConst546 + np.float32(0.0004332272)) 
-		
 		self._fConst548 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst546)) 
-		
 		self._fConst549 = (self._fConst55 + np.float32(7.6217313)) 
-		
 		self._fConst550 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst55)) 
-		
 		self._fConst551 = (self._fConst55 + np.float32(53.53615)) 
-		
 		self._fConst552 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst55)) 
-		
 		self._fConst553 = (np.float32(0.0001) / self._fConst41) 
-		
 		self._fConst554 = (self._fConst553 + np.float32(0.0004332272)) 
-		
 		self._fConst555 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst553)) 
-		
 		self._fConst556 = (self._fConst42 + np.float32(7.6217313)) 
-		
 		self._fConst557 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst42)) 
-		
 		self._fConst558 = (self._fConst42 + np.float32(53.53615)) 
-		
 		self._fConst559 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst42)) 
-		
 		self._fConst560 = (np.float32(0.0001) / self._fConst28) 
-		
 		self._fConst561 = (self._fConst560 + np.float32(0.0004332272)) 
-		
 		self._fConst562 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst560)) 
-		
 		self._fConst563 = (self._fConst29 + np.float32(7.6217313)) 
-		
 		self._fConst564 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst29)) 
-		
 		self._fConst565 = (self._fConst29 + np.float32(53.53615)) 
-		
 		self._fConst566 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst29)) 
-		
 		self._fConst567 = (np.float32(0.0001) / self._fConst15) 
-		
 		self._fConst568 = (self._fConst567 + np.float32(0.0004332272)) 
-		
 		self._fConst569 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst567)) 
-		
 		self._fConst570 = (self._fConst16 + np.float32(7.6217313)) 
-		
 		self._fConst571 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst16)) 
-		
 		self._fConst572 = (self._fConst16 + np.float32(53.53615)) 
-		
 		self._fConst573 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst16)) 
-		
 		self._fConst574 = (np.float32(0.0001) / self._fConst2) 
-		
 		self._fConst575 = (self._fConst574 + np.float32(0.0004332272)) 
-		
 		self._fConst576 = (np.float32(2.0) * (np.float32(0.0004332272) - self._fConst574)) 
-		
 		self._fConst577 = (self._fConst3 + np.float32(7.6217313)) 
-		
 		self._fConst578 = (np.float32(2.0) * (np.float32(7.6217313) - self._fConst3)) 
-		
 		self._fConst579 = (self._fConst3 + np.float32(53.53615)) 
-		
 		self._fConst580 = (np.float32(2.0) * (np.float32(53.53615) - self._fConst3)) 
-		
 		self._fConst581 = (np.float32(1e+03) / self._fConst0) 
-		
 		self._fConst582 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst3)) 
-		
 		self._fConst583 = (((self._fConst5 + np.float32(-0.15748216)) / self._fConst1) + np.float32(0.9351402)) 
-		
 		self._fConst584 = (np.float32(1.0) / (((self._fConst5 + np.float32(0.15748216)) / self._fConst1) + np.float32(0.9351402))) 
-		
 		self._fConst585 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst3)) 
-		
 		self._fConst586 = (((self._fConst5 + np.float32(-0.74313045)) / self._fConst1) + np.float32(1.4500711)) 
-		
 		self._fConst587 = (np.float32(1.0) / (((self._fConst5 + np.float32(0.74313045)) / self._fConst1) + np.float32(1.4500711))) 
-		
 		self._fConst588 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst3)) 
-		
 		self._fConst589 = (((self._fConst5 + np.float32(-3.1897273)) / self._fConst1) + np.float32(4.0767817)) 
-		
 		self._fConst590 = (np.float32(1.0) / (((self._fConst5 + np.float32(3.1897273)) / self._fConst1) + np.float32(4.0767817))) 
-		
 		self._fConst591 = (np.float32(0.0017661728) / self._fConst2) 
-		
 		self._fConst592 = (self._fConst591 + np.float32(0.0004076782)) 
-		
 		self._fConst593 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst591)) 
-		
 		self._fConst594 = (np.float32(11.0520525) / self._fConst2) 
-		
 		self._fConst595 = (self._fConst594 + np.float32(1.4500711)) 
-		
 		self._fConst596 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst594)) 
-		
 		self._fConst597 = (np.float32(50.06381) / self._fConst2) 
-		
 		self._fConst598 = (self._fConst597 + np.float32(0.9351402)) 
-		
 		self._fConst599 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst597)) 
-		
 		self._fConst600 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst16)) 
-		
 		self._fConst601 = (((self._fConst18 + np.float32(-0.15748216)) / self._fConst14) + np.float32(0.9351402)) 
-		
 		self._fConst602 = (np.float32(1.0) / (((self._fConst18 + np.float32(0.15748216)) / self._fConst14) + np.float32(0.9351402))) 
-		
 		self._fConst603 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst16)) 
-		
 		self._fConst604 = (((self._fConst18 + np.float32(-0.74313045)) / self._fConst14) + np.float32(1.4500711)) 
-		
 		self._fConst605 = (np.float32(1.0) / (((self._fConst18 + np.float32(0.74313045)) / self._fConst14) + np.float32(1.4500711))) 
-		
 		self._fConst606 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst16)) 
-		
 		self._fConst607 = (((self._fConst18 + np.float32(-3.1897273)) / self._fConst14) + np.float32(4.0767817)) 
-		
 		self._fConst608 = (np.float32(1.0) / (((self._fConst18 + np.float32(3.1897273)) / self._fConst14) + np.float32(4.0767817))) 
-		
 		self._fConst609 = (np.float32(0.0017661728) / self._fConst15) 
-		
 		self._fConst610 = (self._fConst609 + np.float32(0.0004076782)) 
-		
 		self._fConst611 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst609)) 
-		
 		self._fConst612 = (np.float32(11.0520525) / self._fConst15) 
-		
 		self._fConst613 = (self._fConst612 + np.float32(1.4500711)) 
-		
 		self._fConst614 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst612)) 
-		
 		self._fConst615 = (np.float32(50.06381) / self._fConst15) 
-		
 		self._fConst616 = (self._fConst615 + np.float32(0.9351402)) 
-		
 		self._fConst617 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst615)) 
-		
 		self._fConst618 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst29)) 
-		
 		self._fConst619 = (((self._fConst31 + np.float32(-0.15748216)) / self._fConst27) + np.float32(0.9351402)) 
-		
 		self._fConst620 = (np.float32(1.0) / (((self._fConst31 + np.float32(0.15748216)) / self._fConst27) + np.float32(0.9351402))) 
-		
 		self._fConst621 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst29)) 
-		
 		self._fConst622 = (((self._fConst31 + np.float32(-0.74313045)) / self._fConst27) + np.float32(1.4500711)) 
-		
 		self._fConst623 = (np.float32(1.0) / (((self._fConst31 + np.float32(0.74313045)) / self._fConst27) + np.float32(1.4500711))) 
-		
 		self._fConst624 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst29)) 
-		
 		self._fConst625 = (((self._fConst31 + np.float32(-3.1897273)) / self._fConst27) + np.float32(4.0767817)) 
-		
 		self._fConst626 = (np.float32(1.0) / (((self._fConst31 + np.float32(3.1897273)) / self._fConst27) + np.float32(4.0767817))) 
-		
 		self._fConst627 = (np.float32(0.0017661728) / self._fConst28) 
-		
 		self._fConst628 = (self._fConst627 + np.float32(0.0004076782)) 
-		
 		self._fConst629 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst627)) 
-		
 		self._fConst630 = (np.float32(11.0520525) / self._fConst28) 
-		
 		self._fConst631 = (self._fConst630 + np.float32(1.4500711)) 
-		
 		self._fConst632 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst630)) 
-		
 		self._fConst633 = (np.float32(50.06381) / self._fConst28) 
-		
 		self._fConst634 = (self._fConst633 + np.float32(0.9351402)) 
-		
 		self._fConst635 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst633)) 
-		
 		self._fConst636 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst42)) 
-		
 		self._fConst637 = (((self._fConst44 + np.float32(-0.15748216)) / self._fConst40) + np.float32(0.9351402)) 
-		
 		self._fConst638 = (np.float32(1.0) / (((self._fConst44 + np.float32(0.15748216)) / self._fConst40) + np.float32(0.9351402))) 
-		
 		self._fConst639 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst42)) 
-		
 		self._fConst640 = (((self._fConst44 + np.float32(-0.74313045)) / self._fConst40) + np.float32(1.4500711)) 
-		
 		self._fConst641 = (np.float32(1.0) / (((self._fConst44 + np.float32(0.74313045)) / self._fConst40) + np.float32(1.4500711))) 
-		
 		self._fConst642 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst42)) 
-		
 		self._fConst643 = (((self._fConst44 + np.float32(-3.1897273)) / self._fConst40) + np.float32(4.0767817)) 
-		
 		self._fConst644 = (np.float32(1.0) / (((self._fConst44 + np.float32(3.1897273)) / self._fConst40) + np.float32(4.0767817))) 
-		
 		self._fConst645 = (np.float32(0.0017661728) / self._fConst41) 
-		
 		self._fConst646 = (self._fConst645 + np.float32(0.0004076782)) 
-		
 		self._fConst647 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst645)) 
-		
 		self._fConst648 = (np.float32(11.0520525) / self._fConst41) 
-		
 		self._fConst649 = (self._fConst648 + np.float32(1.4500711)) 
-		
 		self._fConst650 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst648)) 
-		
 		self._fConst651 = (np.float32(50.06381) / self._fConst41) 
-		
 		self._fConst652 = (self._fConst651 + np.float32(0.9351402)) 
-		
 		self._fConst653 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst651)) 
-		
 		self._fConst654 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst55)) 
-		
 		self._fConst655 = (((self._fConst57 + np.float32(-0.15748216)) / self._fConst53) + np.float32(0.9351402)) 
-		
 		self._fConst656 = (np.float32(1.0) / (((self._fConst57 + np.float32(0.15748216)) / self._fConst53) + np.float32(0.9351402))) 
-		
 		self._fConst657 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst55)) 
-		
 		self._fConst658 = (((self._fConst57 + np.float32(-0.74313045)) / self._fConst53) + np.float32(1.4500711)) 
-		
 		self._fConst659 = (np.float32(1.0) / (((self._fConst57 + np.float32(0.74313045)) / self._fConst53) + np.float32(1.4500711))) 
-		
 		self._fConst660 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst55)) 
-		
 		self._fConst661 = (((self._fConst57 + np.float32(-3.1897273)) / self._fConst53) + np.float32(4.0767817)) 
-		
 		self._fConst662 = (np.float32(1.0) / (((self._fConst57 + np.float32(3.1897273)) / self._fConst53) + np.float32(4.0767817))) 
-		
 		self._fConst663 = (np.float32(0.0017661728) / self._fConst54) 
-		
 		self._fConst664 = (self._fConst663 + np.float32(0.0004076782)) 
-		
 		self._fConst665 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst663)) 
-		
 		self._fConst666 = (np.float32(11.0520525) / self._fConst54) 
-		
 		self._fConst667 = (self._fConst666 + np.float32(1.4500711)) 
-		
 		self._fConst668 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst666)) 
-		
 		self._fConst669 = (np.float32(50.06381) / self._fConst54) 
-		
 		self._fConst670 = (self._fConst669 + np.float32(0.9351402)) 
-		
 		self._fConst671 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst669)) 
-		
 		self._fConst672 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst68)) 
-		
 		self._fConst673 = (((self._fConst70 + np.float32(-0.15748216)) / self._fConst66) + np.float32(0.9351402)) 
-		
 		self._fConst674 = (np.float32(1.0) / (((self._fConst70 + np.float32(0.15748216)) / self._fConst66) + np.float32(0.9351402))) 
-		
 		self._fConst675 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst68)) 
-		
 		self._fConst676 = (((self._fConst70 + np.float32(-0.74313045)) / self._fConst66) + np.float32(1.4500711)) 
-		
 		self._fConst677 = (np.float32(1.0) / (((self._fConst70 + np.float32(0.74313045)) / self._fConst66) + np.float32(1.4500711))) 
-		
 		self._fConst678 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst68)) 
-		
 		self._fConst679 = (((self._fConst70 + np.float32(-3.1897273)) / self._fConst66) + np.float32(4.0767817)) 
-		
 		self._fConst680 = (np.float32(1.0) / (((self._fConst70 + np.float32(3.1897273)) / self._fConst66) + np.float32(4.0767817))) 
-		
 		self._fConst681 = (np.float32(0.0017661728) / self._fConst67) 
-		
 		self._fConst682 = (self._fConst681 + np.float32(0.0004076782)) 
-		
 		self._fConst683 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst681)) 
-		
 		self._fConst684 = (np.float32(11.0520525) / self._fConst67) 
-		
 		self._fConst685 = (self._fConst684 + np.float32(1.4500711)) 
-		
 		self._fConst686 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst684)) 
-		
 		self._fConst687 = (np.float32(50.06381) / self._fConst67) 
-		
 		self._fConst688 = (self._fConst687 + np.float32(0.9351402)) 
-		
 		self._fConst689 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst687)) 
-		
 		self._fConst690 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst81)) 
-		
 		self._fConst691 = (((self._fConst83 + np.float32(-0.15748216)) / self._fConst79) + np.float32(0.9351402)) 
-		
 		self._fConst692 = (np.float32(1.0) / (((self._fConst83 + np.float32(0.15748216)) / self._fConst79) + np.float32(0.9351402))) 
-		
 		self._fConst693 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst81)) 
-		
 		self._fConst694 = (((self._fConst83 + np.float32(-0.74313045)) / self._fConst79) + np.float32(1.4500711)) 
-		
 		self._fConst695 = (np.float32(1.0) / (((self._fConst83 + np.float32(0.74313045)) / self._fConst79) + np.float32(1.4500711))) 
-		
 		self._fConst696 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst81)) 
-		
 		self._fConst697 = (((self._fConst83 + np.float32(-3.1897273)) / self._fConst79) + np.float32(4.0767817)) 
-		
 		self._fConst698 = (np.float32(1.0) / (((self._fConst83 + np.float32(3.1897273)) / self._fConst79) + np.float32(4.0767817))) 
-		
 		self._fConst699 = (np.float32(0.0017661728) / self._fConst80) 
-		
 		self._fConst700 = (self._fConst699 + np.float32(0.0004076782)) 
-		
 		self._fConst701 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst699)) 
-		
 		self._fConst702 = (np.float32(11.0520525) / self._fConst80) 
-		
 		self._fConst703 = (self._fConst702 + np.float32(1.4500711)) 
-		
 		self._fConst704 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst702)) 
-		
 		self._fConst705 = (np.float32(50.06381) / self._fConst80) 
-		
 		self._fConst706 = (self._fConst705 + np.float32(0.9351402)) 
-		
 		self._fConst707 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst705)) 
-		
 		self._fConst708 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst94)) 
-		
 		self._fConst709 = (((self._fConst96 + np.float32(-0.15748216)) / self._fConst92) + np.float32(0.9351402)) 
-		
 		self._fConst710 = (np.float32(1.0) / (((self._fConst96 + np.float32(0.15748216)) / self._fConst92) + np.float32(0.9351402))) 
-		
 		self._fConst711 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst94)) 
-		
 		self._fConst712 = (((self._fConst96 + np.float32(-0.74313045)) / self._fConst92) + np.float32(1.4500711)) 
-		
 		self._fConst713 = (np.float32(1.0) / (((self._fConst96 + np.float32(0.74313045)) / self._fConst92) + np.float32(1.4500711))) 
-		
 		self._fConst714 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst94)) 
-		
 		self._fConst715 = (((self._fConst96 + np.float32(-3.1897273)) / self._fConst92) + np.float32(4.0767817)) 
-		
 		self._fConst716 = (np.float32(1.0) / (((self._fConst96 + np.float32(3.1897273)) / self._fConst92) + np.float32(4.0767817))) 
-		
 		self._fConst717 = (np.float32(0.0017661728) / self._fConst93) 
-		
 		self._fConst718 = (self._fConst717 + np.float32(0.0004076782)) 
-		
 		self._fConst719 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst717)) 
-		
 		self._fConst720 = (np.float32(11.0520525) / self._fConst93) 
-		
 		self._fConst721 = (self._fConst720 + np.float32(1.4500711)) 
-		
 		self._fConst722 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst720)) 
-		
 		self._fConst723 = (np.float32(50.06381) / self._fConst93) 
-		
 		self._fConst724 = (self._fConst723 + np.float32(0.9351402)) 
-		
 		self._fConst725 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst723)) 
-		
 		self._fConst726 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst107)) 
-		
 		self._fConst727 = (((self._fConst109 + np.float32(-0.15748216)) / self._fConst105) + np.float32(0.9351402)) 
-		
 		self._fConst728 = (np.float32(1.0) / (((self._fConst109 + np.float32(0.15748216)) / self._fConst105) + np.float32(0.9351402))) 
-		
 		self._fConst729 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst107)) 
-		
 		self._fConst730 = (((self._fConst109 + np.float32(-0.74313045)) / self._fConst105) + np.float32(1.4500711)) 
-		
 		self._fConst731 = (np.float32(1.0) / (((self._fConst109 + np.float32(0.74313045)) / self._fConst105) + np.float32(1.4500711))) 
-		
 		self._fConst732 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst107)) 
-		
 		self._fConst733 = (((self._fConst109 + np.float32(-3.1897273)) / self._fConst105) + np.float32(4.0767817)) 
-		
 		self._fConst734 = (np.float32(1.0) / (((self._fConst109 + np.float32(3.1897273)) / self._fConst105) + np.float32(4.0767817))) 
-		
 		self._fConst735 = (np.float32(0.0017661728) / self._fConst106) 
-		
 		self._fConst736 = (self._fConst735 + np.float32(0.0004076782)) 
-		
 		self._fConst737 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst735)) 
-		
 		self._fConst738 = (np.float32(11.0520525) / self._fConst106) 
-		
 		self._fConst739 = (self._fConst738 + np.float32(1.4500711)) 
-		
 		self._fConst740 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst738)) 
-		
 		self._fConst741 = (np.float32(50.06381) / self._fConst106) 
-		
 		self._fConst742 = (self._fConst741 + np.float32(0.9351402)) 
-		
 		self._fConst743 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst741)) 
-		
 		self._fConst744 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst120)) 
-		
 		self._fConst745 = (((self._fConst122 + np.float32(-0.15748216)) / self._fConst118) + np.float32(0.9351402)) 
-		
 		self._fConst746 = (np.float32(1.0) / (((self._fConst122 + np.float32(0.15748216)) / self._fConst118) + np.float32(0.9351402))) 
-		
 		self._fConst747 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst120)) 
-		
 		self._fConst748 = (((self._fConst122 + np.float32(-0.74313045)) / self._fConst118) + np.float32(1.4500711)) 
-		
 		self._fConst749 = (np.float32(1.0) / (((self._fConst122 + np.float32(0.74313045)) / self._fConst118) + np.float32(1.4500711))) 
-		
 		self._fConst750 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst120)) 
-		
 		self._fConst751 = (((self._fConst122 + np.float32(-3.1897273)) / self._fConst118) + np.float32(4.0767817)) 
-		
 		self._fConst752 = (np.float32(1.0) / (((self._fConst122 + np.float32(3.1897273)) / self._fConst118) + np.float32(4.0767817))) 
-		
 		self._fConst753 = (np.float32(0.0017661728) / self._fConst119) 
-		
 		self._fConst754 = (self._fConst753 + np.float32(0.0004076782)) 
-		
 		self._fConst755 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst753)) 
-		
 		self._fConst756 = (np.float32(11.0520525) / self._fConst119) 
-		
 		self._fConst757 = (self._fConst756 + np.float32(1.4500711)) 
-		
 		self._fConst758 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst756)) 
-		
 		self._fConst759 = (np.float32(50.06381) / self._fConst119) 
-		
 		self._fConst760 = (self._fConst759 + np.float32(0.9351402)) 
-		
 		self._fConst761 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst759)) 
-		
 		self._fConst762 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst133)) 
-		
 		self._fConst763 = (((self._fConst135 + np.float32(-0.15748216)) / self._fConst131) + np.float32(0.9351402)) 
-		
 		self._fConst764 = (np.float32(1.0) / (((self._fConst135 + np.float32(0.15748216)) / self._fConst131) + np.float32(0.9351402))) 
-		
 		self._fConst765 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst133)) 
-		
 		self._fConst766 = (((self._fConst135 + np.float32(-0.74313045)) / self._fConst131) + np.float32(1.4500711)) 
-		
 		self._fConst767 = (np.float32(1.0) / (((self._fConst135 + np.float32(0.74313045)) / self._fConst131) + np.float32(1.4500711))) 
-		
 		self._fConst768 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst133)) 
-		
 		self._fConst769 = (((self._fConst135 + np.float32(-3.1897273)) / self._fConst131) + np.float32(4.0767817)) 
-		
 		self._fConst770 = (np.float32(1.0) / (((self._fConst135 + np.float32(3.1897273)) / self._fConst131) + np.float32(4.0767817))) 
-		
 		self._fConst771 = (np.float32(0.0017661728) / self._fConst132) 
-		
 		self._fConst772 = (self._fConst771 + np.float32(0.0004076782)) 
-		
 		self._fConst773 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst771)) 
-		
 		self._fConst774 = (np.float32(11.0520525) / self._fConst132) 
-		
 		self._fConst775 = (self._fConst774 + np.float32(1.4500711)) 
-		
 		self._fConst776 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst774)) 
-		
 		self._fConst777 = (np.float32(50.06381) / self._fConst132) 
-		
 		self._fConst778 = (self._fConst777 + np.float32(0.9351402)) 
-		
 		self._fConst779 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst777)) 
-		
 		self._fConst780 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst146)) 
-		
 		self._fConst781 = (((self._fConst148 + np.float32(-0.15748216)) / self._fConst144) + np.float32(0.9351402)) 
-		
 		self._fConst782 = (np.float32(1.0) / (((self._fConst148 + np.float32(0.15748216)) / self._fConst144) + np.float32(0.9351402))) 
-		
 		self._fConst783 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst146)) 
-		
 		self._fConst784 = (((self._fConst148 + np.float32(-0.74313045)) / self._fConst144) + np.float32(1.4500711)) 
-		
 		self._fConst785 = (np.float32(1.0) / (((self._fConst148 + np.float32(0.74313045)) / self._fConst144) + np.float32(1.4500711))) 
-		
 		self._fConst786 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst146)) 
-		
 		self._fConst787 = (((self._fConst148 + np.float32(-3.1897273)) / self._fConst144) + np.float32(4.0767817)) 
-		
 		self._fConst788 = (np.float32(1.0) / (((self._fConst148 + np.float32(3.1897273)) / self._fConst144) + np.float32(4.0767817))) 
-		
 		self._fConst789 = (np.float32(0.0017661728) / self._fConst145) 
-		
 		self._fConst790 = (self._fConst789 + np.float32(0.0004076782)) 
-		
 		self._fConst791 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst789)) 
-		
 		self._fConst792 = (np.float32(11.0520525) / self._fConst145) 
-		
 		self._fConst793 = (self._fConst792 + np.float32(1.4500711)) 
-		
 		self._fConst794 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst792)) 
-		
 		self._fConst795 = (np.float32(50.06381) / self._fConst145) 
-		
 		self._fConst796 = (self._fConst795 + np.float32(0.9351402)) 
-		
 		self._fConst797 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst795)) 
-		
 		self._fConst798 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst159)) 
-		
 		self._fConst799 = (((self._fConst161 + np.float32(-0.15748216)) / self._fConst157) + np.float32(0.9351402)) 
-		
 		self._fConst800 = (np.float32(1.0) / (((self._fConst161 + np.float32(0.15748216)) / self._fConst157) + np.float32(0.9351402))) 
-		
 		self._fConst801 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst159)) 
-		
 		self._fConst802 = (((self._fConst161 + np.float32(-0.74313045)) / self._fConst157) + np.float32(1.4500711)) 
-		
 		self._fConst803 = (np.float32(1.0) / (((self._fConst161 + np.float32(0.74313045)) / self._fConst157) + np.float32(1.4500711))) 
-		
 		self._fConst804 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst159)) 
-		
 		self._fConst805 = (((self._fConst161 + np.float32(-3.1897273)) / self._fConst157) + np.float32(4.0767817)) 
-		
 		self._fConst806 = (np.float32(1.0) / (((self._fConst161 + np.float32(3.1897273)) / self._fConst157) + np.float32(4.0767817))) 
-		
 		self._fConst807 = (np.float32(0.0017661728) / self._fConst158) 
-		
 		self._fConst808 = (self._fConst807 + np.float32(0.0004076782)) 
-		
 		self._fConst809 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst807)) 
-		
 		self._fConst810 = (np.float32(11.0520525) / self._fConst158) 
-		
 		self._fConst811 = (self._fConst810 + np.float32(1.4500711)) 
-		
 		self._fConst812 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst810)) 
-		
 		self._fConst813 = (np.float32(50.06381) / self._fConst158) 
-		
 		self._fConst814 = (self._fConst813 + np.float32(0.9351402)) 
-		
 		self._fConst815 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst813)) 
-		
 		self._fConst816 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst172)) 
-		
 		self._fConst817 = (((self._fConst174 + np.float32(-0.15748216)) / self._fConst170) + np.float32(0.9351402)) 
-		
 		self._fConst818 = (np.float32(1.0) / (((self._fConst174 + np.float32(0.15748216)) / self._fConst170) + np.float32(0.9351402))) 
-		
 		self._fConst819 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst172)) 
-		
 		self._fConst820 = (((self._fConst174 + np.float32(-0.74313045)) / self._fConst170) + np.float32(1.4500711)) 
-		
 		self._fConst821 = (np.float32(1.0) / (((self._fConst174 + np.float32(0.74313045)) / self._fConst170) + np.float32(1.4500711))) 
-		
 		self._fConst822 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst172)) 
-		
 		self._fConst823 = (((self._fConst174 + np.float32(-3.1897273)) / self._fConst170) + np.float32(4.0767817)) 
-		
 		self._fConst824 = (np.float32(1.0) / (((self._fConst174 + np.float32(3.1897273)) / self._fConst170) + np.float32(4.0767817))) 
-		
 		self._fConst825 = (np.float32(0.0017661728) / self._fConst171) 
-		
 		self._fConst826 = (self._fConst825 + np.float32(0.0004076782)) 
-		
 		self._fConst827 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst825)) 
-		
 		self._fConst828 = (np.float32(11.0520525) / self._fConst171) 
-		
 		self._fConst829 = (self._fConst828 + np.float32(1.4500711)) 
-		
 		self._fConst830 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst828)) 
-		
 		self._fConst831 = (np.float32(50.06381) / self._fConst171) 
-		
 		self._fConst832 = (self._fConst831 + np.float32(0.9351402)) 
-		
 		self._fConst833 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst831)) 
-		
 		self._fConst834 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst185)) 
-		
 		self._fConst835 = (((self._fConst187 + np.float32(-0.15748216)) / self._fConst183) + np.float32(0.9351402)) 
-		
 		self._fConst836 = (np.float32(1.0) / (((self._fConst187 + np.float32(0.15748216)) / self._fConst183) + np.float32(0.9351402))) 
-		
 		self._fConst837 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst185)) 
-		
 		self._fConst838 = (((self._fConst187 + np.float32(-0.74313045)) / self._fConst183) + np.float32(1.4500711)) 
-		
 		self._fConst839 = (np.float32(1.0) / (((self._fConst187 + np.float32(0.74313045)) / self._fConst183) + np.float32(1.4500711))) 
-		
 		self._fConst840 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst185)) 
-		
 		self._fConst841 = (((self._fConst187 + np.float32(-3.1897273)) / self._fConst183) + np.float32(4.0767817)) 
-		
 		self._fConst842 = (np.float32(1.0) / (((self._fConst187 + np.float32(3.1897273)) / self._fConst183) + np.float32(4.0767817))) 
-		
 		self._fConst843 = (np.float32(0.0017661728) / self._fConst184) 
-		
 		self._fConst844 = (self._fConst843 + np.float32(0.0004076782)) 
-		
 		self._fConst845 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst843)) 
-		
 		self._fConst846 = (np.float32(11.0520525) / self._fConst184) 
-		
 		self._fConst847 = (self._fConst846 + np.float32(1.4500711)) 
-		
 		self._fConst848 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst846)) 
-		
 		self._fConst849 = (np.float32(50.06381) / self._fConst184) 
-		
 		self._fConst850 = (self._fConst849 + np.float32(0.9351402)) 
-		
 		self._fConst851 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst849)) 
-		
 		self._fConst852 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst198)) 
-		
 		self._fConst853 = (((self._fConst200 + np.float32(-0.15748216)) / self._fConst196) + np.float32(0.9351402)) 
-		
 		self._fConst854 = (np.float32(1.0) / (((self._fConst200 + np.float32(0.15748216)) / self._fConst196) + np.float32(0.9351402))) 
-		
 		self._fConst855 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst198)) 
-		
 		self._fConst856 = (((self._fConst200 + np.float32(-0.74313045)) / self._fConst196) + np.float32(1.4500711)) 
-		
 		self._fConst857 = (np.float32(1.0) / (((self._fConst200 + np.float32(0.74313045)) / self._fConst196) + np.float32(1.4500711))) 
-		
 		self._fConst858 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst198)) 
-		
 		self._fConst859 = (((self._fConst200 + np.float32(-3.1897273)) / self._fConst196) + np.float32(4.0767817)) 
-		
 		self._fConst860 = (np.float32(1.0) / (((self._fConst200 + np.float32(3.1897273)) / self._fConst196) + np.float32(4.0767817))) 
-		
 		self._fConst861 = (np.float32(0.0017661728) / self._fConst197) 
-		
 		self._fConst862 = (self._fConst861 + np.float32(0.0004076782)) 
-		
 		self._fConst863 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst861)) 
-		
 		self._fConst864 = (np.float32(11.0520525) / self._fConst197) 
-		
 		self._fConst865 = (self._fConst864 + np.float32(1.4500711)) 
-		
 		self._fConst866 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst864)) 
-		
 		self._fConst867 = (np.float32(50.06381) / self._fConst197) 
-		
 		self._fConst868 = (self._fConst867 + np.float32(0.9351402)) 
-		
 		self._fConst869 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst867)) 
-		
 		self._fConst870 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst211)) 
-		
 		self._fConst871 = (((self._fConst213 + np.float32(-0.15748216)) / self._fConst209) + np.float32(0.9351402)) 
-		
 		self._fConst872 = (np.float32(1.0) / (((self._fConst213 + np.float32(0.15748216)) / self._fConst209) + np.float32(0.9351402))) 
-		
 		self._fConst873 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst211)) 
-		
 		self._fConst874 = (((self._fConst213 + np.float32(-0.74313045)) / self._fConst209) + np.float32(1.4500711)) 
-		
 		self._fConst875 = (np.float32(1.0) / (((self._fConst213 + np.float32(0.74313045)) / self._fConst209) + np.float32(1.4500711))) 
-		
 		self._fConst876 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst211)) 
-		
 		self._fConst877 = (((self._fConst213 + np.float32(-3.1897273)) / self._fConst209) + np.float32(4.0767817)) 
-		
 		self._fConst878 = (np.float32(1.0) / (((self._fConst213 + np.float32(3.1897273)) / self._fConst209) + np.float32(4.0767817))) 
-		
 		self._fConst879 = (np.float32(0.0017661728) / self._fConst210) 
-		
 		self._fConst880 = (self._fConst879 + np.float32(0.0004076782)) 
-		
 		self._fConst881 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst879)) 
-		
 		self._fConst882 = (np.float32(11.0520525) / self._fConst210) 
-		
 		self._fConst883 = (self._fConst882 + np.float32(1.4500711)) 
-		
 		self._fConst884 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst882)) 
-		
 		self._fConst885 = (np.float32(50.06381) / self._fConst210) 
-		
 		self._fConst886 = (self._fConst885 + np.float32(0.9351402)) 
-		
 		self._fConst887 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst885)) 
-		
 		self._fConst888 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst224)) 
-		
 		self._fConst889 = (((self._fConst226 + np.float32(-0.15748216)) / self._fConst222) + np.float32(0.9351402)) 
-		
 		self._fConst890 = (np.float32(1.0) / (((self._fConst226 + np.float32(0.15748216)) / self._fConst222) + np.float32(0.9351402))) 
-		
 		self._fConst891 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst224)) 
-		
 		self._fConst892 = (((self._fConst226 + np.float32(-0.74313045)) / self._fConst222) + np.float32(1.4500711)) 
-		
 		self._fConst893 = (np.float32(1.0) / (((self._fConst226 + np.float32(0.74313045)) / self._fConst222) + np.float32(1.4500711))) 
-		
 		self._fConst894 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst224)) 
-		
 		self._fConst895 = (((self._fConst226 + np.float32(-3.1897273)) / self._fConst222) + np.float32(4.0767817)) 
-		
 		self._fConst896 = (np.float32(1.0) / (((self._fConst226 + np.float32(3.1897273)) / self._fConst222) + np.float32(4.0767817))) 
-		
 		self._fConst897 = (np.float32(0.0017661728) / self._fConst223) 
-		
 		self._fConst898 = (self._fConst897 + np.float32(0.0004076782)) 
-		
 		self._fConst899 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst897)) 
-		
 		self._fConst900 = (np.float32(11.0520525) / self._fConst223) 
-		
 		self._fConst901 = (self._fConst900 + np.float32(1.4500711)) 
-		
 		self._fConst902 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst900)) 
-		
 		self._fConst903 = (np.float32(50.06381) / self._fConst223) 
-		
 		self._fConst904 = (self._fConst903 + np.float32(0.9351402)) 
-		
 		self._fConst905 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst903)) 
-		
 		self._fConst906 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst237)) 
-		
 		self._fConst907 = (((self._fConst239 + np.float32(-0.15748216)) / self._fConst235) + np.float32(0.9351402)) 
-		
 		self._fConst908 = (np.float32(1.0) / (((self._fConst239 + np.float32(0.15748216)) / self._fConst235) + np.float32(0.9351402))) 
-		
 		self._fConst909 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst237)) 
-		
 		self._fConst910 = (((self._fConst239 + np.float32(-0.74313045)) / self._fConst235) + np.float32(1.4500711)) 
-		
 		self._fConst911 = (np.float32(1.0) / (((self._fConst239 + np.float32(0.74313045)) / self._fConst235) + np.float32(1.4500711))) 
-		
 		self._fConst912 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst237)) 
-		
 		self._fConst913 = (((self._fConst239 + np.float32(-3.1897273)) / self._fConst235) + np.float32(4.0767817)) 
-		
 		self._fConst914 = (np.float32(1.0) / (((self._fConst239 + np.float32(3.1897273)) / self._fConst235) + np.float32(4.0767817))) 
-		
 		self._fConst915 = (np.float32(0.0017661728) / self._fConst236) 
-		
 		self._fConst916 = (self._fConst915 + np.float32(0.0004076782)) 
-		
 		self._fConst917 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst915)) 
-		
 		self._fConst918 = (np.float32(11.0520525) / self._fConst236) 
-		
 		self._fConst919 = (self._fConst918 + np.float32(1.4500711)) 
-		
 		self._fConst920 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst918)) 
-		
 		self._fConst921 = (np.float32(50.06381) / self._fConst236) 
-		
 		self._fConst922 = (self._fConst921 + np.float32(0.9351402)) 
-		
 		self._fConst923 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst921)) 
-		
 		self._fConst924 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst250)) 
-		
 		self._fConst925 = (((self._fConst252 + np.float32(-0.15748216)) / self._fConst248) + np.float32(0.9351402)) 
-		
 		self._fConst926 = (np.float32(1.0) / (((self._fConst252 + np.float32(0.15748216)) / self._fConst248) + np.float32(0.9351402))) 
-		
 		self._fConst927 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst250)) 
-		
 		self._fConst928 = (((self._fConst252 + np.float32(-0.74313045)) / self._fConst248) + np.float32(1.4500711)) 
-		
 		self._fConst929 = (np.float32(1.0) / (((self._fConst252 + np.float32(0.74313045)) / self._fConst248) + np.float32(1.4500711))) 
-		
 		self._fConst930 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst250)) 
-		
 		self._fConst931 = (((self._fConst252 + np.float32(-3.1897273)) / self._fConst248) + np.float32(4.0767817)) 
-		
 		self._fConst932 = (np.float32(1.0) / (((self._fConst252 + np.float32(3.1897273)) / self._fConst248) + np.float32(4.0767817))) 
-		
 		self._fConst933 = (np.float32(0.0017661728) / self._fConst249) 
-		
 		self._fConst934 = (self._fConst933 + np.float32(0.0004076782)) 
-		
 		self._fConst935 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst933)) 
-		
 		self._fConst936 = (np.float32(11.0520525) / self._fConst249) 
-		
 		self._fConst937 = (self._fConst936 + np.float32(1.4500711)) 
-		
 		self._fConst938 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst936)) 
-		
 		self._fConst939 = (np.float32(50.06381) / self._fConst249) 
-		
 		self._fConst940 = (self._fConst939 + np.float32(0.9351402)) 
-		
 		self._fConst941 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst939)) 
-		
 		self._fConst942 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst263)) 
-		
 		self._fConst943 = (((self._fConst265 + np.float32(-0.15748216)) / self._fConst261) + np.float32(0.9351402)) 
-		
 		self._fConst944 = (np.float32(1.0) / (((self._fConst265 + np.float32(0.15748216)) / self._fConst261) + np.float32(0.9351402))) 
-		
 		self._fConst945 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst263)) 
-		
 		self._fConst946 = (((self._fConst265 + np.float32(-0.74313045)) / self._fConst261) + np.float32(1.4500711)) 
-		
 		self._fConst947 = (np.float32(1.0) / (((self._fConst265 + np.float32(0.74313045)) / self._fConst261) + np.float32(1.4500711))) 
-		
 		self._fConst948 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst263)) 
-		
 		self._fConst949 = (((self._fConst265 + np.float32(-3.1897273)) / self._fConst261) + np.float32(4.0767817)) 
-		
 		self._fConst950 = (np.float32(1.0) / (((self._fConst265 + np.float32(3.1897273)) / self._fConst261) + np.float32(4.0767817))) 
-		
 		self._fConst951 = (np.float32(0.0017661728) / self._fConst262) 
-		
 		self._fConst952 = (self._fConst951 + np.float32(0.0004076782)) 
-		
 		self._fConst953 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst951)) 
-		
 		self._fConst954 = (np.float32(11.0520525) / self._fConst262) 
-		
 		self._fConst955 = (self._fConst954 + np.float32(1.4500711)) 
-		
 		self._fConst956 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst954)) 
-		
 		self._fConst957 = (np.float32(50.06381) / self._fConst262) 
-		
 		self._fConst958 = (self._fConst957 + np.float32(0.9351402)) 
-		
 		self._fConst959 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst957)) 
-		
 		self._fConst960 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst276)) 
-		
 		self._fConst961 = (((self._fConst278 + np.float32(-0.15748216)) / self._fConst274) + np.float32(0.9351402)) 
-		
 		self._fConst962 = (np.float32(1.0) / (((self._fConst278 + np.float32(0.15748216)) / self._fConst274) + np.float32(0.9351402))) 
-		
 		self._fConst963 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst276)) 
-		
 		self._fConst964 = (((self._fConst278 + np.float32(-0.74313045)) / self._fConst274) + np.float32(1.4500711)) 
-		
 		self._fConst965 = (np.float32(1.0) / (((self._fConst278 + np.float32(0.74313045)) / self._fConst274) + np.float32(1.4500711))) 
-		
 		self._fConst966 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst276)) 
-		
 		self._fConst967 = (((self._fConst278 + np.float32(-3.1897273)) / self._fConst274) + np.float32(4.0767817)) 
-		
 		self._fConst968 = (np.float32(1.0) / (((self._fConst278 + np.float32(3.1897273)) / self._fConst274) + np.float32(4.0767817))) 
-		
 		self._fConst969 = (np.float32(0.0017661728) / self._fConst275) 
-		
 		self._fConst970 = (self._fConst969 + np.float32(0.0004076782)) 
-		
 		self._fConst971 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst969)) 
-		
 		self._fConst972 = (np.float32(11.0520525) / self._fConst275) 
-		
 		self._fConst973 = (self._fConst972 + np.float32(1.4500711)) 
-		
 		self._fConst974 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst972)) 
-		
 		self._fConst975 = (np.float32(50.06381) / self._fConst275) 
-		
 		self._fConst976 = (self._fConst975 + np.float32(0.9351402)) 
-		
 		self._fConst977 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst975)) 
-		
 		self._fConst978 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst289)) 
-		
 		self._fConst979 = (((self._fConst291 + np.float32(-0.15748216)) / self._fConst287) + np.float32(0.9351402)) 
-		
 		self._fConst980 = (np.float32(1.0) / (((self._fConst291 + np.float32(0.15748216)) / self._fConst287) + np.float32(0.9351402))) 
-		
 		self._fConst981 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst289)) 
-		
 		self._fConst982 = (((self._fConst291 + np.float32(-0.74313045)) / self._fConst287) + np.float32(1.4500711)) 
-		
 		self._fConst983 = (np.float32(1.0) / (((self._fConst291 + np.float32(0.74313045)) / self._fConst287) + np.float32(1.4500711))) 
-		
 		self._fConst984 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst289)) 
-		
 		self._fConst985 = (((self._fConst291 + np.float32(-3.1897273)) / self._fConst287) + np.float32(4.0767817)) 
-		
 		self._fConst986 = (np.float32(1.0) / (((self._fConst291 + np.float32(3.1897273)) / self._fConst287) + np.float32(4.0767817))) 
-		
 		self._fConst987 = (np.float32(0.0017661728) / self._fConst288) 
-		
 		self._fConst988 = (self._fConst987 + np.float32(0.0004076782)) 
-		
 		self._fConst989 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst987)) 
-		
 		self._fConst990 = (np.float32(11.0520525) / self._fConst288) 
-		
 		self._fConst991 = (self._fConst990 + np.float32(1.4500711)) 
-		
 		self._fConst992 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst990)) 
-		
 		self._fConst993 = (np.float32(50.06381) / self._fConst288) 
-		
 		self._fConst994 = (self._fConst993 + np.float32(0.9351402)) 
-		
 		self._fConst995 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst993)) 
-		
 		self._fConst996 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst302)) 
-		
 		self._fConst997 = (((self._fConst304 + np.float32(-0.15748216)) / self._fConst300) + np.float32(0.9351402)) 
-		
 		self._fConst998 = (np.float32(1.0) / (((self._fConst304 + np.float32(0.15748216)) / self._fConst300) + np.float32(0.9351402))) 
-		
 		self._fConst999 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst302)) 
-		
 		self._fConst1000 = (((self._fConst304 + np.float32(-0.74313045)) / self._fConst300) + np.float32(1.4500711)) 
-		
 		self._fConst1001 = (np.float32(1.0) / (((self._fConst304 + np.float32(0.74313045)) / self._fConst300) + np.float32(1.4500711))) 
-		
 		self._fConst1002 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst302)) 
-		
 		self._fConst1003 = (((self._fConst304 + np.float32(-3.1897273)) / self._fConst300) + np.float32(4.0767817)) 
-		
 		self._fConst1004 = (np.float32(1.0) / (((self._fConst304 + np.float32(3.1897273)) / self._fConst300) + np.float32(4.0767817))) 
-		
 		self._fConst1005 = (np.float32(0.0017661728) / self._fConst301) 
-		
 		self._fConst1006 = (self._fConst1005 + np.float32(0.0004076782)) 
-		
 		self._fConst1007 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst1005)) 
-		
 		self._fConst1008 = (np.float32(11.0520525) / self._fConst301) 
-		
 		self._fConst1009 = (self._fConst1008 + np.float32(1.4500711)) 
-		
 		self._fConst1010 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst1008)) 
-		
 		self._fConst1011 = (np.float32(50.06381) / self._fConst301) 
-		
 		self._fConst1012 = (self._fConst1011 + np.float32(0.9351402)) 
-		
 		self._fConst1013 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst1011)) 
-		
 		self._fConst1014 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst315)) 
-		
 		self._fConst1015 = (((self._fConst317 + np.float32(-0.15748216)) / self._fConst313) + np.float32(0.9351402)) 
-		
 		self._fConst1016 = (np.float32(1.0) / (((self._fConst317 + np.float32(0.15748216)) / self._fConst313) + np.float32(0.9351402))) 
-		
 		self._fConst1017 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst315)) 
-		
 		self._fConst1018 = (((self._fConst317 + np.float32(-0.74313045)) / self._fConst313) + np.float32(1.4500711)) 
-		
 		self._fConst1019 = (np.float32(1.0) / (((self._fConst317 + np.float32(0.74313045)) / self._fConst313) + np.float32(1.4500711))) 
-		
 		self._fConst1020 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst315)) 
-		
 		self._fConst1021 = (((self._fConst317 + np.float32(-3.1897273)) / self._fConst313) + np.float32(4.0767817)) 
-		
 		self._fConst1022 = (np.float32(1.0) / (((self._fConst317 + np.float32(3.1897273)) / self._fConst313) + np.float32(4.0767817))) 
-		
 		self._fConst1023 = (np.float32(0.0017661728) / self._fConst314) 
-		
 		self._fConst1024 = (self._fConst1023 + np.float32(0.0004076782)) 
-		
 		self._fConst1025 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst1023)) 
-		
 		self._fConst1026 = (np.float32(11.0520525) / self._fConst314) 
-		
 		self._fConst1027 = (self._fConst1026 + np.float32(1.4500711)) 
-		
 		self._fConst1028 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst1026)) 
-		
 		self._fConst1029 = (np.float32(50.06381) / self._fConst314) 
-		
 		self._fConst1030 = (self._fConst1029 + np.float32(0.9351402)) 
-		
 		self._fConst1031 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst1029)) 
-		
 		self._fConst1032 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst328)) 
-		
 		self._fConst1033 = (((self._fConst330 + np.float32(-0.15748216)) / self._fConst326) + np.float32(0.9351402)) 
-		
 		self._fConst1034 = (np.float32(1.0) / (((self._fConst330 + np.float32(0.15748216)) / self._fConst326) + np.float32(0.9351402))) 
-		
 		self._fConst1035 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst328)) 
-		
 		self._fConst1036 = (((self._fConst330 + np.float32(-0.74313045)) / self._fConst326) + np.float32(1.4500711)) 
-		
 		self._fConst1037 = (np.float32(1.0) / (((self._fConst330 + np.float32(0.74313045)) / self._fConst326) + np.float32(1.4500711))) 
-		
 		self._fConst1038 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst328)) 
-		
 		self._fConst1039 = (((self._fConst330 + np.float32(-3.1897273)) / self._fConst326) + np.float32(4.0767817)) 
-		
 		self._fConst1040 = (np.float32(1.0) / (((self._fConst330 + np.float32(3.1897273)) / self._fConst326) + np.float32(4.0767817))) 
-		
 		self._fConst1041 = (np.float32(0.0017661728) / self._fConst327) 
-		
 		self._fConst1042 = (self._fConst1041 + np.float32(0.0004076782)) 
-		
 		self._fConst1043 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst1041)) 
-		
 		self._fConst1044 = (np.float32(11.0520525) / self._fConst327) 
-		
 		self._fConst1045 = (self._fConst1044 + np.float32(1.4500711)) 
-		
 		self._fConst1046 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst1044)) 
-		
 		self._fConst1047 = (np.float32(50.06381) / self._fConst327) 
-		
 		self._fConst1048 = (self._fConst1047 + np.float32(0.9351402)) 
-		
 		self._fConst1049 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst1047)) 
-		
 		self._fConst1050 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst341)) 
-		
 		self._fConst1051 = (((self._fConst343 + np.float32(-0.15748216)) / self._fConst339) + np.float32(0.9351402)) 
-		
 		self._fConst1052 = (np.float32(1.0) / (((self._fConst343 + np.float32(0.15748216)) / self._fConst339) + np.float32(0.9351402))) 
-		
 		self._fConst1053 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst341)) 
-		
 		self._fConst1054 = (((self._fConst343 + np.float32(-0.74313045)) / self._fConst339) + np.float32(1.4500711)) 
-		
 		self._fConst1055 = (np.float32(1.0) / (((self._fConst343 + np.float32(0.74313045)) / self._fConst339) + np.float32(1.4500711))) 
-		
 		self._fConst1056 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst341)) 
-		
 		self._fConst1057 = (((self._fConst343 + np.float32(-3.1897273)) / self._fConst339) + np.float32(4.0767817)) 
-		
 		self._fConst1058 = (np.float32(1.0) / (((self._fConst343 + np.float32(3.1897273)) / self._fConst339) + np.float32(4.0767817))) 
-		
 		self._fConst1059 = (np.float32(0.0017661728) / self._fConst340) 
-		
 		self._fConst1060 = (self._fConst1059 + np.float32(0.0004076782)) 
-		
 		self._fConst1061 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst1059)) 
-		
 		self._fConst1062 = (np.float32(11.0520525) / self._fConst340) 
-		
 		self._fConst1063 = (self._fConst1062 + np.float32(1.4500711)) 
-		
 		self._fConst1064 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst1062)) 
-		
 		self._fConst1065 = (np.float32(50.06381) / self._fConst340) 
-		
 		self._fConst1066 = (self._fConst1065 + np.float32(0.9351402)) 
-		
 		self._fConst1067 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst1065)) 
-		
 		self._fConst1068 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst354)) 
-		
 		self._fConst1069 = (((self._fConst356 + np.float32(-0.15748216)) / self._fConst352) + np.float32(0.9351402)) 
-		
 		self._fConst1070 = (np.float32(1.0) / (((self._fConst356 + np.float32(0.15748216)) / self._fConst352) + np.float32(0.9351402))) 
-		
 		self._fConst1071 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst354)) 
-		
 		self._fConst1072 = (((self._fConst356 + np.float32(-0.74313045)) / self._fConst352) + np.float32(1.4500711)) 
-		
 		self._fConst1073 = (np.float32(1.0) / (((self._fConst356 + np.float32(0.74313045)) / self._fConst352) + np.float32(1.4500711))) 
-		
 		self._fConst1074 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst354)) 
-		
 		self._fConst1075 = (((self._fConst356 + np.float32(-3.1897273)) / self._fConst352) + np.float32(4.0767817)) 
-		
 		self._fConst1076 = (np.float32(1.0) / (((self._fConst356 + np.float32(3.1897273)) / self._fConst352) + np.float32(4.0767817))) 
-		
 		self._fConst1077 = (np.float32(0.0017661728) / self._fConst353) 
-		
 		self._fConst1078 = (self._fConst1077 + np.float32(0.0004076782)) 
-		
 		self._fConst1079 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst1077)) 
-		
 		self._fConst1080 = (np.float32(11.0520525) / self._fConst353) 
-		
 		self._fConst1081 = (self._fConst1080 + np.float32(1.4500711)) 
-		
 		self._fConst1082 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst1080)) 
-		
 		self._fConst1083 = (np.float32(50.06381) / self._fConst353) 
-		
 		self._fConst1084 = (self._fConst1083 + np.float32(0.9351402)) 
-		
 		self._fConst1085 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst1083)) 
-		
 		self._fConst1086 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst367)) 
-		
 		self._fConst1087 = (((self._fConst369 + np.float32(-0.15748216)) / self._fConst365) + np.float32(0.9351402)) 
-		
 		self._fConst1088 = (np.float32(1.0) / (((self._fConst369 + np.float32(0.15748216)) / self._fConst365) + np.float32(0.9351402))) 
-		
 		self._fConst1089 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst367)) 
-		
 		self._fConst1090 = (((self._fConst369 + np.float32(-0.74313045)) / self._fConst365) + np.float32(1.4500711)) 
-		
 		self._fConst1091 = (np.float32(1.0) / (((self._fConst369 + np.float32(0.74313045)) / self._fConst365) + np.float32(1.4500711))) 
-		
 		self._fConst1092 = (np.float32(2.0) * (np.float32(4.0767817) - self._fConst367)) 
-		
 		self._fConst1093 = (((self._fConst369 + np.float32(-3.1897273)) / self._fConst365) + np.float32(4.0767817)) 
-		
 		self._fConst1094 = (np.float32(1.0) / (((self._fConst369 + np.float32(3.1897273)) / self._fConst365) + np.float32(4.0767817))) 
-		
 		self._fConst1095 = (np.float32(0.0017661728) / self._fConst366) 
-		
 		self._fConst1096 = (self._fConst1095 + np.float32(0.0004076782)) 
-		
 		self._fConst1097 = (np.float32(2.0) * (np.float32(0.0004076782) - self._fConst1095)) 
-		
 		self._fConst1098 = (np.float32(11.0520525) / self._fConst366) 
-		
 		self._fConst1099 = (self._fConst1098 + np.float32(1.4500711)) 
-		
 		self._fConst1100 = (np.float32(2.0) * (np.float32(1.4500711) - self._fConst1098)) 
-		
 		self._fConst1101 = (np.float32(50.06381) / self._fConst366) 
-		
 		self._fConst1102 = (self._fConst1101 + np.float32(0.9351402)) 
-		
 		self._fConst1103 = (np.float32(2.0) * (np.float32(0.9351402) - self._fConst1101)) 
 		
 	def _initialize_carry(self, x: jnp.ndarray, length: int):

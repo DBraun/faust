@@ -81,17 +81,11 @@ class mydsp(nn.Module):
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
 		self._fConst0 = np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate))) 
-		
 		self._fConst1 = (np.float32(1.0) / np.maximum(np.float32(1.0), (np.float32(0.01) * self._fConst0))) 
-		
 		self._fConst2 = (np.float32(1.0) / np.maximum(np.float32(1.0), (np.float32(0.1) * self._fConst0))) 
-		
 		self._fConst3 = np.exp(-((np.float32(1e+03) / self._fConst0))) 
-		
 		self._fConst4 = (np.float32(1.0) - self._fConst3) 
-		
 		self._fConst5 = (np.float32(0.9993265) * self._fConst0) 
-		
 		self._fConst6 = (np.float32(1.0006735) * self._fConst0) 
 		
 	def _initialize_carry(self, x: jnp.ndarray, length: int):

@@ -76,6 +76,7 @@ class mydsp(nn.Module):
 		
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
+		
 	def _initialize_carry(self, x: jnp.ndarray, length: int):
 		state = {}
 		

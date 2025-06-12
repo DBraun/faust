@@ -74,49 +74,27 @@ class mydsp(nn.Module):
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
 		self._fConst0 = np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate))) 
-		
 		self._fConst1 = np.tan((np.float32(1776.5707) / self._fConst0)) 
-		
 		self._fConst2 = (np.float32(1.0) / np.power(self._fConst1, np.float32(2.0))) 
-		
 		self._fConst3 = (np.float32(2.0) * (np.float32(1.0) - self._fConst2)) 
-		
 		self._fConst4 = (np.float32(1.0) / self._fConst1) 
-		
 		self._fConst5 = (((self._fConst4 + np.float32(-1.0)) / self._fConst1) + np.float32(1.0)) 
-		
 		self._fConst6 = (np.float32(1.0) / (((self._fConst4 + np.float32(1.0)) / self._fConst1) + np.float32(1.0))) 
-		
 		self._fConst7 = np.tan((np.float32(3553.1414) / self._fConst0)) 
-		
 		self._fConst8 = np.power(self._fConst7, np.float32(2.0)) 
-		
 		self._fConst9 = (np.float32(2.0) * (np.float32(1.0) - (np.float32(1.0) / self._fConst8))) 
-		
 		self._fConst10 = (np.float32(1.0) / self._fConst7) 
-		
 		self._fConst11 = (((self._fConst10 + np.float32(-1.0)) / self._fConst7) + np.float32(1.0)) 
-		
 		self._fConst12 = (((self._fConst10 + np.float32(1.0)) / self._fConst7) + np.float32(1.0)) 
-		
 		self._fConst13 = (np.float32(1.0) / self._fConst12) 
-		
 		self._fConst14 = (np.float32(1.0) - self._fConst10) 
-		
 		self._fConst15 = (np.float32(1.0) / (self._fConst10 + np.float32(1.0))) 
-		
 		self._fConst16 = (np.float32(1.0) / (self._fConst1 * self._fConst12)) 
-		
 		self._fConst17 = (np.float32(1.0) - self._fConst4) 
-		
 		self._fConst18 = (self._fConst4 + np.float32(1.0)) 
-		
 		self._fConst19 = (np.float32(1.0) / self._fConst18) 
-		
 		self._fConst20 = (np.float32(1.0) - (self._fConst17 / self._fConst1)) 
-		
 		self._fConst21 = (np.float32(1.0) / ((self._fConst18 / self._fConst1) + np.float32(1.0))) 
-		
 		self._fConst22 = (np.float32(1.0) / (self._fConst8 * self._fConst12)) 
 		
 	def _initialize_carry(self, x: jnp.ndarray, length: int):

@@ -105,143 +105,74 @@ class mydsp(nn.Module):
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
 		self._fConst0 = np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate))) 
-		
 		self._fConst1 = (np.float32(2.0) * self._fConst0) 
-		
 		self._fConst2 = (np.float32(0.5) / self._fConst0) 
-		
 		self._fConst3 = (np.float32(3.0) * self._fConst0) 
-		
 		self._fConst4 = (np.float32(0.33333334) / self._fConst0) 
-		
 		self._fConst5 = (np.float32(1.0) / self._fConst0) 
-		
 		self._fConst6 = (np.float32(1.0) / np.tan((np.float32(6283.1855) / self._fConst0))) 
-		
 		self._fConst7 = (np.float32(1.0) - self._fConst6) 
-		
 		self._fConst8 = (np.float32(1.0) / (self._fConst6 + np.float32(1.0))) 
-		
 		self._fConst9 = (np.float32(1.0) / np.tan((np.float32(628.31854) / self._fConst0))) 
-		
 		self._fConst10 = (np.float32(1.0) - self._fConst9) 
-		
 		self._fConst11 = (np.float32(1.0) / (self._fConst9 + np.float32(1.0))) 
-		
 		self._fConst12 = np.floor(((np.float32(0.174713) * self._fConst0) + np.float32(0.5))) 
-		
 		self._fConst13 = (self._fConst12 / self._fConst0) 
-		
 		self._fConst14 = (np.float32(3.4538777) * self._fConst13) 
-		
 		self._fConst15 = (np.float32(2.3025851) * self._fConst13) 
-		
 		self._fConst16 = np.cos((np.float32(37699.113) / self._fConst0)) 
-		
 		self._fConst17 = np.floor(((np.float32(0.022904) * self._fConst0) + np.float32(0.5))) 
-		
 		self._iConst18 = np.int32(np.minimum(np.float32(8192.0), np.maximum(np.float32(0.0), (self._fConst12 - self._fConst17)))) 
-		
 		self._iConst19 = np.int32(np.minimum(np.float32(8192.0), np.maximum(np.float32(0.0), (np.float32(0.02) * self._fConst0)))) 
-		
 		self._iConst20 = np.int32(np.minimum(np.float32(2048.0), np.maximum(np.float32(0.0), (self._fConst17 + np.float32(-1.0))))) 
-		
 		self._fConst21 = np.floor(((np.float32(0.153129) * self._fConst0) + np.float32(0.5))) 
-		
 		self._fConst22 = (self._fConst21 / self._fConst0) 
-		
 		self._fConst23 = (np.float32(3.4538777) * self._fConst22) 
-		
 		self._fConst24 = (np.float32(2.3025851) * self._fConst22) 
-		
 		self._fConst25 = np.floor(((np.float32(0.020346) * self._fConst0) + np.float32(0.5))) 
-		
 		self._iConst26 = np.int32(np.minimum(np.float32(8192.0), np.maximum(np.float32(0.0), (self._fConst21 - self._fConst25)))) 
-		
 		self._iConst27 = np.int32(np.minimum(np.float32(1024.0), np.maximum(np.float32(0.0), (self._fConst25 + np.float32(-1.0))))) 
-		
 		self._fConst28 = np.floor(((np.float32(0.127837) * self._fConst0) + np.float32(0.5))) 
-		
 		self._fConst29 = (self._fConst28 / self._fConst0) 
-		
 		self._fConst30 = (np.float32(3.4538777) * self._fConst29) 
-		
 		self._fConst31 = (np.float32(2.3025851) * self._fConst29) 
-		
 		self._fConst32 = np.floor(((np.float32(0.031604) * self._fConst0) + np.float32(0.5))) 
-		
 		self._iConst33 = np.int32(np.minimum(np.float32(8192.0), np.maximum(np.float32(0.0), (self._fConst28 - self._fConst32)))) 
-		
 		self._iConst34 = np.int32(np.minimum(np.float32(2048.0), np.maximum(np.float32(0.0), (self._fConst32 + np.float32(-1.0))))) 
-		
 		self._fConst35 = np.floor(((np.float32(0.125) * self._fConst0) + np.float32(0.5))) 
-		
 		self._fConst36 = (self._fConst35 / self._fConst0) 
-		
 		self._fConst37 = (np.float32(3.4538777) * self._fConst36) 
-		
 		self._fConst38 = (np.float32(2.3025851) * self._fConst36) 
-		
 		self._fConst39 = np.floor(((np.float32(0.013458) * self._fConst0) + np.float32(0.5))) 
-		
 		self._iConst40 = np.int32(np.minimum(np.float32(8192.0), np.maximum(np.float32(0.0), (self._fConst35 - self._fConst39)))) 
-		
 		self._iConst41 = np.int32(np.minimum(np.float32(1024.0), np.maximum(np.float32(0.0), (self._fConst39 + np.float32(-1.0))))) 
-		
 		self._fConst42 = np.floor(((np.float32(0.210389) * self._fConst0) + np.float32(0.5))) 
-		
 		self._fConst43 = (self._fConst42 / self._fConst0) 
-		
 		self._fConst44 = (np.float32(3.4538777) * self._fConst43) 
-		
 		self._fConst45 = (np.float32(2.3025851) * self._fConst43) 
-		
 		self._fConst46 = np.floor(((np.float32(0.024421) * self._fConst0) + np.float32(0.5))) 
-		
 		self._iConst47 = np.int32(np.minimum(np.float32(16384.0), np.maximum(np.float32(0.0), (self._fConst42 - self._fConst46)))) 
-		
 		self._iConst48 = np.int32(np.minimum(np.float32(2048.0), np.maximum(np.float32(0.0), (self._fConst46 + np.float32(-1.0))))) 
-		
 		self._fConst49 = np.floor(((np.float32(0.192303) * self._fConst0) + np.float32(0.5))) 
-		
 		self._fConst50 = (self._fConst49 / self._fConst0) 
-		
 		self._fConst51 = (np.float32(3.4538777) * self._fConst50) 
-		
 		self._fConst52 = (np.float32(2.3025851) * self._fConst50) 
-		
 		self._fConst53 = np.floor(((np.float32(0.029291) * self._fConst0) + np.float32(0.5))) 
-		
 		self._iConst54 = np.int32(np.minimum(np.float32(8192.0), np.maximum(np.float32(0.0), (self._fConst49 - self._fConst53)))) 
-		
 		self._iConst55 = np.int32(np.minimum(np.float32(2048.0), np.maximum(np.float32(0.0), (self._fConst53 + np.float32(-1.0))))) 
-		
 		self._fConst56 = np.floor(((np.float32(0.256891) * self._fConst0) + np.float32(0.5))) 
-		
 		self._fConst57 = (self._fConst56 / self._fConst0) 
-		
 		self._fConst58 = (np.float32(3.4538777) * self._fConst57) 
-		
 		self._fConst59 = (np.float32(2.3025851) * self._fConst57) 
-		
 		self._fConst60 = np.floor(((np.float32(0.027333) * self._fConst0) + np.float32(0.5))) 
-		
 		self._iConst61 = np.int32(np.minimum(np.float32(16384.0), np.maximum(np.float32(0.0), (self._fConst56 - self._fConst60)))) 
-		
 		self._iConst62 = np.int32(np.minimum(np.float32(2048.0), np.maximum(np.float32(0.0), (self._fConst60 + np.float32(-1.0))))) 
-		
 		self._fConst63 = np.floor(((np.float32(0.219991) * self._fConst0) + np.float32(0.5))) 
-		
 		self._fConst64 = (self._fConst63 / self._fConst0) 
-		
 		self._fConst65 = (np.float32(3.4538777) * self._fConst64) 
-		
 		self._fConst66 = (np.float32(2.3025851) * self._fConst64) 
-		
 		self._fConst67 = np.floor(((np.float32(0.019123) * self._fConst0) + np.float32(0.5))) 
-		
 		self._iConst68 = np.int32(np.minimum(np.float32(16384.0), np.maximum(np.float32(0.0), (self._fConst63 - self._fConst67)))) 
-		
 		self._iConst69 = np.int32(np.minimum(np.float32(1024.0), np.maximum(np.float32(0.0), (self._fConst67 + np.float32(-1.0))))) 
 		
 	def _initialize_carry(self, x: jnp.ndarray, length: int):
