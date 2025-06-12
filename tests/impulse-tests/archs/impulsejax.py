@@ -86,7 +86,7 @@ except ImportError:
 		for y, sr in audio_data:
 			fSR.append(sr)
 			assert y.ndim == 2
-			y = jnp.array(y)
+			y = jnp.array(y, dtype=FAUSTFLOAT)
 			fLength.append(y.shape[1])
 			fOffset.append(offset)
 			fBuffers = fBuffers.at[:y.shape[0],offset:offset+y.shape[1]].set(y)
@@ -207,7 +207,7 @@ except ImportError:
 	def add_bargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
 		setattr(self, zone, FAUSTFLOAT(0))
 
-	def unnormalize(self, i: int) -> Dict[str, jnp.array]:
+	def unnormalize(self, i: int) -> Dict[str, jnp.ndarray]:
 		"""
 		Unnormalize all UI parameters from [-1, 1] to their original ranges.
 		
@@ -236,7 +236,7 @@ except ImportError:
 		
 		return params
 	
-	def initialize_carry(self) -> Dict[str, jnp.array]:
+	def initialize_carry(self) -> Dict[str, jnp.ndarray]:
 		"""
 		Initialize the carry state for real-time processing.
 			
@@ -254,7 +254,7 @@ except ImportError:
 		
 		return state
 	
-	def process_block(self, i, carry: Dict[str, jnp.array], inputs: jnp.array = None, length: int = None, unroll: int = 1) -> Tuple[jnp.array, Dict[str, jnp.array]]:
+	def process_block(self, i, carry: Dict[str, jnp.ndarray], inputs: jnp.ndarray = None, length: int = None, unroll: int = 1) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
 		"""
 		Process one block of audio and return updated state.
 		
@@ -272,10 +272,6 @@ except ImportError:
 		if length is None and inputs is not None and hasattr(inputs, "shape"):
 			length = inputs.shape[-1]
 
-		# Transpose for scan: (block_size, num_inputs)
-		if inputs is not None:
-			inputs = jnp.transpose(inputs, axes=(1, 0))
-
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize(i)
 		
@@ -287,15 +283,14 @@ except ImportError:
 			split_rngs={"rng_stream": True},
 			length=length,
 			unroll=unroll,
+			in_axes=1,
+			out_axes=1,
 		)
 		new_carry, outputs = scan_fn(self, carry, inputs)
-		
-		# Transpose back: (num_outputs, block_size)
-		outputs_t = jnp.transpose(outputs, axes=(1, 0))
 
-		return outputs_t, new_carry
+		return outputs, new_carry
 
-	def __call__(self, x: jnp.array, length: int = None, unroll: int = 1) -> jnp.array:
+	def __call__(self, x: jnp.ndarray, length: int = None, unroll: int = 1) -> jnp.ndarray:
 
 		if length is None and x is not None:
 			length = x.shape[-1]
@@ -317,10 +312,12 @@ except ImportError:
 			split_rngs={"rng_stream": True},
 			length=length,
 			unroll=unroll,
+			in_axes=1,
+			out_axes=1,
 		)
-		new_carry, outputs = scan_fn(self, carry, jnp.transpose(x, axes=(1, 0)))
+		new_carry, outputs = scan_fn(self, carry, x)
 		
-		return jnp.transpose(outputs, axes=(1,0))
+		return outputs
 
 
 def main(args, N_SAMPLES, OFFSET, print_header=True):

@@ -70,7 +70,7 @@ except ImportError:
 		for y, sr in audio_data:
 			fSR.append(sr)
 			assert y.ndim == 2
-			y = jnp.array(y)
+			y = jnp.array(y, dtype=FAUSTFLOAT)
 			fLength.append(y.shape[1])
 			fOffset.append(offset)
 			fBuffers = fBuffers.at[:y.shape[0],offset:offset+y.shape[1]].set(y)
@@ -299,10 +299,6 @@ except ImportError:
 		if length is None and inputs is not None and hasattr(inputs, "shape"):
 			length = inputs.shape[-1]
 
-		# Transpose for scan: (block_size, num_inputs)
-		if inputs is not None:
-			inputs = jnp.transpose(inputs, axes=(1, 0))
-
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize()
 		
@@ -314,13 +310,12 @@ except ImportError:
 			split_rngs={"rng_stream": True},
 			length=length,
 			unroll=unroll,
+			in_axes=1,
+			out_axes=1,
 		)
 		new_carry, outputs = scan_fn(self, carry, inputs)
-		
-		# Transpose back: (num_outputs, block_size)
-		outputs_t = jnp.transpose(outputs, axes=(1, 0))
 
-		return outputs_t, new_carry
+		return outputs, new_carry
 	
 	def __call__(self, x: jnp.ndarray, length: int = None, unroll: int = 1) -> jnp.ndarray:
 
@@ -344,10 +339,12 @@ except ImportError:
 			split_rngs={"rng_stream": True},
 			length=length,
 			unroll=unroll,
+			in_axes=1,
+			out_axes=1,
 		)
-		new_carry, outputs = scan_fn(self, carry, jnp.transpose(x, axes=(1, 0)))
+		new_carry, outputs = scan_fn(self, carry, x)
 		
-		return jnp.transpose(outputs, axes=(1,0))
+		return outputs
 
 
 def test(args):
