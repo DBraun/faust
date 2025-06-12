@@ -1242,10 +1242,7 @@ void JAXCodeContainer::produceClass()
             
             LocalVarExtractor extractor;
             inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&extractor);
-            
-            // Add common inline subcontainer variables that might not be detected
-            extractor.fLocalVars.insert("iRec16");  // Common in table filling code
-            
+
             // Declare local variables (use a set to avoid duplicates)
             std::set<std::string> declaredVars;
             for (const auto& varname : extractor.fLocalVars) {

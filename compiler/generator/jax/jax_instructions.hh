@@ -1408,16 +1408,16 @@ class JAXInstVisitor : public TextInstVisitor {
             
             // In static init, skip read-write table loops
             if (fStateManager.inStaticInit() && checker.fAccessesRWTable) {
-                tab(fTab, *fOut);
-                *fOut << "# Skipping loop that fills read-write table - handled in _initialize_carry";
+//                 tab(fTab, *fOut);
+//                 *fOut << "# Skipping loop that fills read-write table - handled in _initialize_carry";
                 tab(fTab, *fOut);
                 return;
             }
             
             // In inline subcontainer (_initialize_carry), skip static table loops
             if (fStateManager.inInlineSubcontainer() && checker.fAccessesStaticTable) {
-                tab(fTab, *fOut);
-                *fOut << "# Skipping loop that fills static table - already handled in setup";
+//                 tab(fTab, *fOut);
+//                 *fOut << "# Skipping loop that fills static table - already handled in setup";
                 tab(fTab, *fOut);
                 *fOut << "pass";
                 EndLine(' ');
