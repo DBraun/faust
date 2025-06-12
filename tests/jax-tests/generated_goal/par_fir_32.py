@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,17 +61,6 @@ class mydsp(nn.Module):
 		return 1
 	
 	# fmt: off
-	def _initialize_carry(self, x: jnp.ndarray, length: int):
-		state = {}
-		
-		# Initialize array delays
-		state["fVec0"] = np.zeros((32,), dtype=np.float32)
-		# Initialize IOTA variables
-		state["IOTA0"] = np.int32(0)
-		# Initialize read-write tables
-		# Initialize waveform arrays for read-write tables
-		return state
-
 	def setup(self):
 		# Initialize static tables
 		# Initialize waveform data
@@ -82,11 +73,21 @@ class mydsp(nn.Module):
 		
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def _initialize_carry(self, x: jnp.ndarray, length: int):
+		state = {}
+		
+		# Initialize array delays
+		state["fVec0"] = np.zeros((32,), dtype=np.float32)
+		# Initialize IOTA variables
+		state["IOTA0"] = np.int32(0)
+		# Initialize waveform arrays for read-write tables
+		return state
+
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
 		
 		fTemp0 = inputs[0] 
 		state["fVec0"] = state["fVec0"].at[(state["IOTA0"] & 31).astype(jnp.int32)].set(fTemp0) 
-		_result0 = (((((((((((((((((((((((((((((((fTemp0 + (jnp.float32(0.5) * state["fVec0"][((state["IOTA0"] - 1) & 31).astype(jnp.int32)])) + (jnp.float32(0.33333334) * state["fVec0"][((state["IOTA0"] - 2) & 31).astype(jnp.int32)])) + (jnp.float32(0.25) * state["fVec0"][((state["IOTA0"] - 3) & 31).astype(jnp.int32)])) + (jnp.float32(0.2) * state["fVec0"][((state["IOTA0"] - 4) & 31).astype(jnp.int32)])) + (jnp.float32(0.16666667) * state["fVec0"][((state["IOTA0"] - 5) & 31).astype(jnp.int32)])) + (jnp.float32(0.14285715) * state["fVec0"][((state["IOTA0"] - 6) & 31).astype(jnp.int32)])) + (jnp.float32(0.125) * state["fVec0"][((state["IOTA0"] - 7) & 31).astype(jnp.int32)])) + (jnp.float32(0.11111111) * state["fVec0"][((state["IOTA0"] - 8) & 31).astype(jnp.int32)])) + (jnp.float32(0.1) * state["fVec0"][((state["IOTA0"] - 9) & 31).astype(jnp.int32)])) + (jnp.float32(0.09090909) * state["fVec0"][((state["IOTA0"] - 10) & 31).astype(jnp.int32)])) + (jnp.float32(0.083333336) * state["fVec0"][((state["IOTA0"] - 11) & 31).astype(jnp.int32)])) + (jnp.float32(0.07692308) * state["fVec0"][((state["IOTA0"] - 12) & 31).astype(jnp.int32)])) + (jnp.float32(0.071428575) * state["fVec0"][((state["IOTA0"] - 13) & 31).astype(jnp.int32)])) + (jnp.float32(0.06666667) * state["fVec0"][((state["IOTA0"] - 14) & 31).astype(jnp.int32)])) + (jnp.float32(0.0625) * state["fVec0"][((state["IOTA0"] - 15) & 31).astype(jnp.int32)])) + (jnp.float32(0.05882353) * state["fVec0"][((state["IOTA0"] - 16) & 31).astype(jnp.int32)])) + (jnp.float32(0.055555556) * state["fVec0"][((state["IOTA0"] - 17) & 31).astype(jnp.int32)])) + (jnp.float32(0.05263158) * state["fVec0"][((state["IOTA0"] - 18) & 31).astype(jnp.int32)])) + (jnp.float32(0.05) * state["fVec0"][((state["IOTA0"] - 19) & 31).astype(jnp.int32)])) + (jnp.float32(0.04761905) * state["fVec0"][((state["IOTA0"] - 20) & 31).astype(jnp.int32)])) + (jnp.float32(0.045454547) * state["fVec0"][((state["IOTA0"] - 21) & 31).astype(jnp.int32)])) + (jnp.float32(0.04347826) * state["fVec0"][((state["IOTA0"] - 22) & 31).astype(jnp.int32)])) + (jnp.float32(0.041666668) * state["fVec0"][((state["IOTA0"] - 23) & 31).astype(jnp.int32)])) + (jnp.float32(0.04) * state["fVec0"][((state["IOTA0"] - 24) & 31).astype(jnp.int32)])) + (jnp.float32(0.03846154) * state["fVec0"][((state["IOTA0"] - 25) & 31).astype(jnp.int32)])) + (jnp.float32(0.037037037) * state["fVec0"][((state["IOTA0"] - 26) & 31).astype(jnp.int32)])) + (jnp.float32(0.035714287) * state["fVec0"][((state["IOTA0"] - 27) & 31).astype(jnp.int32)])) + (jnp.float32(0.03448276) * state["fVec0"][((state["IOTA0"] - 28) & 31).astype(jnp.int32)])) + (jnp.float32(0.033333335) * state["fVec0"][((state["IOTA0"] - 29) & 31).astype(jnp.int32)])) + (jnp.float32(0.032258064) * state["fVec0"][((state["IOTA0"] - 30) & 31).astype(jnp.int32)])) + (jnp.float32(0.03125) * state["fVec0"][((state["IOTA0"] - 31) & 31).astype(jnp.int32)])) 
+		_result0 = ((jnp.float32(0.5) * state["fVec0"][((state["IOTA0"] - 1) & 31).astype(jnp.int32)]) + ((jnp.float32(0.33333334) * state["fVec0"][((state["IOTA0"] - 2) & 31).astype(jnp.int32)]) + ((jnp.float32(0.25) * state["fVec0"][((state["IOTA0"] - 3) & 31).astype(jnp.int32)]) + ((jnp.float32(0.2) * state["fVec0"][((state["IOTA0"] - 4) & 31).astype(jnp.int32)]) + ((jnp.float32(0.16666667) * state["fVec0"][((state["IOTA0"] - 5) & 31).astype(jnp.int32)]) + ((jnp.float32(0.14285715) * state["fVec0"][((state["IOTA0"] - 6) & 31).astype(jnp.int32)]) + ((jnp.float32(0.125) * state["fVec0"][((state["IOTA0"] - 7) & 31).astype(jnp.int32)]) + ((jnp.float32(0.11111111) * state["fVec0"][((state["IOTA0"] - 8) & 31).astype(jnp.int32)]) + ((jnp.float32(0.1) * state["fVec0"][((state["IOTA0"] - 9) & 31).astype(jnp.int32)]) + ((jnp.float32(0.09090909) * state["fVec0"][((state["IOTA0"] - 10) & 31).astype(jnp.int32)]) + ((jnp.float32(0.083333336) * state["fVec0"][((state["IOTA0"] - 11) & 31).astype(jnp.int32)]) + ((jnp.float32(0.07692308) * state["fVec0"][((state["IOTA0"] - 12) & 31).astype(jnp.int32)]) + ((jnp.float32(0.071428575) * state["fVec0"][((state["IOTA0"] - 13) & 31).astype(jnp.int32)]) + ((jnp.float32(0.06666667) * state["fVec0"][((state["IOTA0"] - 14) & 31).astype(jnp.int32)]) + ((jnp.float32(0.0625) * state["fVec0"][((state["IOTA0"] - 15) & 31).astype(jnp.int32)]) + ((jnp.float32(0.05882353) * state["fVec0"][((state["IOTA0"] - 16) & 31).astype(jnp.int32)]) + ((jnp.float32(0.055555556) * state["fVec0"][((state["IOTA0"] - 17) & 31).astype(jnp.int32)]) + ((jnp.float32(0.05263158) * state["fVec0"][((state["IOTA0"] - 18) & 31).astype(jnp.int32)]) + ((jnp.float32(0.05) * state["fVec0"][((state["IOTA0"] - 19) & 31).astype(jnp.int32)]) + ((jnp.float32(0.04761905) * state["fVec0"][((state["IOTA0"] - 20) & 31).astype(jnp.int32)]) + ((jnp.float32(0.045454547) * state["fVec0"][((state["IOTA0"] - 21) & 31).astype(jnp.int32)]) + ((jnp.float32(0.04347826) * state["fVec0"][((state["IOTA0"] - 22) & 31).astype(jnp.int32)]) + ((jnp.float32(0.041666668) * state["fVec0"][((state["IOTA0"] - 23) & 31).astype(jnp.int32)]) + ((jnp.float32(0.04) * state["fVec0"][((state["IOTA0"] - 24) & 31).astype(jnp.int32)]) + ((jnp.float32(0.03846154) * state["fVec0"][((state["IOTA0"] - 25) & 31).astype(jnp.int32)]) + ((jnp.float32(0.037037037) * state["fVec0"][((state["IOTA0"] - 26) & 31).astype(jnp.int32)]) + ((jnp.float32(0.035714287) * state["fVec0"][((state["IOTA0"] - 27) & 31).astype(jnp.int32)]) + ((jnp.float32(0.03448276) * state["fVec0"][((state["IOTA0"] - 28) & 31).astype(jnp.int32)]) + ((jnp.float32(0.033333335) * state["fVec0"][((state["IOTA0"] - 29) & 31).astype(jnp.int32)]) + ((jnp.float32(0.032258064) * state["fVec0"][((state["IOTA0"] - 30) & 31).astype(jnp.int32)]) + (fTemp0 + (jnp.float32(0.03125) * state["fVec0"][((state["IOTA0"] - 31) & 31).astype(jnp.int32)])))))))))))))))))))))))))))))))) 
 		state["IOTA0"] = (state["IOTA0"] + jnp.int32(1)) 
 		return state, jnp.stack([_result0]) 
 		
@@ -114,7 +115,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -193,13 +194,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -278,13 +280,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

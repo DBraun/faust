@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,22 +61,6 @@ class mydsp(nn.Module):
 		return 8
 	
 	# fmt: off
-	def _initialize_carry(self, x: jnp.ndarray, length: int):
-		state = {}
-		
-		# Initialize scalar delays
-		state["fRec0"] = np.float32(0)
-		state["fRec1"] = np.float32(0)
-		state["fRec2"] = np.float32(0)
-		state["fRec3"] = np.float32(0)
-		state["fRec4"] = np.float32(0)
-		state["fRec5"] = np.float32(0)
-		state["fRec6"] = np.float32(0)
-		state["fRec7"] = np.float32(0)
-		# Initialize read-write tables
-		# Initialize waveform arrays for read-write tables
-		return state
-
 	def setup(self):
 		# Initialize static tables
 		# Initialize waveform data
@@ -84,28 +70,28 @@ class mydsp(nn.Module):
 		ui_path = []
 		ui_path.append("8 channels dB meter") 
 		ui_path.append("0") 
-		self.add_vbargraph("fVbargraph0", ui_path, "vbargraph0", -7e+01, 1e+01) 
+		self.add_vbargraph("fVbargraph0", ui_path, "vbargraph0", -7e+01, 1e+01, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("1") 
-		self.add_vbargraph("fVbargraph1", ui_path, "vbargraph1", -7e+01, 1e+01) 
+		self.add_vbargraph("fVbargraph1", ui_path, "vbargraph1", -7e+01, 1e+01, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("2") 
-		self.add_vbargraph("fVbargraph2", ui_path, "vbargraph2", -7e+01, 1e+01) 
+		self.add_vbargraph("fVbargraph2", ui_path, "vbargraph2", -7e+01, 1e+01, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("3") 
-		self.add_vbargraph("fVbargraph3", ui_path, "vbargraph3", -7e+01, 1e+01) 
+		self.add_vbargraph("fVbargraph3", ui_path, "vbargraph3", -7e+01, 1e+01, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("4") 
-		self.add_vbargraph("fVbargraph4", ui_path, "vbargraph4", -7e+01, 1e+01) 
+		self.add_vbargraph("fVbargraph4", ui_path, "vbargraph4", -7e+01, 1e+01, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("5") 
-		self.add_vbargraph("fVbargraph5", ui_path, "vbargraph5", -7e+01, 1e+01) 
+		self.add_vbargraph("fVbargraph5", ui_path, "vbargraph5", -7e+01, 1e+01, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("6") 
-		self.add_vbargraph("fVbargraph6", ui_path, "vbargraph6", -7e+01, 1e+01) 
+		self.add_vbargraph("fVbargraph6", ui_path, "vbargraph6", -7e+01, 1e+01, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("7") 
-		self.add_vbargraph("fVbargraph7", ui_path, "vbargraph7", -7e+01, 1e+01) 
+		self.add_vbargraph("fVbargraph7", ui_path, "vbargraph7", -7e+01, 1e+01, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.pop()
 		
@@ -129,7 +115,22 @@ class mydsp(nn.Module):
 		
 		self._iConst8 = np.int32(0) 
 		
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def _initialize_carry(self, x: jnp.ndarray, length: int):
+		state = {}
+		
+		# Initialize scalar delays
+		state["fRec0"] = np.float32(0)
+		state["fRec1"] = np.float32(0)
+		state["fRec2"] = np.float32(0)
+		state["fRec3"] = np.float32(0)
+		state["fRec4"] = np.float32(0)
+		state["fRec5"] = np.float32(0)
+		state["fRec6"] = np.float32(0)
+		state["fRec7"] = np.float32(0)
+		# Initialize waveform arrays for read-write tables
+		return state
+
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
 		
 		fRec0_temp = state["fRec0"] 
 		fRec1_temp = state["fRec1"] 
@@ -143,42 +144,42 @@ class mydsp(nn.Module):
 		state["fRec0"] = jnp.maximum((fRec0_temp - self._fConst0), jnp.minimum(jnp.float32(1e+01), (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), jnp.abs(fTemp0)))))) 
 		fVbargraph0 = state["fRec0"]
 		self.sow("intermediates", "fVbargraph0", fVbargraph0) 
-		_result0 = self._iConst1 
+		_result0 = (self._iConst1) 
 		fTemp1 = inputs[1] 
 		state["fRec1"] = jnp.maximum((fRec1_temp - self._fConst0), jnp.minimum(jnp.float32(1e+01), (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), jnp.abs(fTemp1)))))) 
 		fVbargraph1 = state["fRec1"]
 		self.sow("intermediates", "fVbargraph1", fVbargraph1) 
-		_result1 = self._iConst2 
+		_result1 = (self._iConst2) 
 		fTemp2 = inputs[2] 
 		state["fRec2"] = jnp.maximum((fRec2_temp - self._fConst0), jnp.minimum(jnp.float32(1e+01), (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), jnp.abs(fTemp2)))))) 
 		fVbargraph2 = state["fRec2"]
 		self.sow("intermediates", "fVbargraph2", fVbargraph2) 
-		_result2 = self._iConst3 
+		_result2 = (self._iConst3) 
 		fTemp3 = inputs[3] 
 		state["fRec3"] = jnp.maximum((fRec3_temp - self._fConst0), jnp.minimum(jnp.float32(1e+01), (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), jnp.abs(fTemp3)))))) 
 		fVbargraph3 = state["fRec3"]
 		self.sow("intermediates", "fVbargraph3", fVbargraph3) 
-		_result3 = self._iConst4 
+		_result3 = (self._iConst4) 
 		fTemp4 = inputs[4] 
 		state["fRec4"] = jnp.maximum((fRec4_temp - self._fConst0), jnp.minimum(jnp.float32(1e+01), (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), jnp.abs(fTemp4)))))) 
 		fVbargraph4 = state["fRec4"]
 		self.sow("intermediates", "fVbargraph4", fVbargraph4) 
-		_result4 = self._iConst5 
+		_result4 = (self._iConst5) 
 		fTemp5 = inputs[5] 
 		state["fRec5"] = jnp.maximum((fRec5_temp - self._fConst0), jnp.minimum(jnp.float32(1e+01), (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), jnp.abs(fTemp5)))))) 
 		fVbargraph5 = state["fRec5"]
 		self.sow("intermediates", "fVbargraph5", fVbargraph5) 
-		_result5 = self._iConst6 
+		_result5 = (self._iConst6) 
 		fTemp6 = inputs[6] 
 		state["fRec6"] = jnp.maximum((fRec6_temp - self._fConst0), jnp.minimum(jnp.float32(1e+01), (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), jnp.abs(fTemp6)))))) 
 		fVbargraph6 = state["fRec6"]
 		self.sow("intermediates", "fVbargraph6", fVbargraph6) 
-		_result6 = self._iConst7 
+		_result6 = (self._iConst7) 
 		fTemp7 = inputs[7] 
 		state["fRec7"] = jnp.maximum((fRec7_temp - self._fConst0), jnp.minimum(jnp.float32(1e+01), (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), jnp.abs(fTemp7)))))) 
 		fVbargraph7 = state["fRec7"]
 		self.sow("intermediates", "fVbargraph7", fVbargraph7) 
-		_result7 = self._iConst8 
+		_result7 = (self._iConst8) 
 		return state, jnp.stack([_result0,_result1,_result2,_result3,_result4,_result5,_result6,_result7]) 
 		
 	# fmt: on	
@@ -205,7 +206,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -284,13 +285,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -369,13 +371,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

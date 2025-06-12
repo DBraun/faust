@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,6 +61,93 @@ class mydsp(nn.Module):
 		return 2
 	
 	# fmt: off
+	def setup(self):
+		# Initialize static tables
+		# Initialize waveform data
+		# Convert static tables and waveform data to JAX arrays
+		# Initialize UI parameters
+		unnorm_funcs = {}
+		ui_path = []
+		ui_path.append("mixer") 
+		ui_path.append("Ch 0") 
+		self.add_nentry("fEntry7", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
+		ui_path.append("0x00") 
+		self.add_vslider("fVslider7", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
+		self.add_vbargraph("fVbargraph7", ui_path, "vbargraph0", -7e+01, 5.0, unnorm_funcs) 
+		ui_path.pop()
+		self.add_button("fCheckbox7", ui_path, "mute", unnorm_funcs) 
+		ui_path.pop()
+		ui_path.append("Ch 1") 
+		self.add_nentry("fEntry6", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
+		ui_path.append("0x00") 
+		self.add_vslider("fVslider6", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
+		self.add_vbargraph("fVbargraph6", ui_path, "vbargraph1", -7e+01, 5.0, unnorm_funcs) 
+		ui_path.pop()
+		self.add_button("fCheckbox6", ui_path, "mute", unnorm_funcs) 
+		ui_path.pop()
+		ui_path.append("Ch 2") 
+		self.add_nentry("fEntry5", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
+		ui_path.append("0x00") 
+		self.add_vslider("fVslider5", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
+		self.add_vbargraph("fVbargraph5", ui_path, "vbargraph2", -7e+01, 5.0, unnorm_funcs) 
+		ui_path.pop()
+		self.add_button("fCheckbox5", ui_path, "mute", unnorm_funcs) 
+		ui_path.pop()
+		ui_path.append("Ch 3") 
+		self.add_nentry("fEntry4", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
+		ui_path.append("0x00") 
+		self.add_vslider("fVslider4", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
+		self.add_vbargraph("fVbargraph4", ui_path, "vbargraph3", -7e+01, 5.0, unnorm_funcs) 
+		ui_path.pop()
+		self.add_button("fCheckbox4", ui_path, "mute", unnorm_funcs) 
+		ui_path.pop()
+		ui_path.append("Ch 4") 
+		self.add_nentry("fEntry3", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
+		ui_path.append("0x00") 
+		self.add_vslider("fVslider3", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
+		self.add_vbargraph("fVbargraph3", ui_path, "vbargraph4", -7e+01, 5.0, unnorm_funcs) 
+		ui_path.pop()
+		self.add_button("fCheckbox3", ui_path, "mute", unnorm_funcs) 
+		ui_path.pop()
+		ui_path.append("Ch 5") 
+		self.add_nentry("fEntry2", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
+		ui_path.append("0x00") 
+		self.add_vslider("fVslider2", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
+		self.add_vbargraph("fVbargraph2", ui_path, "vbargraph5", -7e+01, 5.0, unnorm_funcs) 
+		ui_path.pop()
+		self.add_button("fCheckbox2", ui_path, "mute", unnorm_funcs) 
+		ui_path.pop()
+		ui_path.append("Ch 6") 
+		self.add_nentry("fEntry1", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
+		ui_path.append("0x00") 
+		self.add_vslider("fVslider1", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
+		self.add_vbargraph("fVbargraph1", ui_path, "vbargraph6", -7e+01, 5.0, unnorm_funcs) 
+		ui_path.pop()
+		self.add_button("fCheckbox1", ui_path, "mute", unnorm_funcs) 
+		ui_path.pop()
+		ui_path.append("Ch 7") 
+		self.add_nentry("fEntry0", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
+		ui_path.append("0x00") 
+		self.add_vslider("fVslider0", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
+		self.add_vbargraph("fVbargraph0", ui_path, "vbargraph7", -7e+01, 5.0, unnorm_funcs) 
+		ui_path.pop()
+		self.add_button("fCheckbox0", ui_path, "mute", unnorm_funcs) 
+		ui_path.pop()
+		ui_path.append("stereo out") 
+		ui_path.append("L") 
+		self.add_vbargraph("fVbargraph8", ui_path, "vbargraph8", -7e+01, 5.0, unnorm_funcs) 
+		ui_path.pop()
+		ui_path.append("R") 
+		self.add_vbargraph("fVbargraph9", ui_path, "vbargraph9", -7e+01, 5.0, unnorm_funcs) 
+		ui_path.pop()
+		self.add_vslider("fVslider8", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
+		ui_path.pop()
+		ui_path.pop()
+		
+		self._unnorm_funcs = unnorm_funcs
+		# Initialize other constants
+		self._fConst0 = (np.float32(1.0) / np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate)))) 
+		
 	def _initialize_carry(self, x: jnp.ndarray, length: int):
 		state = {}
 		
@@ -82,214 +171,126 @@ class mydsp(nn.Module):
 		state["fRec7"] = np.float32(0)
 		state["fRec8"] = np.float32(0)
 		state["fRec9"] = np.float32(0)
-		# Initialize read-write tables
 		# Initialize waveform arrays for read-write tables
 		return state
 
-	def setup(self):
-		# Initialize static tables
-		# Initialize waveform data
-		# Convert static tables and waveform data to JAX arrays
-		# Initialize UI parameters
-		unnorm_funcs = {}
-		ui_path = []
-		ui_path.append("mixer") 
-		ui_path.append("Ch 0") 
-		self.add_nentry("fEntry0", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
-		ui_path.append("0x00") 
-		self.add_vslider("fVslider1", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph0", ui_path, "vbargraph0", -7e+01, 5.0) 
-		ui_path.pop()
-		self.add_button("fCheckbox0", ui_path, "mute", unnorm_funcs) 
-		ui_path.pop()
-		ui_path.append("Ch 1") 
-		self.add_nentry("fEntry1", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
-		ui_path.append("0x00") 
-		self.add_vslider("fVslider2", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph1", ui_path, "vbargraph1", -7e+01, 5.0) 
-		ui_path.pop()
-		self.add_button("fCheckbox1", ui_path, "mute", unnorm_funcs) 
-		ui_path.pop()
-		ui_path.append("Ch 2") 
-		self.add_nentry("fEntry2", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
-		ui_path.append("0x00") 
-		self.add_vslider("fVslider3", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph2", ui_path, "vbargraph2", -7e+01, 5.0) 
-		ui_path.pop()
-		self.add_button("fCheckbox2", ui_path, "mute", unnorm_funcs) 
-		ui_path.pop()
-		ui_path.append("Ch 3") 
-		self.add_nentry("fEntry3", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
-		ui_path.append("0x00") 
-		self.add_vslider("fVslider4", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph3", ui_path, "vbargraph3", -7e+01, 5.0) 
-		ui_path.pop()
-		self.add_button("fCheckbox3", ui_path, "mute", unnorm_funcs) 
-		ui_path.pop()
-		ui_path.append("Ch 4") 
-		self.add_nentry("fEntry4", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
-		ui_path.append("0x00") 
-		self.add_vslider("fVslider5", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph4", ui_path, "vbargraph4", -7e+01, 5.0) 
-		ui_path.pop()
-		self.add_button("fCheckbox4", ui_path, "mute", unnorm_funcs) 
-		ui_path.pop()
-		ui_path.append("Ch 5") 
-		self.add_nentry("fEntry5", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
-		ui_path.append("0x00") 
-		self.add_vslider("fVslider6", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph5", ui_path, "vbargraph5", -7e+01, 5.0) 
-		ui_path.pop()
-		self.add_button("fCheckbox5", ui_path, "mute", unnorm_funcs) 
-		ui_path.pop()
-		ui_path.append("Ch 6") 
-		self.add_nentry("fEntry6", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
-		ui_path.append("0x00") 
-		self.add_vslider("fVslider7", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph6", ui_path, "vbargraph6", -7e+01, 5.0) 
-		ui_path.pop()
-		self.add_button("fCheckbox6", ui_path, "mute", unnorm_funcs) 
-		ui_path.pop()
-		ui_path.append("Ch 7") 
-		self.add_nentry("fEntry7", ui_path, "pan", 0.0, -9e+01, 9e+01, 1.0, unnorm_funcs, "linear") 
-		ui_path.append("0x00") 
-		self.add_vslider("fVslider8", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph7", ui_path, "vbargraph7", -7e+01, 5.0) 
-		ui_path.pop()
-		self.add_button("fCheckbox7", ui_path, "mute", unnorm_funcs) 
-		ui_path.pop()
-		ui_path.append("stereo out") 
-		ui_path.append("L") 
-		self.add_vbargraph("fVbargraph8", ui_path, "vbargraph8", -7e+01, 5.0) 
-		ui_path.pop()
-		ui_path.append("R") 
-		self.add_vbargraph("fVbargraph9", ui_path, "vbargraph9", -7e+01, 5.0) 
-		ui_path.pop()
-		self.add_vslider("fVslider0", ui_path, "0x00", 0.0, -7e+01, 4.0, unnorm_funcs, "linear") 
-		ui_path.pop()
-		ui_path.pop()
-		
-		self._unnorm_funcs = unnorm_funcs
-		# Initialize other constants
-		self._fConst0 = (np.float32(1.0) / np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate)))) 
-		
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
 		
 		fSlow0 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider0"]))) 
-		fSlow1 = (jnp.float32(0.0055555557) * (params["fEntry0"] + jnp.float32(-9e+01))) 
-		fSlow2 = jnp.sqrt(-fSlow1) 
-		fSlow3 = (jnp.float32(1.0) - params["fCheckbox0"]) 
+		fSlow1 = (jnp.float32(1.0) - params["fCheckbox0"]) 
+		fSlow2 = (jnp.float32(0.0055555557) * (params["fEntry0"] + jnp.float32(-9e+01))) 
+		fSlow3 = jnp.sqrt(-fSlow2) 
 		fSlow4 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider1"]))) 
-		fSlow5 = (jnp.float32(0.0055555557) * (params["fEntry1"] + jnp.float32(-9e+01))) 
-		fSlow6 = jnp.sqrt(-fSlow5) 
-		fSlow7 = (jnp.float32(1.0) - params["fCheckbox1"]) 
+		fSlow5 = (jnp.float32(1.0) - params["fCheckbox1"]) 
+		fSlow6 = (jnp.float32(0.0055555557) * (params["fEntry1"] + jnp.float32(-9e+01))) 
+		fSlow7 = jnp.sqrt(-fSlow6) 
 		fSlow8 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider2"]))) 
-		fSlow9 = (jnp.float32(0.0055555557) * (params["fEntry2"] + jnp.float32(-9e+01))) 
-		fSlow10 = jnp.sqrt(-fSlow9) 
-		fSlow11 = (jnp.float32(1.0) - params["fCheckbox2"]) 
+		fSlow9 = (jnp.float32(1.0) - params["fCheckbox2"]) 
+		fSlow10 = (jnp.float32(0.0055555557) * (params["fEntry2"] + jnp.float32(-9e+01))) 
+		fSlow11 = jnp.sqrt(-fSlow10) 
 		fSlow12 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider3"]))) 
-		fSlow13 = (jnp.float32(0.0055555557) * (params["fEntry3"] + jnp.float32(-9e+01))) 
-		fSlow14 = jnp.sqrt(-fSlow13) 
-		fSlow15 = (jnp.float32(1.0) - params["fCheckbox3"]) 
+		fSlow13 = (jnp.float32(1.0) - params["fCheckbox3"]) 
+		fSlow14 = (jnp.float32(0.0055555557) * (params["fEntry3"] + jnp.float32(-9e+01))) 
+		fSlow15 = jnp.sqrt(-fSlow14) 
 		fSlow16 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider4"]))) 
-		fSlow17 = (jnp.float32(0.0055555557) * (params["fEntry4"] + jnp.float32(-9e+01))) 
-		fSlow18 = jnp.sqrt(-fSlow17) 
-		fSlow19 = (jnp.float32(1.0) - params["fCheckbox4"]) 
+		fSlow17 = (jnp.float32(1.0) - params["fCheckbox4"]) 
+		fSlow18 = (jnp.float32(0.0055555557) * (params["fEntry4"] + jnp.float32(-9e+01))) 
+		fSlow19 = jnp.sqrt(-fSlow18) 
 		fSlow20 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider5"]))) 
-		fSlow21 = (jnp.float32(0.0055555557) * (params["fEntry5"] + jnp.float32(-9e+01))) 
-		fSlow22 = jnp.sqrt(-fSlow21) 
-		fSlow23 = (jnp.float32(1.0) - params["fCheckbox5"]) 
+		fSlow21 = (jnp.float32(1.0) - params["fCheckbox5"]) 
+		fSlow22 = (jnp.float32(0.0055555557) * (params["fEntry5"] + jnp.float32(-9e+01))) 
+		fSlow23 = jnp.sqrt(-fSlow22) 
 		fSlow24 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider6"]))) 
-		fSlow25 = (jnp.float32(0.0055555557) * (params["fEntry6"] + jnp.float32(-9e+01))) 
-		fSlow26 = jnp.sqrt(-fSlow25) 
-		fSlow27 = (jnp.float32(1.0) - params["fCheckbox6"]) 
+		fSlow25 = (jnp.float32(1.0) - params["fCheckbox6"]) 
+		fSlow26 = (jnp.float32(0.0055555557) * (params["fEntry6"] + jnp.float32(-9e+01))) 
+		fSlow27 = jnp.sqrt(-fSlow26) 
 		fSlow28 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider7"]))) 
-		fSlow29 = (jnp.float32(0.0055555557) * (params["fEntry7"] + jnp.float32(-9e+01))) 
-		fSlow30 = jnp.sqrt(-fSlow29) 
-		fSlow31 = (jnp.float32(1.0) - params["fCheckbox7"]) 
+		fSlow29 = (jnp.float32(1.0) - params["fCheckbox7"]) 
+		fSlow30 = (jnp.float32(0.0055555557) * (params["fEntry7"] + jnp.float32(-9e+01))) 
+		fSlow31 = jnp.sqrt(-fSlow30) 
 		fSlow32 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider8"]))) 
-		fSlow33 = jnp.sqrt((fSlow1 + jnp.float32(1.0))) 
-		fSlow34 = jnp.sqrt((fSlow5 + jnp.float32(1.0))) 
-		fSlow35 = jnp.sqrt((fSlow9 + jnp.float32(1.0))) 
-		fSlow36 = jnp.sqrt((fSlow13 + jnp.float32(1.0))) 
-		fSlow37 = jnp.sqrt((fSlow17 + jnp.float32(1.0))) 
-		fSlow38 = jnp.sqrt((fSlow21 + jnp.float32(1.0))) 
-		fSlow39 = jnp.sqrt((fSlow25 + jnp.float32(1.0))) 
-		fSlow40 = jnp.sqrt((fSlow29 + jnp.float32(1.0))) 
-		fRec1_temp = state["fRec1"] 
-		fRec3_temp = state["fRec3"] 
+		fSlow33 = jnp.sqrt((fSlow2 + jnp.float32(1.0))) 
+		fSlow34 = jnp.sqrt((fSlow6 + jnp.float32(1.0))) 
+		fSlow35 = jnp.sqrt((fSlow10 + jnp.float32(1.0))) 
+		fSlow36 = jnp.sqrt((fSlow14 + jnp.float32(1.0))) 
+		fSlow37 = jnp.sqrt((fSlow18 + jnp.float32(1.0))) 
+		fSlow38 = jnp.sqrt((fSlow22 + jnp.float32(1.0))) 
+		fSlow39 = jnp.sqrt((fSlow26 + jnp.float32(1.0))) 
+		fSlow40 = jnp.sqrt((fSlow30 + jnp.float32(1.0))) 
 		fRec2_temp = state["fRec2"] 
-		fRec5_temp = state["fRec5"] 
+		fRec1_temp = state["fRec1"] 
 		fRec4_temp = state["fRec4"] 
-		fRec7_temp = state["fRec7"] 
+		fRec3_temp = state["fRec3"] 
 		fRec6_temp = state["fRec6"] 
-		fRec9_temp = state["fRec9"] 
+		fRec5_temp = state["fRec5"] 
 		fRec8_temp = state["fRec8"] 
-		fRec11_temp = state["fRec11"] 
+		fRec7_temp = state["fRec7"] 
 		fRec10_temp = state["fRec10"] 
-		fRec13_temp = state["fRec13"] 
+		fRec9_temp = state["fRec9"] 
 		fRec12_temp = state["fRec12"] 
-		fRec15_temp = state["fRec15"] 
+		fRec11_temp = state["fRec11"] 
 		fRec14_temp = state["fRec14"] 
-		fRec17_temp = state["fRec17"] 
+		fRec13_temp = state["fRec13"] 
 		fRec16_temp = state["fRec16"] 
+		fRec15_temp = state["fRec15"] 
+		fRec17_temp = state["fRec17"] 
 		fRec0_temp = state["fRec0"] 
 		fRec18_temp = state["fRec18"] 
-		state["fRec1"] = (fSlow0 + (jnp.float32(0.999) * fRec1_temp)) 
-		state["fRec3"] = (fSlow4 + (jnp.float32(0.999) * fRec3_temp)) 
-		fTemp0 = (fSlow3 * (inputs[0] * state["fRec3"])) 
-		state["fRec2"] = jnp.maximum((fRec2_temp - self._fConst0), jnp.abs(fTemp0)) 
-		fVbargraph0 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec2"])))
+		state["fRec2"] = (fSlow0 + (jnp.float32(0.999) * fRec2_temp)) 
+		fTemp0 = (fSlow1 * (inputs[7] * state["fRec2"])) 
+		state["fRec1"] = jnp.maximum((fRec1_temp - self._fConst0), jnp.abs(fTemp0)) 
+		fVbargraph0 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec1"])))
 		self.sow("intermediates", "fVbargraph0", fVbargraph0) 
 		fTemp1 = fTemp0 
-		state["fRec5"] = (fSlow8 + (jnp.float32(0.999) * fRec5_temp)) 
-		fTemp2 = (fSlow7 * (inputs[1] * state["fRec5"])) 
-		state["fRec4"] = jnp.maximum((fRec4_temp - self._fConst0), jnp.abs(fTemp2)) 
-		fVbargraph1 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec4"])))
+		state["fRec4"] = (fSlow4 + (jnp.float32(0.999) * fRec4_temp)) 
+		fTemp2 = (fSlow5 * (inputs[6] * state["fRec4"])) 
+		state["fRec3"] = jnp.maximum((fRec3_temp - self._fConst0), jnp.abs(fTemp2)) 
+		fVbargraph1 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec3"])))
 		self.sow("intermediates", "fVbargraph1", fVbargraph1) 
 		fTemp3 = fTemp2 
-		state["fRec7"] = (fSlow12 + (jnp.float32(0.999) * fRec7_temp)) 
-		fTemp4 = (fSlow11 * (inputs[2] * state["fRec7"])) 
-		state["fRec6"] = jnp.maximum((fRec6_temp - self._fConst0), jnp.abs(fTemp4)) 
-		fVbargraph2 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec6"])))
+		state["fRec6"] = (fSlow8 + (jnp.float32(0.999) * fRec6_temp)) 
+		fTemp4 = (fSlow9 * (inputs[5] * state["fRec6"])) 
+		state["fRec5"] = jnp.maximum((fRec5_temp - self._fConst0), jnp.abs(fTemp4)) 
+		fVbargraph2 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec5"])))
 		self.sow("intermediates", "fVbargraph2", fVbargraph2) 
 		fTemp5 = fTemp4 
-		state["fRec9"] = (fSlow16 + (jnp.float32(0.999) * fRec9_temp)) 
-		fTemp6 = (fSlow15 * (inputs[3] * state["fRec9"])) 
-		state["fRec8"] = jnp.maximum((fRec8_temp - self._fConst0), jnp.abs(fTemp6)) 
-		fVbargraph3 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec8"])))
+		state["fRec8"] = (fSlow12 + (jnp.float32(0.999) * fRec8_temp)) 
+		fTemp6 = (fSlow13 * (inputs[4] * state["fRec8"])) 
+		state["fRec7"] = jnp.maximum((fRec7_temp - self._fConst0), jnp.abs(fTemp6)) 
+		fVbargraph3 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec7"])))
 		self.sow("intermediates", "fVbargraph3", fVbargraph3) 
 		fTemp7 = fTemp6 
-		state["fRec11"] = (fSlow20 + (jnp.float32(0.999) * fRec11_temp)) 
-		fTemp8 = (fSlow19 * (inputs[4] * state["fRec11"])) 
-		state["fRec10"] = jnp.maximum((fRec10_temp - self._fConst0), jnp.abs(fTemp8)) 
-		fVbargraph4 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec10"])))
+		state["fRec10"] = (fSlow16 + (jnp.float32(0.999) * fRec10_temp)) 
+		fTemp8 = (fSlow17 * (inputs[3] * state["fRec10"])) 
+		state["fRec9"] = jnp.maximum((fRec9_temp - self._fConst0), jnp.abs(fTemp8)) 
+		fVbargraph4 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec9"])))
 		self.sow("intermediates", "fVbargraph4", fVbargraph4) 
 		fTemp9 = fTemp8 
-		state["fRec13"] = (fSlow24 + (jnp.float32(0.999) * fRec13_temp)) 
-		fTemp10 = (fSlow23 * (inputs[5] * state["fRec13"])) 
-		state["fRec12"] = jnp.maximum((fRec12_temp - self._fConst0), jnp.abs(fTemp10)) 
-		fVbargraph5 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec12"])))
+		state["fRec12"] = (fSlow20 + (jnp.float32(0.999) * fRec12_temp)) 
+		fTemp10 = (fSlow21 * (inputs[2] * state["fRec12"])) 
+		state["fRec11"] = jnp.maximum((fRec11_temp - self._fConst0), jnp.abs(fTemp10)) 
+		fVbargraph5 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec11"])))
 		self.sow("intermediates", "fVbargraph5", fVbargraph5) 
 		fTemp11 = fTemp10 
-		state["fRec15"] = (fSlow28 + (jnp.float32(0.999) * fRec15_temp)) 
-		fTemp12 = (fSlow27 * (inputs[6] * state["fRec15"])) 
-		state["fRec14"] = jnp.maximum((fRec14_temp - self._fConst0), jnp.abs(fTemp12)) 
-		fVbargraph6 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec14"])))
+		state["fRec14"] = (fSlow24 + (jnp.float32(0.999) * fRec14_temp)) 
+		fTemp12 = (fSlow25 * (inputs[1] * state["fRec14"])) 
+		state["fRec13"] = jnp.maximum((fRec13_temp - self._fConst0), jnp.abs(fTemp12)) 
+		fVbargraph6 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec13"])))
 		self.sow("intermediates", "fVbargraph6", fVbargraph6) 
 		fTemp13 = fTemp12 
-		state["fRec17"] = (fSlow32 + (jnp.float32(0.999) * fRec17_temp)) 
-		fTemp14 = (fSlow31 * (inputs[7] * state["fRec17"])) 
-		state["fRec16"] = jnp.maximum((fRec16_temp - self._fConst0), jnp.abs(fTemp14)) 
-		fVbargraph7 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec16"])))
+		state["fRec16"] = (fSlow28 + (jnp.float32(0.999) * fRec16_temp)) 
+		fTemp14 = (fSlow29 * (inputs[0] * state["fRec16"])) 
+		state["fRec15"] = jnp.maximum((fRec15_temp - self._fConst0), jnp.abs(fTemp14)) 
+		fVbargraph7 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec15"])))
 		self.sow("intermediates", "fVbargraph7", fVbargraph7) 
 		fTemp15 = fTemp14 
-		fTemp16 = (state["fRec1"] * ((((((((fSlow2 * fTemp1) + (fSlow6 * fTemp3)) + (fSlow10 * fTemp5)) + (fSlow14 * fTemp7)) + (fSlow18 * fTemp9)) + (fSlow22 * fTemp11)) + (fSlow26 * fTemp13)) + (fSlow30 * fTemp15))) 
+		state["fRec17"] = (fSlow32 + (jnp.float32(0.999) * fRec17_temp)) 
+		fTemp16 = (state["fRec17"] * ((((((((fSlow31 * fTemp15) + (fSlow27 * fTemp13)) + (fSlow23 * fTemp11)) + (fSlow19 * fTemp9)) + (fSlow15 * fTemp7)) + (fSlow11 * fTemp5)) + (fSlow7 * fTemp3)) + (fSlow3 * fTemp1))) 
 		state["fRec0"] = jnp.maximum((fRec0_temp - self._fConst0), jnp.abs(fTemp16)) 
 		fVbargraph8 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec0"])))
 		self.sow("intermediates", "fVbargraph8", fVbargraph8) 
 		_result0 = fTemp16 
-		fTemp17 = (state["fRec1"] * ((((((((fSlow33 * fTemp1) + (fSlow34 * fTemp3)) + (fSlow35 * fTemp5)) + (fSlow36 * fTemp7)) + (fSlow37 * fTemp9)) + (fSlow38 * fTemp11)) + (fSlow39 * fTemp13)) + (fSlow40 * fTemp15))) 
+		fTemp17 = (state["fRec17"] * ((((((((fSlow40 * fTemp15) + (fSlow39 * fTemp13)) + (fSlow38 * fTemp11)) + (fSlow37 * fTemp9)) + (fSlow36 * fTemp7)) + (fSlow35 * fTemp5)) + (fSlow34 * fTemp3)) + (fSlow33 * fTemp1))) 
 		state["fRec18"] = jnp.maximum((fRec18_temp - self._fConst0), jnp.abs(fTemp17)) 
 		fVbargraph9 = (jnp.float32(2e+01) * jnp.log10(jnp.maximum(jnp.float32(0.00031622776), state["fRec18"])))
 		self.sow("intermediates", "fVbargraph9", fVbargraph9) 
@@ -320,7 +321,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -399,13 +400,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -484,13 +486,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

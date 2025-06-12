@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,36 +61,19 @@ class mydsp(nn.Module):
 		return 2
 	
 	# fmt: off
-	def _initialize_carry(self, x: jnp.ndarray, length: int):
-		state = {}
-		
-		# Initialize scalar delays
-		state["fRec0"] = np.float32(0)
-		state["fRec1"] = np.float32(0)
-		state["fRec3"] = np.float32(0)
-		state["fRec6"] = np.float32(0)
-		state["iRec2"] = np.int32(0)
-		state["iRec5"] = np.int32(0)
-		# Initialize array delays
-		state["fVec0"] = np.zeros((3,), dtype=np.float32)
-		state["fRec4"] = np.zeros((3,), dtype=np.float32)
-		# Initialize read-write tables
-		# Initialize waveform arrays for read-write tables
-		pass  # No read-write tables to initialize
-		return state
-
 	def setup(self):
 		# Initialize static tables
+		# Table used in inline subcontainer but not declared globally
 		ftbl0mydspSIG0 = np.zeros((65537,), dtype=np.float32)
 		# Initialize waveform data
 		# Process inline subcontainers for static table initialization
-		# iRec2
+		# iRec0
 
-		iRec2 = np.int32(0)
+		iRec0 = np.int32(0)
 		for i1 in range(0, 65537):
-			iRec2_temp = iRec2 
-			iRec2 = (iRec2_temp + np.int32(1)) 
-			ftbl0mydspSIG0[i1] = np.sin((np.float32(9.58738e-05) * ((iRec2 + np.int32(-1))))) 
+			iRec0_temp = iRec0 
+			iRec0 = (iRec0_temp + np.int32(1)) 
+			ftbl0mydspSIG0[i1] = np.sin((np.float32(9.58738e-05) * ((iRec0 + np.int32(-1))))) 
 		
 		
 		# Convert static tables and waveform data to JAX arrays
@@ -97,47 +82,63 @@ class mydsp(nn.Module):
 		unnorm_funcs = {}
 		ui_path = []
 		ui_path.append("Stereo Audio Tester") 
-		self.add_hslider("fHslider3", ui_path, "freq", 3043.0, 4e+01, 2e+04, unnorm_funcs, "log") 
-		self.add_hslider("fHslider0", ui_path, "volume", -31.9968, -96.0, 0.0, unnorm_funcs, "linear") 
-		self.add_hslider("fHslider2", ui_path, "signal", 0.0, 0.0, 2.0, unnorm_funcs, "linear") 
-		self.add_hslider("fHslider1", ui_path, "channel", 1.0, 0.0, 3.0, unnorm_funcs, "linear") 
+		self.add_hslider("fHslider1", ui_path, "freq", 3043.0, 4e+01, 2e+04, unnorm_funcs, "log") 
+		self.add_hslider("fHslider3", ui_path, "volume", -31.9968, -96.0, 0.0, unnorm_funcs, "linear") 
+		self.add_hslider("fHslider0", ui_path, "signal", 0.0, 0.0, 2.0, unnorm_funcs, "linear") 
+		self.add_hslider("fHslider2", ui_path, "channel", 1.0, 0.0, 3.0, unnorm_funcs, "linear") 
 		ui_path.pop()
 		
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
 		self._fConst0 = (np.float32(1.0) / np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate)))) 
 		
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def _initialize_carry(self, x: jnp.ndarray, length: int):
+		state = {}
 		
-		fSlow0 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fHslider0"]))) 
-		iSlow1 = jnp.int32(params["fHslider1"]) 
-		fSlow2 = (((iSlow1 & jnp.int32(1)).astype(jnp.int32) != jnp.int32(0)).astype(jnp.int32)) 
-		iSlow3 = jnp.int32(params["fHslider2"]) 
-		iSlow4 = (iSlow3 == jnp.int32(0)).astype(jnp.int32) 
-		iSlow5 = (iSlow3 == jnp.int32(1)).astype(jnp.int32) 
-		fSlow6 = (self._fConst0 * params["fHslider3"]) 
-		fSlow7 = (((iSlow1 & jnp.int32(2)).astype(jnp.int32) != jnp.int32(0)).astype(jnp.int32)) 
-		fRec0_temp = state["fRec0"] 
+		# Initialize scalar delays
+		state["fRec1"] = np.float32(0)
+		state["fRec4"] = np.float32(0)
+		state["fRec5"] = np.float32(0)
+		state["fRec6"] = np.float32(0)
+		state["iRec3"] = np.int32(0)
+		# Initialize array delays
+		state["fVec0"] = np.zeros((3,), dtype=np.float32)
+		state["fRec2"] = np.zeros((3,), dtype=np.float32)
+		# Initialize waveform arrays for read-write tables
+		pass  # No read-write tables to initialize
+		return state
+
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
+		
+		iSlow0 = jnp.int32(params["fHslider0"]) 
+		iSlow1 = (iSlow0 == jnp.int32(0)).astype(jnp.int32) 
+		iSlow2 = (iSlow0 == jnp.int32(1)).astype(jnp.int32) 
+		fSlow3 = (self._fConst0 * params["fHslider1"]) 
+		iSlow4 = jnp.int32(params["fHslider2"]) 
+		fSlow5 = (((iSlow4 & jnp.int32(1)).astype(jnp.int32) != jnp.int32(0)).astype(jnp.int32)) 
+		fSlow6 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fHslider3"]))) 
+		fSlow7 = (((iSlow4 & jnp.int32(2)).astype(jnp.int32) != jnp.int32(0)).astype(jnp.int32)) 
 		fRec1_temp = state["fRec1"] 
-		fRec3_temp = state["fRec3"] 
-		iRec5_temp = state["iRec5"] 
+		iRec3_temp = state["iRec3"] 
+		fRec4_temp = state["fRec4"] 
+		fRec5_temp = state["fRec5"] 
 		fRec6_temp = state["fRec6"] 
-		state["fRec0"] = (fSlow0 + (jnp.float32(0.999) * fRec0_temp)) 
-		state["fRec1"] = jnp.where(((fRec1_temp < fSlow2).astype(jnp.int32) != 0), jnp.minimum((fRec1_temp + jnp.float32(0.00022675737)), fSlow2), jnp.maximum((fRec1_temp + jnp.float32(-0.00022675737)), fSlow2)) 
-		state["fRec3"] = (fSlow6 + (fRec3_temp - jnp.floor((fSlow6 + fRec3_temp)))) 
-		fTemp0 = (jnp.float32(65536.0) * state["fRec3"]) 
+		state["fRec1"] = (fSlow3 + (fRec1_temp - jnp.floor((fSlow3 + fRec1_temp)))) 
+		fTemp0 = (jnp.float32(65536.0) * state["fRec1"]) 
 		iTemp1 = jnp.int32(fTemp0) 
 		fTemp2 = self._ftbl0mydspSIG0[jnp.maximum(0, jnp.minimum(iTemp1, 65536))] 
-		state["iRec5"] = ((jnp.int32(1103515245) * iRec5_temp) + jnp.int32(12345)) 
-		fTemp3 = (state["iRec5"]) 
+		state["iRec3"] = ((jnp.int32(1103515245) * iRec3_temp) + jnp.int32(12345)) 
+		fTemp3 = (state["iRec3"]) 
 		state["fVec0"] = state["fVec0"].at[0].set(fTemp3) 
-		state["fRec4"] = state["fRec4"].at[0].set((((jnp.float32(6.906783e-12) * state["fVec0"][2]) + ((jnp.float32(1.8011608) * state["fRec4"][1]) + (jnp.float32(2.308528e-11) * fTemp3))) - ((jnp.float32(0.8025774) * state["fRec4"][2]) + (jnp.float32(2.936265e-11) * state["fVec0"][1])))) 
-		fTemp4 = jnp.where((iSlow4 != 0), (jnp.float32(4.656613e-10) * fTemp3), jnp.where((iSlow5 != 0), state["fRec4"][0], (fTemp2 + ((fTemp0 - jnp.floor(fTemp0)) * (self._ftbl0mydspSIG0[jnp.maximum(0, jnp.minimum((iTemp1 + 1), 65536))] - fTemp2))))) 
-		_result0 = ((state["fRec0"] * state["fRec1"]) * fTemp4) 
+		state["fRec2"] = state["fRec2"].at[0].set((((jnp.float32(6.906783e-12) * state["fVec0"][2]) + ((jnp.float32(1.8011608) * state["fRec2"][1]) + (jnp.float32(2.308528e-11) * fTemp3))) - ((jnp.float32(0.8025774) * state["fRec2"][2]) + (jnp.float32(2.936265e-11) * state["fVec0"][1])))) 
+		fTemp4 = jnp.where((iSlow1 != 0), (jnp.float32(4.656613e-10) * fTemp3), jnp.where((iSlow2 != 0), state["fRec2"][0], (fTemp2 + ((fTemp0 - jnp.floor(fTemp0)) * (self._ftbl0mydspSIG0[jnp.maximum(0, jnp.minimum((iTemp1 + 1), 65536))] - fTemp2))))) 
+		state["fRec4"] = jnp.where(((fRec4_temp < fSlow5).astype(jnp.int32) != 0), jnp.minimum((fRec4_temp + jnp.float32(0.00022675737)), fSlow5), jnp.maximum((fRec4_temp + jnp.float32(-0.00022675737)), fSlow5)) 
+		state["fRec5"] = (fSlow6 + (jnp.float32(0.999) * fRec5_temp)) 
+		_result0 = ((state["fRec5"] * state["fRec4"]) * fTemp4) 
 		state["fRec6"] = jnp.where(((fRec6_temp < fSlow7).astype(jnp.int32) != 0), jnp.minimum((fRec6_temp + jnp.float32(0.00022675737)), fSlow7), jnp.maximum((fRec6_temp + jnp.float32(-0.00022675737)), fSlow7)) 
-		_result1 = ((state["fRec0"] * state["fRec6"]) * fTemp4) 
+		_result1 = ((state["fRec5"] * state["fRec6"]) * fTemp4) 
 		state["fVec0"] = jnp.roll(state["fVec0"], 1) 
-		state["fRec4"] = jnp.roll(state["fRec4"], 1) 
+		state["fRec2"] = jnp.roll(state["fRec2"], 1) 
 		return state, jnp.stack([_result0,_result1]) 
 		
 	# fmt: on	
@@ -164,7 +165,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -243,13 +244,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -328,13 +330,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,13 +61,6 @@ class mydsp(nn.Module):
 		return 1
 	
 	# fmt: off
-	def _initialize_carry(self, x: jnp.ndarray, length: int):
-		state = {}
-		
-		# Initialize read-write tables
-		# Initialize waveform arrays for read-write tables
-		return state
-
 	def setup(self):
 		# Initialize static tables
 		# Initialize waveform data
@@ -77,9 +72,9 @@ class mydsp(nn.Module):
 		ui_path.append("0x00") 
 		ui_path.append("CTRL IN/OUT") 
 		self.add_button("fCheckbox8", ui_path, "Ctrl Bool IN (Ctrl 100)", unnorm_funcs) 
-		self.add_hbargraph("fHbargraph13", ui_path, "Ctrl Bool OUT (Ctrl 101)", 0.0, 1.0) 
+		self.add_hbargraph("fHbargraph12", ui_path, "Ctrl Bool OUT (Ctrl 101)", 0.0, 1.0, unnorm_funcs) 
 		self.add_hslider("fHslider6", ui_path, "Ctrl Value IN (Ctrl 50)", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
-		self.add_hbargraph("fHbargraph12", ui_path, "Ctrl Value OUT (Ctrl 51)", 0.0, 127.0) 
+		self.add_hbargraph("fHbargraph13", ui_path, "Ctrl Value OUT (Ctrl 51)", 0.0, 127.0, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("MIDI SYNC (IN)") 
 		self.add_button("fCheckbox4", ui_path, "MIDI START/STOP", unnorm_funcs) 
@@ -87,41 +82,41 @@ class mydsp(nn.Module):
 		ui_path.pop()
 		ui_path.append("NOTE OFF IN/OUT") 
 		self.add_button("fCheckbox6", ui_path, "NoteOff Bool IN (Note 100)", unnorm_funcs) 
-		self.add_hbargraph("fHbargraph8", ui_path, "NoteOff Bool OUT (Note 101)", 0.0, 1.0) 
+		self.add_hbargraph("fHbargraph8", ui_path, "NoteOff Bool OUT (Note 101)", 0.0, 1.0, unnorm_funcs) 
 		self.add_hslider("fHslider4", ui_path, "NoteOff Value IN (Note 50)", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
-		self.add_hbargraph("fHbargraph9", ui_path, "NoteOff Value OUT (Note 51)", 0.0, 127.0) 
+		self.add_hbargraph("fHbargraph9", ui_path, "NoteOff Value OUT (Note 51)", 0.0, 127.0, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("NOTE ON IN/OUT") 
 		self.add_button("fCheckbox7", ui_path, "NoteOn Bool IN (Note 100)", unnorm_funcs) 
-		self.add_hbargraph("fHbargraph10", ui_path, "NoteOn Bool OUT (Note 101)", 0.0, 1.0) 
+		self.add_hbargraph("fHbargraph10", ui_path, "NoteOn Bool OUT (Note 101)", 0.0, 1.0, unnorm_funcs) 
 		self.add_hslider("fHslider5", ui_path, "NoteOn Value IN (Note 50)", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
-		self.add_hbargraph("fHbargraph11", ui_path, "NoteOn Value OUT (Note 51)", 0.0, 127.0) 
+		self.add_hbargraph("fHbargraph11", ui_path, "NoteOn Value OUT (Note 51)", 0.0, 127.0, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.pop()
 		ui_path.append("0x00") 
 		ui_path.append("CHANNEL AFTERTOUCH (CHAT) IN/OUT") 
 		self.add_button("fCheckbox1", ui_path, "Note CHAT Bool IN (Note 100)", unnorm_funcs) 
-		self.add_hbargraph("fHbargraph2", ui_path, "Note CHAT Bool OUT (Note 101)", 0.0, 1.0) 
+		self.add_hbargraph("fHbargraph2", ui_path, "Note CHAT Bool OUT (Note 101)", 0.0, 1.0, unnorm_funcs) 
 		self.add_hslider("fHslider1", ui_path, "Note CHAT Value IN (Note 50)", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
-		self.add_hbargraph("fHbargraph3", ui_path, "Note CHAT Value OUT (Note 51)", 0.0, 127.0) 
+		self.add_hbargraph("fHbargraph3", ui_path, "Note CHAT Value OUT (Note 51)", 0.0, 127.0, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("KEY AFTERTOUCH (KAT) IN/OUT") 
 		self.add_button("fCheckbox3", ui_path, "Note KAT Bool IN (Note 100)", unnorm_funcs) 
-		self.add_hbargraph("fHbargraph6", ui_path, "Note KAT Bool OUT (Note 101)", 0.0, 1.0) 
+		self.add_hbargraph("fHbargraph6", ui_path, "Note KAT Bool OUT (Note 101)", 0.0, 1.0, unnorm_funcs) 
 		self.add_hslider("fHslider3", ui_path, "Note KAT Value IN (Note 50)", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
-		self.add_hbargraph("fHbargraph7", ui_path, "Note KAT Value OUT (Note 51)", 0.0, 127.0) 
+		self.add_hbargraph("fHbargraph7", ui_path, "Note KAT Value OUT (Note 51)", 0.0, 127.0, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("PITCHWHEEL IN/OUT") 
 		self.add_button("fCheckbox0", ui_path, "Pitchwheel Bool IN", unnorm_funcs) 
-		self.add_hbargraph("fHbargraph0", ui_path, "Pitchwheel Bool OUT", 0.0, 1.0) 
+		self.add_hbargraph("fHbargraph1", ui_path, "Pitchwheel Bool OUT", 0.0, 1.0, unnorm_funcs) 
 		self.add_hslider("fHslider0", ui_path, "Pitchwheel Value IN", 0.0, -8192.0, 8191.0, unnorm_funcs, "linear") 
-		self.add_hbargraph("fHbargraph1", ui_path, "Pitchwheel Value OUT", -8192.0, 8191.0) 
+		self.add_hbargraph("fHbargraph0", ui_path, "Pitchwheel Value OUT", -8192.0, 8191.0, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.append("PROGRAM CHANGE (PC) IN/OUT") 
 		self.add_button("fCheckbox2", ui_path, "ProgramChange Bool IN (PC 100)", unnorm_funcs) 
-		self.add_hbargraph("fHbargraph4", ui_path, "ProgramChange Bool OUT (PC 101)", 0.0, 1.0) 
+		self.add_hbargraph("fHbargraph4", ui_path, "ProgramChange Bool OUT (PC 101)", 0.0, 1.0, unnorm_funcs) 
 		self.add_hslider("fHslider2", ui_path, "ProgramChange Value IN (PC 50)", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
-		self.add_hbargraph("fHbargraph5", ui_path, "ProgramChange Value OUT (PC 51)", 0.0, 127.0) 
+		self.add_hbargraph("fHbargraph5", ui_path, "ProgramChange Value OUT (PC 51)", 0.0, 127.0, unnorm_funcs) 
 		ui_path.pop()
 		ui_path.pop()
 		ui_path.pop()
@@ -130,11 +125,17 @@ class mydsp(nn.Module):
 		# Initialize other constants
 		self._fConst0 = np.float32(0.0) 
 		
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def _initialize_carry(self, x: jnp.ndarray, length: int):
+		state = {}
 		
-		fHbargraph0 = params["fCheckbox0"]
+		# Initialize waveform arrays for read-write tables
+		return state
+
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
+		
+		fHbargraph0 = params["fHslider0"]
 		self.sow("intermediates", "fHbargraph0", fHbargraph0) 
-		fHbargraph1 = params["fHslider0"]
+		fHbargraph1 = params["fCheckbox0"]
 		self.sow("intermediates", "fHbargraph1", fHbargraph1) 
 		fHbargraph2 = params["fCheckbox1"]
 		self.sow("intermediates", "fHbargraph2", fHbargraph2) 
@@ -156,9 +157,9 @@ class mydsp(nn.Module):
 		self.sow("intermediates", "fHbargraph10", fHbargraph10) 
 		fHbargraph11 = params["fHslider5"]
 		self.sow("intermediates", "fHbargraph11", fHbargraph11) 
-		fHbargraph12 = params["fHslider6"]
+		fHbargraph12 = params["fCheckbox8"]
 		self.sow("intermediates", "fHbargraph12", fHbargraph12) 
-		fHbargraph13 = params["fCheckbox8"]
+		fHbargraph13 = params["fHslider6"]
 		self.sow("intermediates", "fHbargraph13", fHbargraph13) 
 		_result0 = self._fConst0 
 		return state, jnp.stack([_result0]) 
@@ -187,7 +188,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -266,13 +267,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -351,13 +353,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

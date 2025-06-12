@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,6 +61,118 @@ class mydsp(nn.Module):
 		return 2
 	
 	# fmt: off
+	def setup(self):
+		# Initialize static tables
+		# Initialize waveform data
+		# Convert static tables and waveform data to JAX arrays
+		# Initialize UI parameters
+		unnorm_funcs = {}
+		ui_path = []
+		ui_path.append("Tapiir") 
+		ui_path.append("0x00") 
+		ui_path.append("Tap 0") 
+		self.add_vslider("fVslider11", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider10", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider3", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider2", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider9", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider8", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider7", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider6", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider5", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider4", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		ui_path.pop()
+		ui_path.append("Tap 1") 
+		self.add_vslider("fVslider21", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider20", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider13", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider12", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider19", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider18", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider17", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider16", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider15", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider14", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		ui_path.pop()
+		ui_path.append("Tap 2") 
+		self.add_vslider("fVslider31", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider30", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider23", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider22", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider29", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider28", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider27", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider26", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider25", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider24", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		ui_path.pop()
+		ui_path.append("Tap 3") 
+		self.add_vslider("fVslider41", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider40", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider33", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider32", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider39", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider38", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider37", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider36", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider35", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider34", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		ui_path.pop()
+		ui_path.append("Tap 4") 
+		self.add_vslider("fVslider51", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider50", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider43", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider42", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider49", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider48", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider47", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider46", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider45", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider44", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		ui_path.pop()
+		ui_path.append("Tap 5") 
+		self.add_vslider("fVslider61", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider60", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider53", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider52", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider59", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider58", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider57", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider56", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider55", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider54", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		ui_path.pop()
+		ui_path.pop()
+		ui_path.append("outputs") 
+		ui_path.append("output 0") 
+		self.add_vslider("fVslider68", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider1", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider0", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider67", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider66", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider65", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider64", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider63", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider62", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		ui_path.pop()
+		ui_path.append("output 1") 
+		self.add_vslider("fVslider77", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider70", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider69", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider76", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider75", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider74", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider73", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider72", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider71", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
+		ui_path.pop()
+		ui_path.pop()
+		ui_path.pop()
+		
+		self._unnorm_funcs = unnorm_funcs
+		# Initialize other constants
+		self._fConst0 = np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate))) 
+		
 	def _initialize_carry(self, x: jnp.ndarray, length: int):
 		state = {}
 		
@@ -78,123 +192,10 @@ class mydsp(nn.Module):
 		state["fVec5"] = np.zeros((524288,), dtype=np.float32)
 		# Initialize IOTA variables
 		state["IOTA0"] = np.int32(0)
-		# Initialize read-write tables
 		# Initialize waveform arrays for read-write tables
 		return state
 
-	def setup(self):
-		# Initialize static tables
-		# Initialize waveform data
-		# Convert static tables and waveform data to JAX arrays
-		# Initialize UI parameters
-		unnorm_funcs = {}
-		ui_path = []
-		ui_path.append("Tapiir") 
-		ui_path.append("0x00") 
-		ui_path.append("Tap 0") 
-		self.add_vslider("fVslider11", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider2", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider9", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider10", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider3", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider4", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider5", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider6", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider7", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider8", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		ui_path.pop()
-		ui_path.append("Tap 1") 
-		self.add_vslider("fVslider21", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider12", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider19", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider20", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider13", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider14", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider15", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider16", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider17", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider18", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		ui_path.pop()
-		ui_path.append("Tap 2") 
-		self.add_vslider("fVslider31", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider22", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider29", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider30", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider23", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider24", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider25", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider26", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider27", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider28", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		ui_path.pop()
-		ui_path.append("Tap 3") 
-		self.add_vslider("fVslider41", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider32", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider39", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider40", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider33", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider34", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider35", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider36", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider37", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider38", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		ui_path.pop()
-		ui_path.append("Tap 4") 
-		self.add_vslider("fVslider51", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider42", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider49", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider50", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider43", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider44", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider45", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider46", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider47", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider48", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		ui_path.pop()
-		ui_path.append("Tap 5") 
-		self.add_vslider("fVslider61", ui_path, "delay (sec)", 0.0, 0.0, 5.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider52", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider59", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider60", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider53", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider54", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider55", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider56", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider57", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider58", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		ui_path.pop()
-		ui_path.pop()
-		ui_path.append("outputs") 
-		ui_path.append("output 0") 
-		self.add_vslider("fVslider0", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider67", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider68", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider1", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider62", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider63", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider64", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider65", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider66", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		ui_path.pop()
-		ui_path.append("output 1") 
-		self.add_vslider("fVslider69", ui_path, "gain", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider76", ui_path, "input 0", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider77", ui_path, "input 1", 1.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider70", ui_path, "tap 0", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider71", ui_path, "tap 1", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider72", ui_path, "tap 2", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider73", ui_path, "tap 3", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider74", ui_path, "tap 4", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider75", ui_path, "tap 5", 0.0, 0.0, 1.0, unnorm_funcs, "linear") 
-		ui_path.pop()
-		ui_path.pop()
-		ui_path.pop()
-		
-		self._unnorm_funcs = unnorm_funcs
-		# Initialize other constants
-		self._fConst0 = np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate))) 
-		
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
 		
 		fSlow0 = params["fVslider0"] 
 		fSlow1 = params["fVslider1"] 
@@ -280,22 +281,22 @@ class mydsp(nn.Module):
 		fRec3_temp = state["fRec3"] 
 		fRec4_temp = state["fRec4"] 
 		fRec5_temp = state["fRec5"] 
-		fTemp0 = inputs[0] 
-		fTemp1 = inputs[1] 
-		state["fVec0"] = state["fVec0"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow2 * ((((((((fSlow3 * fRec0_temp) + (fSlow4 * fRec1_temp)) + (fSlow5 * fRec2_temp)) + (fSlow6 * fRec3_temp)) + (fSlow7 * fRec4_temp)) + (fSlow8 * fRec5_temp)) + (fSlow9 * fTemp0)) + (fSlow10 * fTemp1)))) 
+		fTemp0 = inputs[1] 
+		fTemp1 = inputs[0] 
+		state["fVec0"] = state["fVec0"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow10 * ((((((((fSlow9 * fRec0_temp) + (fSlow8 * fRec1_temp)) + (fSlow7 * fRec2_temp)) + (fSlow6 * fRec3_temp)) + (fSlow5 * fRec4_temp)) + (fSlow4 * fRec5_temp)) + (fSlow3 * fTemp1)) + (fSlow2 * fTemp0)))) 
 		state["fRec0"] = state["fVec0"][((state["IOTA0"] - iSlow11) & 524287).astype(jnp.int32)] 
-		state["fVec1"] = state["fVec1"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow12 * ((((((((fSlow13 * fRec0_temp) + (fSlow14 * fRec1_temp)) + (fSlow15 * fRec2_temp)) + (fSlow16 * fRec3_temp)) + (fSlow17 * fRec4_temp)) + (fSlow18 * fRec5_temp)) + (fSlow19 * fTemp0)) + (fSlow20 * fTemp1)))) 
+		state["fVec1"] = state["fVec1"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow20 * ((((((((fSlow19 * fRec0_temp) + (fSlow18 * fRec1_temp)) + (fSlow17 * fRec2_temp)) + (fSlow16 * fRec3_temp)) + (fSlow15 * fRec4_temp)) + (fSlow14 * fRec5_temp)) + (fSlow13 * fTemp1)) + (fSlow12 * fTemp0)))) 
 		state["fRec1"] = state["fVec1"][((state["IOTA0"] - iSlow21) & 524287).astype(jnp.int32)] 
-		state["fVec2"] = state["fVec2"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow22 * ((((((((fSlow23 * fRec0_temp) + (fSlow24 * fRec1_temp)) + (fSlow25 * fRec2_temp)) + (fSlow26 * fRec3_temp)) + (fSlow27 * fRec4_temp)) + (fSlow28 * fRec5_temp)) + (fSlow29 * fTemp0)) + (fSlow30 * fTemp1)))) 
+		state["fVec2"] = state["fVec2"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow30 * ((((((((fSlow29 * fRec0_temp) + (fSlow28 * fRec1_temp)) + (fSlow27 * fRec2_temp)) + (fSlow26 * fRec3_temp)) + (fSlow25 * fRec4_temp)) + (fSlow24 * fRec5_temp)) + (fSlow23 * fTemp1)) + (fSlow22 * fTemp0)))) 
 		state["fRec2"] = state["fVec2"][((state["IOTA0"] - iSlow31) & 524287).astype(jnp.int32)] 
-		state["fVec3"] = state["fVec3"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow32 * ((((((((fSlow33 * fRec0_temp) + (fSlow34 * fRec1_temp)) + (fSlow35 * fRec2_temp)) + (fSlow36 * fRec3_temp)) + (fSlow37 * fRec4_temp)) + (fSlow38 * fRec5_temp)) + (fSlow39 * fTemp0)) + (fSlow40 * fTemp1)))) 
+		state["fVec3"] = state["fVec3"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow40 * ((((((((fSlow39 * fRec0_temp) + (fSlow38 * fRec1_temp)) + (fSlow37 * fRec2_temp)) + (fSlow36 * fRec3_temp)) + (fSlow35 * fRec4_temp)) + (fSlow34 * fRec5_temp)) + (fSlow33 * fTemp1)) + (fSlow32 * fTemp0)))) 
 		state["fRec3"] = state["fVec3"][((state["IOTA0"] - iSlow41) & 524287).astype(jnp.int32)] 
-		state["fVec4"] = state["fVec4"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow42 * ((((((((fSlow43 * fRec0_temp) + (fSlow44 * fRec1_temp)) + (fSlow45 * fRec2_temp)) + (fSlow46 * fRec3_temp)) + (fSlow47 * fRec4_temp)) + (fSlow48 * fRec5_temp)) + (fSlow49 * fTemp0)) + (fSlow50 * fTemp1)))) 
+		state["fVec4"] = state["fVec4"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow50 * ((((((((fSlow49 * fRec0_temp) + (fSlow48 * fRec1_temp)) + (fSlow47 * fRec2_temp)) + (fSlow46 * fRec3_temp)) + (fSlow45 * fRec4_temp)) + (fSlow44 * fRec5_temp)) + (fSlow43 * fTemp1)) + (fSlow42 * fTemp0)))) 
 		state["fRec4"] = state["fVec4"][((state["IOTA0"] - iSlow51) & 524287).astype(jnp.int32)] 
-		state["fVec5"] = state["fVec5"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow52 * ((((((((fSlow53 * fRec0_temp) + (fSlow54 * fRec1_temp)) + (fSlow55 * fRec2_temp)) + (fSlow56 * fRec3_temp)) + (fSlow57 * fRec4_temp)) + (fSlow58 * fRec5_temp)) + (fSlow59 * fTemp0)) + (fSlow60 * fTemp1)))) 
+		state["fVec5"] = state["fVec5"].at[(state["IOTA0"] & 524287).astype(jnp.int32)].set((fSlow60 * ((((((((fSlow59 * fRec0_temp) + (fSlow58 * fRec1_temp)) + (fSlow57 * fRec2_temp)) + (fSlow56 * fRec3_temp)) + (fSlow55 * fRec4_temp)) + (fSlow54 * fRec5_temp)) + (fSlow53 * fTemp1)) + (fSlow52 * fTemp0)))) 
 		state["fRec5"] = state["fVec5"][((state["IOTA0"] - iSlow61) & 524287).astype(jnp.int32)] 
-		_result0 = (fSlow0 * ((((((((fSlow1 * state["fRec0"]) + (fSlow62 * state["fRec1"])) + (fSlow63 * state["fRec2"])) + (fSlow64 * state["fRec3"])) + (fSlow65 * state["fRec4"])) + (fSlow66 * state["fRec5"])) + (fSlow67 * fTemp0)) + (fSlow68 * fTemp1))) 
-		_result1 = (fSlow69 * ((((((((fSlow70 * state["fRec0"]) + (fSlow71 * state["fRec1"])) + (fSlow72 * state["fRec2"])) + (fSlow73 * state["fRec3"])) + (fSlow74 * state["fRec4"])) + (fSlow75 * state["fRec5"])) + (fSlow76 * fTemp0)) + (fSlow77 * fTemp1))) 
+		_result0 = (fSlow68 * ((((((((fSlow67 * state["fRec0"]) + (fSlow66 * state["fRec1"])) + (fSlow65 * state["fRec2"])) + (fSlow64 * state["fRec3"])) + (fSlow63 * state["fRec4"])) + (fSlow62 * state["fRec5"])) + (fSlow1 * fTemp1)) + (fSlow0 * fTemp0))) 
+		_result1 = (fSlow77 * ((((((((fSlow76 * state["fRec0"]) + (fSlow75 * state["fRec1"])) + (fSlow74 * state["fRec2"])) + (fSlow73 * state["fRec3"])) + (fSlow72 * state["fRec4"])) + (fSlow71 * state["fRec5"])) + (fSlow70 * fTemp1)) + (fSlow69 * fTemp0))) 
 		state["IOTA0"] = (state["IOTA0"] + jnp.int32(1)) 
 		return state, jnp.stack([_result0,_result1]) 
 		
@@ -323,7 +324,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -402,13 +403,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -487,13 +489,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

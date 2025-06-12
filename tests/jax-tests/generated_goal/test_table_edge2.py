@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,23 +61,6 @@ class mydsp(nn.Module):
 		return 1
 	
 	# fmt: off
-	def _initialize_carry(self, x: jnp.ndarray, length: int):
-		state = {}
-		
-		# Initialize scalar delays
-		state["iRec0"] = np.int32(0)
-		# Initialize read-write tables
-		state["itbl0"] = np.zeros((10,), dtype=np.int32)
-		# Initialize index variables
-		state["imydspSIG0Wave0_idx"] = np.int32(0)
-		# Initialize waveform arrays for read-write tables
-		# Pre-compute table initialization patterns
-		# Fill itbl0 with cycling waveform pattern from imydspSIG0Wave0
-		waveform_pattern = np.array(self._imydspSIG0Wave0, dtype=np.int32)
-		for i in range(state["itbl0"].shape[0]):
-			state["itbl0"][i] = waveform_pattern[i % len(waveform_pattern)]
-		return state
-
 	def setup(self):
 		# Initialize static tables
 		# Initialize waveform data
@@ -89,7 +74,22 @@ class mydsp(nn.Module):
 		
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def _initialize_carry(self, x: jnp.ndarray, length: int):
+		state = {}
+		
+		# Initialize scalar delays
+		state["iRec0"] = np.int32(0)
+		# Initialize read-write tables
+		state["itbl0"] = np.zeros((10,), dtype=np.int32)
+		# Initialize waveform arrays for read-write tables
+		# Pre-compute table initialization patterns
+		# Fill itbl0 with cycling waveform pattern from imydspSIG0Wave0
+		waveform_pattern = np.array(self._imydspSIG0Wave0, dtype=np.int32)
+		for i in range(state["itbl0"].shape[0]):
+			state["itbl0"][i] = waveform_pattern[i % len(waveform_pattern)]
+		return state
+
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
 		
 		# Convert waveform data to JAX arrays
 		imydspSIG0Wave0 = jnp.array(self._imydspSIG0Wave0)
@@ -98,7 +98,7 @@ class mydsp(nn.Module):
 		state["iRec0"] = (iRec0_temp + jnp.int32(1)) 
 		iTemp0 = (state["iRec0"] % jnp.int32(10)) 
 		state["itbl0"] = state["itbl0"].at[iTemp0].set(jnp.int32(0)) 
-		_result0 = state["itbl0"][iTemp0] 
+		_result0 = (state["itbl0"][iTemp0]) 
 		return state, jnp.stack([_result0]) 
 		
 	# fmt: on	
@@ -125,7 +125,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -204,13 +204,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -289,13 +290,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

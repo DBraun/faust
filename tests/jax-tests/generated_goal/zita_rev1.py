@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,73 +61,6 @@ class mydsp(nn.Module):
 		return 2
 	
 	# fmt: off
-	def _initialize_carry(self, x: jnp.ndarray, length: int):
-		state = {}
-		
-		# Initialize scalar delays
-		state["fRec0"] = np.float32(0)
-		state["fRec1"] = np.float32(0)
-		state["fRec12"] = np.float32(0)
-		state["fRec14"] = np.float32(0)
-		state["fRec15"] = np.float32(0)
-		state["fRec16"] = np.float32(0)
-		state["fRec18"] = np.float32(0)
-		state["fRec19"] = np.float32(0)
-		state["fRec20"] = np.float32(0)
-		state["fRec22"] = np.float32(0)
-		state["fRec23"] = np.float32(0)
-		state["fRec24"] = np.float32(0)
-		state["fRec26"] = np.float32(0)
-		state["fRec27"] = np.float32(0)
-		state["fRec28"] = np.float32(0)
-		state["fRec30"] = np.float32(0)
-		state["fRec31"] = np.float32(0)
-		state["fRec32"] = np.float32(0)
-		state["fRec34"] = np.float32(0)
-		state["fRec35"] = np.float32(0)
-		state["fRec36"] = np.float32(0)
-		state["fRec38"] = np.float32(0)
-		state["fRec39"] = np.float32(0)
-		state["fRec40"] = np.float32(0)
-		state["fRec42"] = np.float32(0)
-		state["fRec43"] = np.float32(0)
-		# Initialize array delays
-		state["fVec0"] = np.zeros((16384,), dtype=np.float32)
-		state["fVec1"] = np.zeros((8192,), dtype=np.float32)
-		state["fVec2"] = np.zeros((1024,), dtype=np.float32)
-		state["fVec3"] = np.zeros((16384,), dtype=np.float32)
-		state["fVec4"] = np.zeros((2048,), dtype=np.float32)
-		state["fVec5"] = np.zeros((8192,), dtype=np.float32)
-		state["fVec6"] = np.zeros((2048,), dtype=np.float32)
-		state["fVec7"] = np.zeros((16384,), dtype=np.float32)
-		state["fVec8"] = np.zeros((2048,), dtype=np.float32)
-		state["fVec9"] = np.zeros((8192,), dtype=np.float32)
-		state["fVec10"] = np.zeros((8192,), dtype=np.float32)
-		state["fVec11"] = np.zeros((1024,), dtype=np.float32)
-		state["fVec12"] = np.zeros((8192,), dtype=np.float32)
-		state["fVec13"] = np.zeros((2048,), dtype=np.float32)
-		state["fVec14"] = np.zeros((8192,), dtype=np.float32)
-		state["fVec15"] = np.zeros((2048,), dtype=np.float32)
-		state["fVec16"] = np.zeros((8192,), dtype=np.float32)
-		state["fVec17"] = np.zeros((1024,), dtype=np.float32)
-		state["fRec4"] = np.zeros((3,), dtype=np.float32)
-		state["fRec5"] = np.zeros((3,), dtype=np.float32)
-		state["fRec6"] = np.zeros((3,), dtype=np.float32)
-		state["fRec7"] = np.zeros((3,), dtype=np.float32)
-		state["fRec8"] = np.zeros((3,), dtype=np.float32)
-		state["fRec9"] = np.zeros((3,), dtype=np.float32)
-		state["fRec10"] = np.zeros((3,), dtype=np.float32)
-		state["fRec11"] = np.zeros((3,), dtype=np.float32)
-		state["fRec3"] = np.zeros((3,), dtype=np.float32)
-		state["fRec2"] = np.zeros((3,), dtype=np.float32)
-		state["fRec45"] = np.zeros((3,), dtype=np.float32)
-		state["fRec44"] = np.zeros((3,), dtype=np.float32)
-		# Initialize IOTA variables
-		state["IOTA0"] = np.int32(0)
-		# Initialize read-write tables
-		# Initialize waveform arrays for read-write tables
-		return state
-
 	def setup(self):
 		# Initialize static tables
 		# Initialize waveform data
@@ -135,25 +70,25 @@ class mydsp(nn.Module):
 		ui_path = []
 		ui_path.append("Zita_Rev1") 
 		ui_path.append("Input") 
-		self.add_vslider("fVslider10", ui_path, "In Delay", 6e+01, 2e+01, 1e+02, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider9", ui_path, "In Delay", 6e+01, 2e+01, 1e+02, unnorm_funcs, "linear") 
 		ui_path.pop()
 		ui_path.append("Decay Times in Bands (see tooltips)") 
-		self.add_vslider("fVslider9", ui_path, "LF X", 2e+02, 5e+01, 1e+03, unnorm_funcs, "log") 
-		self.add_vslider("fVslider8", ui_path, "Low RT60", 3.0, 1.0, 8.0, unnorm_funcs, "log") 
-		self.add_vslider("fVslider7", ui_path, "Mid RT60", 2.0, 1.0, 8.0, unnorm_funcs, "log") 
-		self.add_vslider("fVslider6", ui_path, "HF Damping", 6e+03, 1.5e+03, 2.352e+04, unnorm_funcs, "log") 
+		self.add_vslider("fVslider5", ui_path, "LF X", 2e+02, 5e+01, 1e+03, unnorm_funcs, "log") 
+		self.add_vslider("fVslider7", ui_path, "Low RT60", 3.0, 1.0, 8.0, unnorm_funcs, "log") 
+		self.add_vslider("fVslider6", ui_path, "Mid RT60", 2.0, 1.0, 8.0, unnorm_funcs, "log") 
+		self.add_vslider("fVslider8", ui_path, "HF Damping", 6e+03, 1.5e+03, 2.352e+04, unnorm_funcs, "log") 
 		ui_path.pop()
 		ui_path.append("RM Peaking Equalizer 1") 
 		self.add_vslider("fVslider4", ui_path, "Eq1 Freq", 315.0, 4e+01, 2.5e+03, unnorm_funcs, "log") 
-		self.add_vslider("fVslider5", ui_path, "Eq1 Level", 0.0, -15.0, 15.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider3", ui_path, "Eq1 Level", 0.0, -15.0, 15.0, unnorm_funcs, "linear") 
 		ui_path.pop()
 		ui_path.append("RM Peaking Equalizer 2") 
 		self.add_vslider("fVslider2", ui_path, "Eq2 Freq", 1.5e+03, 1.6e+02, 1e+04, unnorm_funcs, "log") 
-		self.add_vslider("fVslider3", ui_path, "Eq2 Level", 0.0, -15.0, 15.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider1", ui_path, "Eq2 Level", 0.0, -15.0, 15.0, unnorm_funcs, "linear") 
 		ui_path.pop()
 		ui_path.append("Output") 
-		self.add_vslider("fVslider1", ui_path, "Dry/Wet Mix", 0.4492, -1.0, 1.0, unnorm_funcs, "linear") 
-		self.add_vslider("fVslider0", ui_path, "Level", 16.79, -7e+01, 4e+01, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider0", ui_path, "Dry/Wet Mix", 0.4492, -1.0, 1.0, unnorm_funcs, "linear") 
+		self.add_vslider("fVslider10", ui_path, "Level", 16.79, -7e+01, 4e+01, unnorm_funcs, "linear") 
 		ui_path.pop()
 		ui_path.pop()
 		
@@ -163,313 +98,380 @@ class mydsp(nn.Module):
 		
 		self._fConst1 = (np.float32(6.2831855) / self._fConst0) 
 		
-		self._fConst2 = np.floor(((np.float32(0.219991) * self._fConst0) + np.float32(0.5))) 
+		self._fConst2 = (np.float32(3.1415927) / self._fConst0) 
 		
-		self._fConst3 = (np.float32(6.9077554) * (self._fConst2 / self._fConst0)) 
+		self._fConst3 = np.floor(((np.float32(0.174713) * self._fConst0) + np.float32(0.5))) 
 		
-		self._fConst4 = (np.float32(3.1415927) / self._fConst0) 
+		self._fConst4 = (np.float32(6.9077554) * (self._fConst3 / self._fConst0)) 
 		
-		self._fConst5 = np.floor(((np.float32(0.019123) * self._fConst0) + np.float32(0.5))) 
+		self._fConst5 = np.floor(((np.float32(0.022904) * self._fConst0) + np.float32(0.5))) 
 		
-		self._iConst6 = (jnp.int32((self._fConst2 - self._fConst5)) & np.int32(16383)).astype(jnp.int32) 
+		self._iConst6 = (np.int32((self._fConst3 - self._fConst5)) & np.int32(8191)).astype(jnp.int32) 
 		
 		self._fConst7 = (np.float32(0.001) * self._fConst0) 
 		
-		self._iConst8 = (jnp.int32((self._fConst5 + np.float32(-1.0))) & np.int32(1023)).astype(jnp.int32) 
+		self._iConst8 = (np.int32((self._fConst5 + np.float32(-1.0))) & np.int32(2047)).astype(jnp.int32) 
 		
-		self._fConst9 = np.floor(((np.float32(0.256891) * self._fConst0) + np.float32(0.5))) 
+		self._fConst9 = np.floor(((np.float32(0.153129) * self._fConst0) + np.float32(0.5))) 
 		
 		self._fConst10 = (np.float32(6.9077554) * (self._fConst9 / self._fConst0)) 
 		
-		self._fConst11 = np.floor(((np.float32(0.027333) * self._fConst0) + np.float32(0.5))) 
+		self._fConst11 = np.floor(((np.float32(0.020346) * self._fConst0) + np.float32(0.5))) 
 		
-		self._iConst12 = (jnp.int32((self._fConst9 - self._fConst11)) & np.int32(16383)).astype(jnp.int32) 
+		self._iConst12 = (np.int32((self._fConst9 - self._fConst11)) & np.int32(8191)).astype(jnp.int32) 
 		
-		self._iConst13 = (jnp.int32((self._fConst11 + np.float32(-1.0))) & np.int32(2047)).astype(jnp.int32) 
+		self._iConst13 = (np.int32((self._fConst11 + np.float32(-1.0))) & np.int32(1023)).astype(jnp.int32) 
 		
-		self._fConst14 = np.floor(((np.float32(0.192303) * self._fConst0) + np.float32(0.5))) 
+		self._fConst14 = np.floor(((np.float32(0.127837) * self._fConst0) + np.float32(0.5))) 
 		
 		self._fConst15 = (np.float32(6.9077554) * (self._fConst14 / self._fConst0)) 
 		
-		self._fConst16 = np.floor(((np.float32(0.029291) * self._fConst0) + np.float32(0.5))) 
+		self._fConst16 = np.floor(((np.float32(0.031604) * self._fConst0) + np.float32(0.5))) 
 		
-		self._iConst17 = (jnp.int32((self._fConst14 - self._fConst16)) & np.int32(8191)).astype(jnp.int32) 
+		self._iConst17 = (np.int32((self._fConst14 - self._fConst16)) & np.int32(8191)).astype(jnp.int32) 
 		
-		self._iConst18 = (jnp.int32((self._fConst16 + np.float32(-1.0))) & np.int32(2047)).astype(jnp.int32) 
+		self._iConst18 = (np.int32((self._fConst16 + np.float32(-1.0))) & np.int32(2047)).astype(jnp.int32) 
 		
-		self._fConst19 = np.floor(((np.float32(0.210389) * self._fConst0) + np.float32(0.5))) 
+		self._fConst19 = np.floor(((np.float32(0.125) * self._fConst0) + np.float32(0.5))) 
 		
 		self._fConst20 = (np.float32(6.9077554) * (self._fConst19 / self._fConst0)) 
 		
-		self._fConst21 = np.floor(((np.float32(0.024421) * self._fConst0) + np.float32(0.5))) 
+		self._fConst21 = np.floor(((np.float32(0.013458) * self._fConst0) + np.float32(0.5))) 
 		
-		self._iConst22 = (jnp.int32((self._fConst19 - self._fConst21)) & np.int32(16383)).astype(jnp.int32) 
+		self._iConst22 = (np.int32((self._fConst19 - self._fConst21)) & np.int32(8191)).astype(jnp.int32) 
 		
-		self._iConst23 = (jnp.int32((self._fConst21 + np.float32(-1.0))) & np.int32(2047)).astype(jnp.int32) 
+		self._iConst23 = (np.int32((self._fConst21 + np.float32(-1.0))) & np.int32(1023)).astype(jnp.int32) 
 		
-		self._fConst24 = np.floor(((np.float32(0.125) * self._fConst0) + np.float32(0.5))) 
+		self._fConst24 = np.floor(((np.float32(0.210389) * self._fConst0) + np.float32(0.5))) 
 		
 		self._fConst25 = (np.float32(6.9077554) * (self._fConst24 / self._fConst0)) 
 		
-		self._fConst26 = np.floor(((np.float32(0.013458) * self._fConst0) + np.float32(0.5))) 
+		self._fConst26 = np.floor(((np.float32(0.024421) * self._fConst0) + np.float32(0.5))) 
 		
-		self._iConst27 = (jnp.int32((self._fConst24 - self._fConst26)) & np.int32(8191)).astype(jnp.int32) 
+		self._iConst27 = (np.int32((self._fConst24 - self._fConst26)) & np.int32(16383)).astype(jnp.int32) 
 		
-		self._iConst28 = (jnp.int32((self._fConst26 + np.float32(-1.0))) & np.int32(1023)).astype(jnp.int32) 
+		self._iConst28 = (np.int32((self._fConst26 + np.float32(-1.0))) & np.int32(2047)).astype(jnp.int32) 
 		
-		self._fConst29 = np.floor(((np.float32(0.127837) * self._fConst0) + np.float32(0.5))) 
+		self._fConst29 = np.floor(((np.float32(0.192303) * self._fConst0) + np.float32(0.5))) 
 		
 		self._fConst30 = (np.float32(6.9077554) * (self._fConst29 / self._fConst0)) 
 		
-		self._fConst31 = np.floor(((np.float32(0.031604) * self._fConst0) + np.float32(0.5))) 
+		self._fConst31 = np.floor(((np.float32(0.029291) * self._fConst0) + np.float32(0.5))) 
 		
-		self._iConst32 = (jnp.int32((self._fConst29 - self._fConst31)) & np.int32(8191)).astype(jnp.int32) 
+		self._iConst32 = (np.int32((self._fConst29 - self._fConst31)) & np.int32(8191)).astype(jnp.int32) 
 		
-		self._iConst33 = (jnp.int32((self._fConst31 + np.float32(-1.0))) & np.int32(2047)).astype(jnp.int32) 
+		self._iConst33 = (np.int32((self._fConst31 + np.float32(-1.0))) & np.int32(2047)).astype(jnp.int32) 
 		
-		self._fConst34 = np.floor(((np.float32(0.174713) * self._fConst0) + np.float32(0.5))) 
+		self._fConst34 = np.floor(((np.float32(0.256891) * self._fConst0) + np.float32(0.5))) 
 		
 		self._fConst35 = (np.float32(6.9077554) * (self._fConst34 / self._fConst0)) 
 		
-		self._fConst36 = np.floor(((np.float32(0.022904) * self._fConst0) + np.float32(0.5))) 
+		self._fConst36 = np.floor(((np.float32(0.027333) * self._fConst0) + np.float32(0.5))) 
 		
-		self._iConst37 = (jnp.int32((self._fConst34 - self._fConst36)) & np.int32(8191)).astype(jnp.int32) 
+		self._iConst37 = (np.int32((self._fConst34 - self._fConst36)) & np.int32(16383)).astype(jnp.int32) 
 		
-		self._iConst38 = (jnp.int32((self._fConst36 + np.float32(-1.0))) & np.int32(2047)).astype(jnp.int32) 
+		self._iConst38 = (np.int32((self._fConst36 + np.float32(-1.0))) & np.int32(2047)).astype(jnp.int32) 
 		
-		self._fConst39 = np.floor(((np.float32(0.153129) * self._fConst0) + np.float32(0.5))) 
+		self._fConst39 = np.floor(((np.float32(0.219991) * self._fConst0) + np.float32(0.5))) 
 		
 		self._fConst40 = (np.float32(6.9077554) * (self._fConst39 / self._fConst0)) 
 		
-		self._fConst41 = np.floor(((np.float32(0.020346) * self._fConst0) + np.float32(0.5))) 
+		self._fConst41 = np.floor(((np.float32(0.019123) * self._fConst0) + np.float32(0.5))) 
 		
-		self._iConst42 = (jnp.int32((self._fConst39 - self._fConst41)) & np.int32(8191)).astype(jnp.int32) 
+		self._iConst42 = (np.int32((self._fConst39 - self._fConst41)) & np.int32(16383)).astype(jnp.int32) 
 		
-		self._iConst43 = (jnp.int32((self._fConst41 + np.float32(-1.0))) & np.int32(1023)).astype(jnp.int32) 
+		self._iConst43 = (np.int32((self._fConst41 + np.float32(-1.0))) & np.int32(1023)).astype(jnp.int32) 
 		
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def _initialize_carry(self, x: jnp.ndarray, length: int):
+		state = {}
 		
-		fSlow0 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider0"]))) 
-		fSlow1 = (jnp.float32(0.001) * params["fVslider1"]) 
+		# Initialize scalar delays
+		state["fRec0"] = np.float32(0)
+		state["fRec11"] = np.float32(0)
+		state["fRec13"] = np.float32(0)
+		state["fRec14"] = np.float32(0)
+		state["fRec15"] = np.float32(0)
+		state["fRec17"] = np.float32(0)
+		state["fRec18"] = np.float32(0)
+		state["fRec19"] = np.float32(0)
+		state["fRec21"] = np.float32(0)
+		state["fRec22"] = np.float32(0)
+		state["fRec23"] = np.float32(0)
+		state["fRec25"] = np.float32(0)
+		state["fRec26"] = np.float32(0)
+		state["fRec27"] = np.float32(0)
+		state["fRec29"] = np.float32(0)
+		state["fRec30"] = np.float32(0)
+		state["fRec31"] = np.float32(0)
+		state["fRec33"] = np.float32(0)
+		state["fRec34"] = np.float32(0)
+		state["fRec35"] = np.float32(0)
+		state["fRec37"] = np.float32(0)
+		state["fRec38"] = np.float32(0)
+		state["fRec39"] = np.float32(0)
+		state["fRec41"] = np.float32(0)
+		state["fRec42"] = np.float32(0)
+		state["fRec43"] = np.float32(0)
+		# Initialize array delays
+		state["fVec0"] = np.zeros((8192,), dtype=np.float32)
+		state["fVec1"] = np.zeros((8192,), dtype=np.float32)
+		state["fVec2"] = np.zeros((2048,), dtype=np.float32)
+		state["fVec3"] = np.zeros((8192,), dtype=np.float32)
+		state["fVec4"] = np.zeros((1024,), dtype=np.float32)
+		state["fVec5"] = np.zeros((8192,), dtype=np.float32)
+		state["fVec6"] = np.zeros((2048,), dtype=np.float32)
+		state["fVec7"] = np.zeros((8192,), dtype=np.float32)
+		state["fVec8"] = np.zeros((1024,), dtype=np.float32)
+		state["fVec9"] = np.zeros((16384,), dtype=np.float32)
+		state["fVec10"] = np.zeros((8192,), dtype=np.float32)
+		state["fVec11"] = np.zeros((2048,), dtype=np.float32)
+		state["fVec12"] = np.zeros((8192,), dtype=np.float32)
+		state["fVec13"] = np.zeros((2048,), dtype=np.float32)
+		state["fVec14"] = np.zeros((16384,), dtype=np.float32)
+		state["fVec15"] = np.zeros((2048,), dtype=np.float32)
+		state["fVec16"] = np.zeros((16384,), dtype=np.float32)
+		state["fVec17"] = np.zeros((1024,), dtype=np.float32)
+		state["fRec3"] = np.zeros((3,), dtype=np.float32)
+		state["fRec4"] = np.zeros((3,), dtype=np.float32)
+		state["fRec5"] = np.zeros((3,), dtype=np.float32)
+		state["fRec6"] = np.zeros((3,), dtype=np.float32)
+		state["fRec7"] = np.zeros((3,), dtype=np.float32)
+		state["fRec8"] = np.zeros((3,), dtype=np.float32)
+		state["fRec9"] = np.zeros((3,), dtype=np.float32)
+		state["fRec10"] = np.zeros((3,), dtype=np.float32)
+		state["fRec2"] = np.zeros((3,), dtype=np.float32)
+		state["fRec1"] = np.zeros((3,), dtype=np.float32)
+		state["fRec45"] = np.zeros((3,), dtype=np.float32)
+		state["fRec44"] = np.zeros((3,), dtype=np.float32)
+		# Initialize IOTA variables
+		state["IOTA0"] = np.int32(0)
+		# Initialize waveform arrays for read-write tables
+		return state
+
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
+		
+		fSlow0 = (jnp.float32(0.001) * params["fVslider0"]) 
+		fSlow1 = jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider1"])) 
 		fSlow2 = params["fVslider2"] 
-		fSlow3 = jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider3"])) 
-		fSlow4 = (self._fConst1 * (fSlow2 / jnp.sqrt(jnp.maximum(jnp.float32(0.0), fSlow3)))) 
-		fSlow5 = ((jnp.float32(1.0) - fSlow4) / (fSlow4 + jnp.float32(1.0))) 
-		fSlow6 = params["fVslider4"] 
-		fSlow7 = jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider5"])) 
-		fSlow8 = (self._fConst1 * (fSlow6 / jnp.sqrt(jnp.maximum(jnp.float32(0.0), fSlow7)))) 
+		fSlow3 = (self._fConst1 * (fSlow2 / jnp.sqrt(jnp.maximum(jnp.float32(0.0), fSlow1)))) 
+		fSlow4 = ((jnp.float32(1.0) - fSlow3) / (fSlow3 + jnp.float32(1.0))) 
+		fSlow5 = (jnp.cos((self._fConst1 * fSlow2)) * (fSlow4 + jnp.float32(1.0))) 
+		fSlow6 = jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider3"])) 
+		fSlow7 = params["fVslider4"] 
+		fSlow8 = (self._fConst1 * (fSlow7 / jnp.sqrt(jnp.maximum(jnp.float32(0.0), fSlow6)))) 
 		fSlow9 = ((jnp.float32(1.0) - fSlow8) / (fSlow8 + jnp.float32(1.0))) 
-		fSlow10 = jnp.cos((self._fConst1 * params["fVslider6"])) 
-		fSlow11 = params["fVslider7"] 
-		fSlow12 = jnp.exp(-((self._fConst3 / fSlow11))) 
-		fSlow13 = jnp.power(fSlow12, jnp.float32(2.0)) 
-		fSlow14 = (jnp.float32(1.0) - (fSlow10 * fSlow13)) 
-		fSlow15 = (jnp.float32(1.0) - fSlow13) 
-		fSlow16 = (fSlow14 / fSlow15) 
-		fSlow17 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow14, jnp.float32(2.0)) / jnp.power(fSlow15, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
-		fSlow18 = (fSlow16 - fSlow17) 
-		fSlow19 = (fSlow12 * (fSlow17 + (jnp.float32(1.0) - fSlow16))) 
-		fSlow20 = params["fVslider8"] 
-		fSlow21 = ((jnp.exp(-((self._fConst3 / fSlow20))) / fSlow12) + jnp.float32(-1.0)) 
-		fSlow22 = (jnp.float32(1.0) / jnp.tan((self._fConst4 * params["fVslider9"]))) 
-		fSlow23 = (jnp.float32(1.0) / (fSlow22 + jnp.float32(1.0))) 
-		fSlow24 = (jnp.float32(1.0) - fSlow22) 
-		iSlow25 = (jnp.int32((self._fConst7 * params["fVslider10"])) & jnp.int32(8191)).astype(jnp.int32) 
-		fSlow26 = jnp.exp(-((self._fConst10 / fSlow11))) 
-		fSlow27 = jnp.power(fSlow26, jnp.float32(2.0)) 
-		fSlow28 = (jnp.float32(1.0) - (fSlow10 * fSlow27)) 
-		fSlow29 = (jnp.float32(1.0) - fSlow27) 
-		fSlow30 = (fSlow28 / fSlow29) 
-		fSlow31 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow28, jnp.float32(2.0)) / jnp.power(fSlow29, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
-		fSlow32 = (fSlow30 - fSlow31) 
-		fSlow33 = (fSlow26 * (fSlow31 + (jnp.float32(1.0) - fSlow30))) 
-		fSlow34 = ((jnp.exp(-((self._fConst10 / fSlow20))) / fSlow26) + jnp.float32(-1.0)) 
-		fSlow35 = jnp.exp(-((self._fConst15 / fSlow11))) 
-		fSlow36 = jnp.power(fSlow35, jnp.float32(2.0)) 
-		fSlow37 = (jnp.float32(1.0) - (fSlow10 * fSlow36)) 
-		fSlow38 = (jnp.float32(1.0) - fSlow36) 
-		fSlow39 = (fSlow37 / fSlow38) 
-		fSlow40 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow37, jnp.float32(2.0)) / jnp.power(fSlow38, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
-		fSlow41 = (fSlow39 - fSlow40) 
-		fSlow42 = (fSlow35 * (fSlow40 + (jnp.float32(1.0) - fSlow39))) 
-		fSlow43 = ((jnp.exp(-((self._fConst15 / fSlow20))) / fSlow35) + jnp.float32(-1.0)) 
-		fSlow44 = jnp.exp(-((self._fConst20 / fSlow11))) 
-		fSlow45 = jnp.power(fSlow44, jnp.float32(2.0)) 
-		fSlow46 = (jnp.float32(1.0) - (fSlow10 * fSlow45)) 
-		fSlow47 = (jnp.float32(1.0) - fSlow45) 
-		fSlow48 = (fSlow46 / fSlow47) 
-		fSlow49 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow46, jnp.float32(2.0)) / jnp.power(fSlow47, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
-		fSlow50 = (fSlow48 - fSlow49) 
-		fSlow51 = (fSlow44 * (fSlow49 + (jnp.float32(1.0) - fSlow48))) 
-		fSlow52 = ((jnp.exp(-((self._fConst20 / fSlow20))) / fSlow44) + jnp.float32(-1.0)) 
-		fSlow53 = jnp.exp(-((self._fConst25 / fSlow11))) 
-		fSlow54 = jnp.power(fSlow53, jnp.float32(2.0)) 
-		fSlow55 = (jnp.float32(1.0) - (fSlow10 * fSlow54)) 
-		fSlow56 = (jnp.float32(1.0) - fSlow54) 
-		fSlow57 = (fSlow55 / fSlow56) 
-		fSlow58 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow55, jnp.float32(2.0)) / jnp.power(fSlow56, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
-		fSlow59 = (fSlow57 - fSlow58) 
-		fSlow60 = (fSlow53 * (fSlow58 + (jnp.float32(1.0) - fSlow57))) 
-		fSlow61 = ((jnp.exp(-((self._fConst25 / fSlow20))) / fSlow53) + jnp.float32(-1.0)) 
-		fSlow62 = jnp.exp(-((self._fConst30 / fSlow11))) 
-		fSlow63 = jnp.power(fSlow62, jnp.float32(2.0)) 
-		fSlow64 = (jnp.float32(1.0) - (fSlow10 * fSlow63)) 
-		fSlow65 = (jnp.float32(1.0) - fSlow63) 
-		fSlow66 = (fSlow64 / fSlow65) 
-		fSlow67 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow64, jnp.float32(2.0)) / jnp.power(fSlow65, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
-		fSlow68 = (fSlow66 - fSlow67) 
-		fSlow69 = (fSlow62 * (fSlow67 + (jnp.float32(1.0) - fSlow66))) 
-		fSlow70 = ((jnp.exp(-((self._fConst30 / fSlow20))) / fSlow62) + jnp.float32(-1.0)) 
-		fSlow71 = jnp.exp(-((self._fConst35 / fSlow11))) 
-		fSlow72 = jnp.power(fSlow71, jnp.float32(2.0)) 
-		fSlow73 = (jnp.float32(1.0) - (fSlow10 * fSlow72)) 
-		fSlow74 = (jnp.float32(1.0) - fSlow72) 
-		fSlow75 = (fSlow73 / fSlow74) 
-		fSlow76 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow73, jnp.float32(2.0)) / jnp.power(fSlow74, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
-		fSlow77 = (fSlow75 - fSlow76) 
-		fSlow78 = (fSlow71 * (fSlow76 + (jnp.float32(1.0) - fSlow75))) 
-		fSlow79 = ((jnp.exp(-((self._fConst35 / fSlow20))) / fSlow71) + jnp.float32(-1.0)) 
-		fSlow80 = jnp.exp(-((self._fConst40 / fSlow11))) 
-		fSlow81 = jnp.power(fSlow80, jnp.float32(2.0)) 
-		fSlow82 = (jnp.float32(1.0) - (fSlow81 * fSlow10)) 
-		fSlow83 = (jnp.float32(1.0) - fSlow81) 
-		fSlow84 = (fSlow82 / fSlow83) 
-		fSlow85 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow82, jnp.float32(2.0)) / jnp.power(fSlow83, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
-		fSlow86 = (fSlow84 - fSlow85) 
-		fSlow87 = (fSlow80 * (fSlow85 + (jnp.float32(1.0) - fSlow84))) 
-		fSlow88 = ((jnp.exp(-((self._fConst40 / fSlow20))) / fSlow80) + jnp.float32(-1.0)) 
-		fSlow89 = (jnp.cos((self._fConst1 * fSlow6)) * (fSlow9 + jnp.float32(1.0))) 
-		fSlow90 = (jnp.cos((self._fConst1 * fSlow2)) * (fSlow5 + jnp.float32(1.0))) 
+		fSlow10 = (jnp.cos((self._fConst1 * fSlow7)) * (fSlow9 + jnp.float32(1.0))) 
+		fSlow11 = (jnp.float32(1.0) / jnp.tan((self._fConst2 * params["fVslider5"]))) 
+		fSlow12 = (jnp.float32(1.0) - fSlow11) 
+		fSlow13 = (jnp.float32(1.0) / (fSlow11 + jnp.float32(1.0))) 
+		fSlow14 = params["fVslider6"] 
+		fSlow15 = jnp.exp(-((self._fConst4 / fSlow14))) 
+		fSlow16 = params["fVslider7"] 
+		fSlow17 = ((jnp.exp(-((self._fConst4 / fSlow16))) / fSlow15) + jnp.float32(-1.0)) 
+		fSlow18 = jnp.power(fSlow15, jnp.float32(2.0)) 
+		fSlow19 = (jnp.float32(1.0) - fSlow18) 
+		fSlow20 = jnp.cos((self._fConst1 * params["fVslider8"])) 
+		fSlow21 = (jnp.float32(1.0) - (fSlow20 * fSlow18)) 
+		fSlow22 = (fSlow21 / fSlow19) 
+		fSlow23 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow21, jnp.float32(2.0)) / jnp.power(fSlow19, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
+		fSlow24 = (fSlow15 * (fSlow23 + (jnp.float32(1.0) - fSlow22))) 
+		fSlow25 = (fSlow22 - fSlow23) 
+		iSlow26 = (jnp.int32((self._fConst7 * params["fVslider9"])) & jnp.int32(8191)).astype(jnp.int32) 
+		fSlow27 = jnp.exp(-((self._fConst10 / fSlow14))) 
+		fSlow28 = ((jnp.exp(-((self._fConst10 / fSlow16))) / fSlow27) + jnp.float32(-1.0)) 
+		fSlow29 = jnp.power(fSlow27, jnp.float32(2.0)) 
+		fSlow30 = (jnp.float32(1.0) - fSlow29) 
+		fSlow31 = (jnp.float32(1.0) - (fSlow29 * fSlow20)) 
+		fSlow32 = (fSlow31 / fSlow30) 
+		fSlow33 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow31, jnp.float32(2.0)) / jnp.power(fSlow30, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
+		fSlow34 = (fSlow27 * (fSlow33 + (jnp.float32(1.0) - fSlow32))) 
+		fSlow35 = (fSlow32 - fSlow33) 
+		fSlow36 = jnp.exp(-((self._fConst15 / fSlow14))) 
+		fSlow37 = ((jnp.exp(-((self._fConst15 / fSlow16))) / fSlow36) + jnp.float32(-1.0)) 
+		fSlow38 = jnp.power(fSlow36, jnp.float32(2.0)) 
+		fSlow39 = (jnp.float32(1.0) - fSlow38) 
+		fSlow40 = (jnp.float32(1.0) - (fSlow20 * fSlow38)) 
+		fSlow41 = (fSlow40 / fSlow39) 
+		fSlow42 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow40, jnp.float32(2.0)) / jnp.power(fSlow39, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
+		fSlow43 = (fSlow36 * (fSlow42 + (jnp.float32(1.0) - fSlow41))) 
+		fSlow44 = (fSlow41 - fSlow42) 
+		fSlow45 = jnp.exp(-((self._fConst20 / fSlow14))) 
+		fSlow46 = ((jnp.exp(-((self._fConst20 / fSlow16))) / fSlow45) + jnp.float32(-1.0)) 
+		fSlow47 = jnp.power(fSlow45, jnp.float32(2.0)) 
+		fSlow48 = (jnp.float32(1.0) - fSlow47) 
+		fSlow49 = (jnp.float32(1.0) - (fSlow20 * fSlow47)) 
+		fSlow50 = (fSlow49 / fSlow48) 
+		fSlow51 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow49, jnp.float32(2.0)) / jnp.power(fSlow48, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
+		fSlow52 = (fSlow45 * (fSlow51 + (jnp.float32(1.0) - fSlow50))) 
+		fSlow53 = (fSlow50 - fSlow51) 
+		fSlow54 = jnp.exp(-((self._fConst25 / fSlow14))) 
+		fSlow55 = ((jnp.exp(-((self._fConst25 / fSlow16))) / fSlow54) + jnp.float32(-1.0)) 
+		fSlow56 = jnp.power(fSlow54, jnp.float32(2.0)) 
+		fSlow57 = (jnp.float32(1.0) - fSlow56) 
+		fSlow58 = (jnp.float32(1.0) - (fSlow20 * fSlow56)) 
+		fSlow59 = (fSlow58 / fSlow57) 
+		fSlow60 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow58, jnp.float32(2.0)) / jnp.power(fSlow57, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
+		fSlow61 = (fSlow54 * (fSlow60 + (jnp.float32(1.0) - fSlow59))) 
+		fSlow62 = (fSlow59 - fSlow60) 
+		fSlow63 = jnp.exp(-((self._fConst30 / fSlow14))) 
+		fSlow64 = ((jnp.exp(-((self._fConst30 / fSlow16))) / fSlow63) + jnp.float32(-1.0)) 
+		fSlow65 = jnp.power(fSlow63, jnp.float32(2.0)) 
+		fSlow66 = (jnp.float32(1.0) - fSlow65) 
+		fSlow67 = (jnp.float32(1.0) - (fSlow20 * fSlow65)) 
+		fSlow68 = (fSlow67 / fSlow66) 
+		fSlow69 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow67, jnp.float32(2.0)) / jnp.power(fSlow66, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
+		fSlow70 = (fSlow63 * (fSlow69 + (jnp.float32(1.0) - fSlow68))) 
+		fSlow71 = (fSlow68 - fSlow69) 
+		fSlow72 = jnp.exp(-((self._fConst35 / fSlow14))) 
+		fSlow73 = ((jnp.exp(-((self._fConst35 / fSlow16))) / fSlow72) + jnp.float32(-1.0)) 
+		fSlow74 = jnp.power(fSlow72, jnp.float32(2.0)) 
+		fSlow75 = (jnp.float32(1.0) - fSlow74) 
+		fSlow76 = (jnp.float32(1.0) - (fSlow20 * fSlow74)) 
+		fSlow77 = (fSlow76 / fSlow75) 
+		fSlow78 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow76, jnp.float32(2.0)) / jnp.power(fSlow75, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
+		fSlow79 = (fSlow72 * (fSlow78 + (jnp.float32(1.0) - fSlow77))) 
+		fSlow80 = (fSlow77 - fSlow78) 
+		fSlow81 = jnp.exp(-((self._fConst40 / fSlow14))) 
+		fSlow82 = ((jnp.exp(-((self._fConst40 / fSlow16))) / fSlow81) + jnp.float32(-1.0)) 
+		fSlow83 = jnp.power(fSlow81, jnp.float32(2.0)) 
+		fSlow84 = (jnp.float32(1.0) - fSlow83) 
+		fSlow85 = (jnp.float32(1.0) - (fSlow20 * fSlow83)) 
+		fSlow86 = (fSlow85 / fSlow84) 
+		fSlow87 = jnp.sqrt(jnp.maximum(jnp.float32(0.0), ((jnp.power(fSlow85, jnp.float32(2.0)) / jnp.power(fSlow84, jnp.float32(2.0))) + jnp.float32(-1.0)))) 
+		fSlow88 = (fSlow81 * (fSlow87 + (jnp.float32(1.0) - fSlow86))) 
+		fSlow89 = (fSlow86 - fSlow87) 
+		fSlow90 = (jnp.float32(0.001) * jnp.power(jnp.float32(1e+01), (jnp.float32(0.05) * params["fVslider10"]))) 
 		fRec0_temp = state["fRec0"] 
-		fRec1_temp = state["fRec1"] 
-		fRec15_temp = state["fRec15"] 
 		fRec14_temp = state["fRec14"] 
-		fRec12_temp = state["fRec12"] 
-		fRec19_temp = state["fRec19"] 
+		fRec13_temp = state["fRec13"] 
+		fRec11_temp = state["fRec11"] 
 		fRec18_temp = state["fRec18"] 
-		fRec16_temp = state["fRec16"] 
-		fRec23_temp = state["fRec23"] 
+		fRec17_temp = state["fRec17"] 
+		fRec15_temp = state["fRec15"] 
 		fRec22_temp = state["fRec22"] 
-		fRec20_temp = state["fRec20"] 
-		fRec27_temp = state["fRec27"] 
+		fRec21_temp = state["fRec21"] 
+		fRec19_temp = state["fRec19"] 
 		fRec26_temp = state["fRec26"] 
-		fRec24_temp = state["fRec24"] 
-		fRec31_temp = state["fRec31"] 
+		fRec25_temp = state["fRec25"] 
+		fRec23_temp = state["fRec23"] 
 		fRec30_temp = state["fRec30"] 
-		fRec28_temp = state["fRec28"] 
-		fRec35_temp = state["fRec35"] 
+		fRec29_temp = state["fRec29"] 
+		fRec27_temp = state["fRec27"] 
 		fRec34_temp = state["fRec34"] 
-		fRec32_temp = state["fRec32"] 
-		fRec39_temp = state["fRec39"] 
+		fRec33_temp = state["fRec33"] 
+		fRec31_temp = state["fRec31"] 
 		fRec38_temp = state["fRec38"] 
-		fRec36_temp = state["fRec36"] 
-		fRec43_temp = state["fRec43"] 
+		fRec37_temp = state["fRec37"] 
+		fRec35_temp = state["fRec35"] 
 		fRec42_temp = state["fRec42"] 
-		fRec40_temp = state["fRec40"] 
+		fRec41_temp = state["fRec41"] 
+		fRec39_temp = state["fRec39"] 
+		fRec43_temp = state["fRec43"] 
 		state["fRec0"] = (fSlow0 + (jnp.float32(0.999) * fRec0_temp)) 
-		state["fRec1"] = (fSlow1 + (jnp.float32(0.999) * fRec1_temp)) 
-		fTemp0 = (state["fRec1"] + jnp.float32(1.0)) 
-		state["fRec15"] = -((fSlow23 * ((fSlow24 * fRec15_temp) - (state["fRec11"][1] + state["fRec11"][2])))) 
-		state["fRec14"] = ((fSlow18 * fRec14_temp) + (fSlow19 * (state["fRec11"][1] + (fSlow21 * state["fRec15"])))) 
-		state["fVec0"] = state["fVec0"].at[(state["IOTA0"] & 16383).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec14"]) + jnp.float32(1e-20))) 
-		fTemp1 = ((jnp.float32(0.6) * fRec12_temp) + state["fVec0"][((state["IOTA0"] - self._iConst6) & 16383).astype(jnp.int32)]) 
-		fTemp2 = inputs[1] 
-		state["fVec1"] = state["fVec1"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(fTemp2) 
-		fTemp3 = (jnp.float32(0.3) * state["fVec1"][((state["IOTA0"] - iSlow25) & 8191).astype(jnp.int32)]) 
-		state["fVec2"] = state["fVec2"].at[(state["IOTA0"] & 1023).astype(jnp.int32)].set((fTemp1 - fTemp3)) 
-		state["fRec12"] = state["fVec2"][((state["IOTA0"] - self._iConst8) & 1023).astype(jnp.int32)] 
-		fRec13 = (jnp.float32(0.6) * (fTemp3 - fTemp1)) 
-		state["fRec19"] = -((fSlow23 * ((fSlow24 * fRec19_temp) - (state["fRec7"][1] + state["fRec7"][2])))) 
-		state["fRec18"] = ((fSlow32 * fRec18_temp) + (fSlow33 * (state["fRec7"][1] + (fSlow34 * state["fRec19"])))) 
-		state["fVec3"] = state["fVec3"].at[(state["IOTA0"] & 16383).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec18"]) + jnp.float32(1e-20))) 
-		fTemp4 = ((jnp.float32(0.6) * fRec16_temp) + state["fVec3"][((state["IOTA0"] - self._iConst12) & 16383).astype(jnp.int32)]) 
-		state["fVec4"] = state["fVec4"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set((fTemp4 - fTemp3)) 
-		state["fRec16"] = state["fVec4"][((state["IOTA0"] - self._iConst13) & 2047).astype(jnp.int32)] 
-		fRec17 = (jnp.float32(0.6) * (fTemp3 - fTemp4)) 
-		state["fRec23"] = -((fSlow23 * ((fSlow24 * fRec23_temp) - (state["fRec9"][1] + state["fRec9"][2])))) 
-		state["fRec22"] = ((fSlow41 * fRec22_temp) + (fSlow42 * (state["fRec9"][1] + (fSlow43 * state["fRec23"])))) 
-		state["fVec5"] = state["fVec5"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec22"]) + jnp.float32(1e-20))) 
-		fTemp5 = (state["fVec5"][((state["IOTA0"] - self._iConst17) & 8191).astype(jnp.int32)] + (fTemp3 + (jnp.float32(0.6) * fRec20_temp))) 
-		state["fVec6"] = state["fVec6"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set(fTemp5) 
-		state["fRec20"] = state["fVec6"][((state["IOTA0"] - self._iConst18) & 2047).astype(jnp.int32)] 
-		fRec21 = -((jnp.float32(0.6) * fTemp5)) 
-		state["fRec27"] = -((fSlow23 * ((fSlow24 * fRec27_temp) - (state["fRec5"][1] + state["fRec5"][2])))) 
-		state["fRec26"] = ((fSlow50 * fRec26_temp) + (fSlow51 * (state["fRec5"][1] + (fSlow52 * state["fRec27"])))) 
-		state["fVec7"] = state["fVec7"].at[(state["IOTA0"] & 16383).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec26"]) + jnp.float32(1e-20))) 
-		fTemp6 = (fTemp3 + ((jnp.float32(0.6) * fRec24_temp) + state["fVec7"][((state["IOTA0"] - self._iConst22) & 16383).astype(jnp.int32)])) 
-		state["fVec8"] = state["fVec8"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set(fTemp6) 
-		state["fRec24"] = state["fVec8"][((state["IOTA0"] - self._iConst23) & 2047).astype(jnp.int32)] 
-		fRec25 = -((jnp.float32(0.6) * fTemp6)) 
-		state["fRec31"] = -((fSlow23 * ((fSlow24 * fRec31_temp) - (state["fRec10"][1] + state["fRec10"][2])))) 
-		state["fRec30"] = ((fSlow59 * fRec30_temp) + (fSlow60 * (state["fRec10"][1] + (fSlow61 * state["fRec31"])))) 
-		state["fVec9"] = state["fVec9"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec30"]) + jnp.float32(1e-20))) 
-		fTemp7 = inputs[0] 
-		state["fVec10"] = state["fVec10"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(fTemp7) 
-		fTemp8 = (jnp.float32(0.3) * state["fVec10"][((state["IOTA0"] - iSlow25) & 8191).astype(jnp.int32)]) 
-		fTemp9 = (state["fVec9"][((state["IOTA0"] - self._iConst27) & 8191).astype(jnp.int32)] - (fTemp8 + (jnp.float32(0.6) * fRec28_temp))) 
-		state["fVec11"] = state["fVec11"].at[(state["IOTA0"] & 1023).astype(jnp.int32)].set(fTemp9) 
-		state["fRec28"] = state["fVec11"][((state["IOTA0"] - self._iConst28) & 1023).astype(jnp.int32)] 
-		fRec29 = (jnp.float32(0.6) * fTemp9) 
-		state["fRec35"] = -((fSlow23 * ((fSlow24 * fRec35_temp) - (state["fRec6"][1] + state["fRec6"][2])))) 
-		state["fRec34"] = ((fSlow68 * fRec34_temp) + (fSlow69 * (state["fRec6"][1] + (fSlow70 * state["fRec35"])))) 
-		state["fVec12"] = state["fVec12"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec34"]) + jnp.float32(1e-20))) 
-		fTemp10 = (state["fVec12"][((state["IOTA0"] - self._iConst32) & 8191).astype(jnp.int32)] - (fTemp8 + (jnp.float32(0.6) * fRec32_temp))) 
-		state["fVec13"] = state["fVec13"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set(fTemp10) 
-		state["fRec32"] = state["fVec13"][((state["IOTA0"] - self._iConst33) & 2047).astype(jnp.int32)] 
-		fRec33 = (jnp.float32(0.6) * fTemp10) 
-		state["fRec39"] = -((fSlow23 * ((fSlow24 * fRec39_temp) - (state["fRec8"][1] + state["fRec8"][2])))) 
-		state["fRec38"] = ((fSlow77 * fRec38_temp) + (fSlow78 * (state["fRec8"][1] + (fSlow79 * state["fRec39"])))) 
-		state["fVec14"] = state["fVec14"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec38"]) + jnp.float32(1e-20))) 
-		fTemp11 = ((fTemp8 + state["fVec14"][((state["IOTA0"] - self._iConst37) & 8191).astype(jnp.int32)]) - (jnp.float32(0.6) * fRec36_temp)) 
-		state["fVec15"] = state["fVec15"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set(fTemp11) 
-		state["fRec36"] = state["fVec15"][((state["IOTA0"] - self._iConst38) & 2047).astype(jnp.int32)] 
-		fRec37 = (jnp.float32(0.6) * fTemp11) 
-		state["fRec43"] = -((fSlow23 * ((fSlow24 * fRec43_temp) - (state["fRec4"][1] + state["fRec4"][2])))) 
-		state["fRec42"] = ((fSlow86 * fRec42_temp) + (fSlow87 * (state["fRec4"][1] + (fSlow88 * state["fRec43"])))) 
-		state["fVec16"] = state["fVec16"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec42"]) + jnp.float32(1e-20))) 
-		fTemp12 = ((state["fVec16"][((state["IOTA0"] - self._iConst42) & 8191).astype(jnp.int32)] + fTemp8) - (jnp.float32(0.6) * fRec40_temp)) 
-		state["fVec17"] = state["fVec17"].at[(state["IOTA0"] & 1023).astype(jnp.int32)].set(fTemp12) 
-		state["fRec40"] = state["fVec17"][((state["IOTA0"] - self._iConst43) & 1023).astype(jnp.int32)] 
-		fRec41 = (jnp.float32(0.6) * fTemp12) 
-		fTemp13 = (fRec41 + fRec37) 
-		fTemp14 = (fRec29 + (fRec33 + fTemp13)) 
-		state["fRec4"] = state["fRec4"].at[0].set((fRec12_temp + (fRec16_temp + (fRec20_temp + (fRec24_temp + (fRec28_temp + (fRec32_temp + (fRec36_temp + (fRec40_temp + (fRec13 + (fRec17 + (fRec21 + (fRec25 + fTemp14))))))))))))) 
-		state["fRec5"] = state["fRec5"].at[0].set(((fRec28_temp + (fRec32_temp + (fRec36_temp + (fRec40_temp + fTemp14)))) - (fRec12_temp + (fRec16_temp + (fRec20_temp + (fRec24_temp + (fRec13 + (fRec17 + (fRec25 + fRec21))))))))) 
-		fTemp15 = (fRec33 + fRec29) 
-		state["fRec6"] = state["fRec6"].at[0].set(((fRec20_temp + (fRec24_temp + (fRec36_temp + (fRec40_temp + (fRec21 + (fRec25 + fTemp13)))))) - (fRec12_temp + (fRec16_temp + (fRec28_temp + (fRec32_temp + (fRec13 + (fRec17 + fTemp15)))))))) 
-		state["fRec7"] = state["fRec7"].at[0].set(((fRec12_temp + (fRec16_temp + (fRec36_temp + (fRec40_temp + (fRec13 + (fRec17 + fTemp13)))))) - (fRec20_temp + (fRec24_temp + (fRec28_temp + (fRec32_temp + (fRec21 + (fRec25 + fTemp15)))))))) 
-		fTemp16 = (fRec41 + fRec33) 
-		fTemp17 = (fRec37 + fRec29) 
-		state["fRec8"] = state["fRec8"].at[0].set(((fRec16_temp + (fRec24_temp + (fRec32_temp + (fRec40_temp + (fRec17 + (fRec25 + fTemp16)))))) - (fRec12_temp + (fRec20_temp + (fRec28_temp + (fRec36_temp + (fRec13 + (fRec21 + fTemp17)))))))) 
-		state["fRec9"] = state["fRec9"].at[0].set(((fRec12_temp + (fRec20_temp + (fRec32_temp + (fRec40_temp + (fRec13 + (fRec21 + fTemp16)))))) - (fRec16_temp + (fRec24_temp + (fRec28_temp + (fRec36_temp + (fRec17 + (fRec25 + fTemp17)))))))) 
-		fTemp18 = (fRec41 + fRec29) 
-		fTemp19 = (fRec37 + fRec33) 
-		state["fRec10"] = state["fRec10"].at[0].set(((fRec12_temp + (fRec24_temp + (fRec28_temp + (fRec40_temp + (fRec13 + (fRec25 + fTemp18)))))) - (fRec16_temp + (fRec20_temp + (fRec32_temp + (fRec36_temp + (fRec17 + (fRec21 + fTemp19)))))))) 
-		state["fRec11"] = state["fRec11"].at[0].set(((fRec16_temp + (fRec20_temp + (fRec28_temp + (fRec40_temp + (fRec17 + (fRec21 + fTemp18)))))) - (fRec12_temp + (fRec24_temp + (fRec32_temp + (fRec36_temp + (fRec13 + (fRec25 + fTemp19)))))))) 
-		fTemp20 = (jnp.float32(0.37) * (state["fRec5"][0] + state["fRec6"][0])) 
-		fTemp21 = (fSlow89 * state["fRec3"][1]) 
-		fTemp22 = (fTemp20 + fTemp21) 
-		state["fRec3"] = state["fRec3"].at[0].set((fTemp22 - (fSlow9 * state["fRec3"][2]))) 
-		fTemp23 = (fSlow9 * state["fRec3"][0]) 
-		fTemp24 = (jnp.float32(0.5) * (((fTemp23 + (fTemp20 + state["fRec3"][2])) - fTemp21) + (fSlow7 * ((state["fRec3"][2] + fTemp23) - fTemp22)))) 
-		fTemp25 = (fSlow90 * state["fRec2"][1]) 
-		fTemp26 = (fTemp24 + fTemp25) 
-		state["fRec2"] = state["fRec2"].at[0].set((fTemp26 - (fSlow5 * state["fRec2"][2]))) 
-		fTemp27 = (fSlow5 * state["fRec2"][0]) 
-		fTemp28 = (jnp.float32(1.0) - (jnp.float32(0.5) * fTemp0)) 
-		_result0 = (state["fRec0"] * ((jnp.float32(0.25) * (fTemp0 * (((fTemp27 + (fTemp24 + state["fRec2"][2])) - fTemp25) + (fSlow3 * ((state["fRec2"][2] + fTemp27) - fTemp26))))) + (fTemp7 * fTemp28))) 
-		fTemp29 = (jnp.float32(0.37) * (state["fRec5"][0] - state["fRec6"][0])) 
-		fTemp30 = (fSlow89 * state["fRec45"][1]) 
-		fTemp31 = (fTemp29 + fTemp30) 
-		state["fRec45"] = state["fRec45"].at[0].set((fTemp31 - (fSlow9 * state["fRec45"][2]))) 
-		fTemp32 = (fSlow9 * state["fRec45"][0]) 
-		fTemp33 = (jnp.float32(0.5) * (((fTemp32 + (fTemp29 + state["fRec45"][2])) - fTemp30) + (fSlow7 * ((state["fRec45"][2] + fTemp32) - fTemp31)))) 
-		fTemp34 = (fSlow90 * state["fRec44"][1]) 
-		fTemp35 = (fTemp33 + fTemp34) 
-		state["fRec44"] = state["fRec44"].at[0].set((fTemp35 - (fSlow5 * state["fRec44"][2]))) 
-		fTemp36 = (fSlow5 * state["fRec44"][0]) 
-		_result1 = (state["fRec0"] * ((jnp.float32(0.25) * (fTemp0 * (((fTemp36 + (fTemp33 + state["fRec44"][2])) - fTemp34) + (fSlow3 * ((state["fRec44"][2] + fTemp36) - fTemp35))))) + (fTemp2 * fTemp28))) 
+		fTemp0 = (state["fRec0"] + jnp.float32(1.0)) 
+		fTemp1 = (jnp.float32(1.0) - (jnp.float32(0.5) * fTemp0)) 
+		fTemp2 = inputs[0] 
+		state["fVec0"] = state["fVec0"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(fTemp2) 
+		fTemp3 = (fSlow5 * state["fRec1"][1]) 
+		fTemp4 = (fSlow10 * state["fRec2"][1]) 
+		state["fRec14"] = -((fSlow13 * ((fSlow12 * fRec14_temp) - (state["fRec7"][1] + state["fRec7"][2])))) 
+		state["fRec13"] = ((fSlow25 * fRec13_temp) + (fSlow24 * (state["fRec7"][1] + (fSlow17 * state["fRec14"])))) 
+		state["fVec1"] = state["fVec1"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec13"]) + jnp.float32(1e-20))) 
+		fTemp5 = (jnp.float32(0.3) * state["fVec0"][((state["IOTA0"] - iSlow26) & 8191).astype(jnp.int32)]) 
+		fTemp6 = ((fTemp5 + state["fVec1"][((state["IOTA0"] - self._iConst6) & 8191).astype(jnp.int32)]) - (jnp.float32(0.6) * fRec11_temp)) 
+		state["fVec2"] = state["fVec2"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set(fTemp6) 
+		state["fRec11"] = state["fVec2"][((state["IOTA0"] - self._iConst8) & 2047).astype(jnp.int32)] 
+		fRec12 = (jnp.float32(0.6) * fTemp6) 
+		state["fRec18"] = -((fSlow13 * ((fSlow12 * fRec18_temp) - (state["fRec3"][1] + state["fRec3"][2])))) 
+		state["fRec17"] = ((fSlow35 * fRec17_temp) + (fSlow34 * (state["fRec3"][1] + (fSlow28 * state["fRec18"])))) 
+		state["fVec3"] = state["fVec3"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec17"]) + jnp.float32(1e-20))) 
+		fTemp7 = ((state["fVec3"][((state["IOTA0"] - self._iConst12) & 8191).astype(jnp.int32)] + fTemp5) - (jnp.float32(0.6) * fRec15_temp)) 
+		state["fVec4"] = state["fVec4"].at[(state["IOTA0"] & 1023).astype(jnp.int32)].set(fTemp7) 
+		state["fRec15"] = state["fVec4"][((state["IOTA0"] - self._iConst13) & 1023).astype(jnp.int32)] 
+		fRec16 = (jnp.float32(0.6) * fTemp7) 
+		fTemp8 = (fRec16 + fRec12) 
+		state["fRec22"] = -((fSlow13 * ((fSlow12 * fRec22_temp) - (state["fRec5"][1] + state["fRec5"][2])))) 
+		state["fRec21"] = ((fSlow44 * fRec21_temp) + (fSlow43 * (state["fRec5"][1] + (fSlow37 * state["fRec22"])))) 
+		state["fVec5"] = state["fVec5"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec21"]) + jnp.float32(1e-20))) 
+		fTemp9 = (state["fVec5"][((state["IOTA0"] - self._iConst17) & 8191).astype(jnp.int32)] - (fTemp5 + (jnp.float32(0.6) * fRec19_temp))) 
+		state["fVec6"] = state["fVec6"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set(fTemp9) 
+		state["fRec19"] = state["fVec6"][((state["IOTA0"] - self._iConst18) & 2047).astype(jnp.int32)] 
+		fRec20 = (jnp.float32(0.6) * fTemp9) 
+		state["fRec26"] = -((fSlow13 * ((fSlow12 * fRec26_temp) - (state["fRec9"][1] + state["fRec9"][2])))) 
+		state["fRec25"] = ((fSlow53 * fRec25_temp) + (fSlow52 * (state["fRec9"][1] + (fSlow46 * state["fRec26"])))) 
+		state["fVec7"] = state["fVec7"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec25"]) + jnp.float32(1e-20))) 
+		fTemp10 = (state["fVec7"][((state["IOTA0"] - self._iConst22) & 8191).astype(jnp.int32)] - (fTemp5 + (jnp.float32(0.6) * fRec23_temp))) 
+		state["fVec8"] = state["fVec8"].at[(state["IOTA0"] & 1023).astype(jnp.int32)].set(fTemp10) 
+		state["fRec23"] = state["fVec8"][((state["IOTA0"] - self._iConst23) & 1023).astype(jnp.int32)] 
+		fRec24 = (jnp.float32(0.6) * fTemp10) 
+		fTemp11 = (fRec24 + (fRec20 + fTemp8)) 
+		state["fRec30"] = -((fSlow13 * ((fSlow12 * fRec30_temp) - (state["fRec4"][1] + state["fRec4"][2])))) 
+		state["fRec29"] = ((fSlow62 * fRec29_temp) + (fSlow61 * (state["fRec4"][1] + (fSlow55 * state["fRec30"])))) 
+		state["fVec9"] = state["fVec9"].at[(state["IOTA0"] & 16383).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec29"]) + jnp.float32(1e-20))) 
+		fTemp12 = inputs[1] 
+		state["fVec10"] = state["fVec10"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(fTemp12) 
+		fTemp13 = (jnp.float32(0.3) * state["fVec10"][((state["IOTA0"] - iSlow26) & 8191).astype(jnp.int32)]) 
+		fTemp14 = (fTemp13 + ((jnp.float32(0.6) * fRec27_temp) + state["fVec9"][((state["IOTA0"] - self._iConst27) & 16383).astype(jnp.int32)])) 
+		state["fVec11"] = state["fVec11"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set(fTemp14) 
+		state["fRec27"] = state["fVec11"][((state["IOTA0"] - self._iConst28) & 2047).astype(jnp.int32)] 
+		fRec28 = -((jnp.float32(0.6) * fTemp14)) 
+		state["fRec34"] = -((fSlow13 * ((fSlow12 * fRec34_temp) - (state["fRec8"][1] + state["fRec8"][2])))) 
+		state["fRec33"] = ((fSlow71 * fRec33_temp) + (fSlow70 * (state["fRec8"][1] + (fSlow64 * state["fRec34"])))) 
+		state["fVec12"] = state["fVec12"].at[(state["IOTA0"] & 8191).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec33"]) + jnp.float32(1e-20))) 
+		fTemp15 = (state["fVec12"][((state["IOTA0"] - self._iConst32) & 8191).astype(jnp.int32)] + (fTemp13 + (jnp.float32(0.6) * fRec31_temp))) 
+		state["fVec13"] = state["fVec13"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set(fTemp15) 
+		state["fRec31"] = state["fVec13"][((state["IOTA0"] - self._iConst33) & 2047).astype(jnp.int32)] 
+		fRec32 = -((jnp.float32(0.6) * fTemp15)) 
+		state["fRec38"] = -((fSlow13 * ((fSlow12 * fRec38_temp) - (state["fRec6"][1] + state["fRec6"][2])))) 
+		state["fRec37"] = ((fSlow80 * fRec37_temp) + (fSlow79 * (state["fRec6"][1] + (fSlow73 * state["fRec38"])))) 
+		state["fVec14"] = state["fVec14"].at[(state["IOTA0"] & 16383).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec37"]) + jnp.float32(1e-20))) 
+		fTemp16 = ((jnp.float32(0.6) * fRec35_temp) + state["fVec14"][((state["IOTA0"] - self._iConst37) & 16383).astype(jnp.int32)]) 
+		state["fVec15"] = state["fVec15"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set((fTemp16 - fTemp13)) 
+		state["fRec35"] = state["fVec15"][((state["IOTA0"] - self._iConst38) & 2047).astype(jnp.int32)] 
+		fRec36 = (jnp.float32(0.6) * (fTemp13 - fTemp16)) 
+		state["fRec42"] = -((fSlow13 * ((fSlow12 * fRec42_temp) - (state["fRec10"][1] + state["fRec10"][2])))) 
+		state["fRec41"] = ((fSlow89 * fRec41_temp) + (fSlow88 * (state["fRec10"][1] + (fSlow82 * state["fRec42"])))) 
+		state["fVec16"] = state["fVec16"].at[(state["IOTA0"] & 16383).astype(jnp.int32)].set(((jnp.float32(0.35355338) * state["fRec41"]) + jnp.float32(1e-20))) 
+		fTemp17 = ((jnp.float32(0.6) * fRec39_temp) + state["fVec16"][((state["IOTA0"] - self._iConst42) & 16383).astype(jnp.int32)]) 
+		state["fVec17"] = state["fVec17"].at[(state["IOTA0"] & 1023).astype(jnp.int32)].set((fTemp17 - fTemp13)) 
+		state["fRec39"] = state["fVec17"][((state["IOTA0"] - self._iConst43) & 1023).astype(jnp.int32)] 
+		fRec40 = (jnp.float32(0.6) * (fTemp13 - fTemp17)) 
+		state["fRec3"] = state["fRec3"].at[0].set((fRec39_temp + (fRec35_temp + (fRec31_temp + (fRec27_temp + (fRec23_temp + (fRec19_temp + (fRec11_temp + (fRec15_temp + (fRec40 + (fRec36 + (fRec32 + (fRec28 + fTemp11))))))))))))) 
+		state["fRec4"] = state["fRec4"].at[0].set(((fRec23_temp + (fRec19_temp + (fRec11_temp + (fRec15_temp + fTemp11)))) - (fRec39_temp + (fRec35_temp + (fRec31_temp + (fRec27_temp + (fRec40 + (fRec36 + (fRec28 + fRec32))))))))) 
+		fTemp18 = (fRec20 + fRec24) 
+		state["fRec5"] = state["fRec5"].at[0].set(((fRec31_temp + (fRec27_temp + (fRec11_temp + (fRec15_temp + (fRec32 + (fRec28 + fTemp8)))))) - (fRec39_temp + (fRec35_temp + (fRec23_temp + (fRec19_temp + (fRec40 + (fRec36 + fTemp18)))))))) 
+		state["fRec6"] = state["fRec6"].at[0].set(((fRec39_temp + (fRec35_temp + (fRec11_temp + (fRec15_temp + (fRec40 + (fRec36 + fTemp8)))))) - (fRec31_temp + (fRec27_temp + (fRec23_temp + (fRec19_temp + (fRec32 + (fRec28 + fTemp18)))))))) 
+		fTemp19 = (fRec12 + fRec24) 
+		fTemp20 = (fRec16 + fRec20) 
+		state["fRec7"] = state["fRec7"].at[0].set(((fRec35_temp + (fRec27_temp + (fRec19_temp + (fRec15_temp + (fRec36 + (fRec28 + fTemp20)))))) - (fRec39_temp + (fRec31_temp + (fRec23_temp + (fRec11_temp + (fRec40 + (fRec32 + fTemp19)))))))) 
+		state["fRec8"] = state["fRec8"].at[0].set(((fRec39_temp + (fRec31_temp + (fRec19_temp + (fRec15_temp + (fRec40 + (fRec32 + fTemp20)))))) - (fRec35_temp + (fRec27_temp + (fRec23_temp + (fRec11_temp + (fRec36 + (fRec28 + fTemp19)))))))) 
+		fTemp21 = (fRec12 + fRec20) 
+		fTemp22 = (fRec16 + fRec24) 
+		state["fRec9"] = state["fRec9"].at[0].set(((fRec39_temp + (fRec27_temp + (fRec23_temp + (fRec15_temp + (fRec40 + (fRec28 + fTemp22)))))) - (fRec35_temp + (fRec31_temp + (fRec19_temp + (fRec11_temp + (fRec36 + (fRec32 + fTemp21)))))))) 
+		state["fRec10"] = state["fRec10"].at[0].set(((fRec35_temp + (fRec31_temp + (fRec23_temp + (fRec15_temp + (fRec36 + (fRec32 + fTemp22)))))) - (fRec39_temp + (fRec27_temp + (fRec19_temp + (fRec11_temp + (fRec40 + (fRec28 + fTemp21)))))))) 
+		fTemp23 = (jnp.float32(0.37) * (state["fRec4"][0] + state["fRec5"][0])) 
+		fTemp24 = (fTemp23 + fTemp4) 
+		state["fRec2"] = state["fRec2"].at[0].set((fTemp24 - (fSlow9 * state["fRec2"][2]))) 
+		fTemp25 = (fSlow9 * state["fRec2"][0]) 
+		fTemp26 = (jnp.float32(0.5) * (((fTemp25 + (fTemp23 + state["fRec2"][2])) - fTemp4) + (fSlow6 * ((state["fRec2"][2] + fTemp25) - fTemp24)))) 
+		fTemp27 = (fTemp26 + fTemp3) 
+		state["fRec1"] = state["fRec1"].at[0].set((fTemp27 - (fSlow4 * state["fRec1"][2]))) 
+		fTemp28 = (fSlow4 * state["fRec1"][0]) 
+		state["fRec43"] = (fSlow90 + (jnp.float32(0.999) * fRec43_temp)) 
+		_result0 = (state["fRec43"] * ((jnp.float32(0.25) * (fTemp0 * (((fTemp28 + (fTemp26 + state["fRec1"][2])) - fTemp3) + (fSlow1 * ((state["fRec1"][2] + fTemp28) - fTemp27))))) + (fTemp2 * fTemp1))) 
+		fTemp29 = (fSlow5 * state["fRec44"][1]) 
+		fTemp30 = (fSlow10 * state["fRec45"][1]) 
+		fTemp31 = (jnp.float32(0.37) * (state["fRec4"][0] - state["fRec5"][0])) 
+		fTemp32 = (fTemp31 + fTemp30) 
+		state["fRec45"] = state["fRec45"].at[0].set((fTemp32 - (fSlow9 * state["fRec45"][2]))) 
+		fTemp33 = (fSlow9 * state["fRec45"][0]) 
+		fTemp34 = (jnp.float32(0.5) * (((fTemp33 + (fTemp31 + state["fRec45"][2])) - fTemp30) + (fSlow6 * ((state["fRec45"][2] + fTemp33) - fTemp32)))) 
+		fTemp35 = (fTemp34 + fTemp29) 
+		state["fRec44"] = state["fRec44"].at[0].set((fTemp35 - (fSlow4 * state["fRec44"][2]))) 
+		fTemp36 = (fSlow4 * state["fRec44"][0]) 
+		_result1 = (state["fRec43"] * ((jnp.float32(0.25) * (fTemp0 * (((fTemp36 + (fTemp34 + state["fRec44"][2])) - fTemp29) + (fSlow1 * ((state["fRec44"][2] + fTemp36) - fTemp35))))) + (fTemp12 * fTemp1))) 
 		state["IOTA0"] = (state["IOTA0"] + jnp.int32(1)) 
+		state["fRec3"] = jnp.roll(state["fRec3"], 1) 
 		state["fRec4"] = jnp.roll(state["fRec4"], 1) 
 		state["fRec5"] = jnp.roll(state["fRec5"], 1) 
 		state["fRec6"] = jnp.roll(state["fRec6"], 1) 
@@ -477,9 +479,8 @@ class mydsp(nn.Module):
 		state["fRec8"] = jnp.roll(state["fRec8"], 1) 
 		state["fRec9"] = jnp.roll(state["fRec9"], 1) 
 		state["fRec10"] = jnp.roll(state["fRec10"], 1) 
-		state["fRec11"] = jnp.roll(state["fRec11"], 1) 
-		state["fRec3"] = jnp.roll(state["fRec3"], 1) 
 		state["fRec2"] = jnp.roll(state["fRec2"], 1) 
+		state["fRec1"] = jnp.roll(state["fRec1"], 1) 
 		state["fRec45"] = jnp.roll(state["fRec45"], 1) 
 		state["fRec44"] = jnp.roll(state["fRec44"], 1) 
 		return state, jnp.stack([_result0,_result1]) 
@@ -508,7 +509,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -587,13 +588,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -672,13 +674,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

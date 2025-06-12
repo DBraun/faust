@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,6 +61,18 @@ class mydsp(nn.Module):
 		return 31
 	
 	# fmt: off
+	def setup(self):
+		# Initialize static tables
+		# Initialize waveform data
+		# Convert static tables and waveform data to JAX arrays
+		# Initialize UI parameters
+		unnorm_funcs = {}
+		ui_path = []
+		ui_path.append("priority1") 
+		ui_path.pop()
+		
+		self._unnorm_funcs = unnorm_funcs
+		# Initialize other constants
 	def _initialize_carry(self, x: jnp.ndarray, length: int):
 		state = {}
 		
@@ -106,23 +120,10 @@ class mydsp(nn.Module):
 		state["fRec7"] = np.float32(0)
 		state["fRec8"] = np.float32(0)
 		state["fRec9"] = np.float32(0)
-		# Initialize read-write tables
 		# Initialize waveform arrays for read-write tables
 		return state
 
-	def setup(self):
-		# Initialize static tables
-		# Initialize waveform data
-		# Convert static tables and waveform data to JAX arrays
-		# Initialize UI parameters
-		unnorm_funcs = {}
-		ui_path = []
-		ui_path.append("priority1") 
-		ui_path.pop()
-		
-		self._unnorm_funcs = unnorm_funcs
-		# Initialize other constants
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
 		
 		fRec0_temp = state["fRec0"] 
 		fRec1_temp = state["fRec1"] 
@@ -167,30 +168,30 @@ class mydsp(nn.Module):
 		fRec40_temp = state["fRec40"] 
 		fRec41_temp = state["fRec41"] 
 		fRec42_temp = state["fRec42"] 
-		state["fRec0"] = ((jnp.float32(1.05) * inputs[0]) + (jnp.float32(0.9) * fRec0_temp)) 
+		state["fRec0"] = ((jnp.float32(1.05) * inputs[2]) + (jnp.float32(0.9) * fRec0_temp)) 
 		state["fRec1"] = ((jnp.float32(1.05) * inputs[1]) + (jnp.float32(0.9) * fRec1_temp)) 
-		state["fRec2"] = ((jnp.float32(1.05) * inputs[2]) + (jnp.float32(0.9) * fRec2_temp)) 
-		_result0 = ((state["fRec0"] * state["fRec1"]) * state["fRec2"]) 
-		state["fRec3"] = ((jnp.float32(1.05) * inputs[3]) + (jnp.float32(0.9) * fRec3_temp)) 
+		state["fRec2"] = ((jnp.float32(1.05) * inputs[0]) + (jnp.float32(0.9) * fRec2_temp)) 
+		_result0 = ((state["fRec2"] * state["fRec1"]) * state["fRec0"]) 
+		state["fRec3"] = ((jnp.float32(1.05) * inputs[5]) + (jnp.float32(0.9) * fRec3_temp)) 
 		state["fRec4"] = ((jnp.float32(1.05) * inputs[4]) + (jnp.float32(0.9) * fRec4_temp)) 
-		state["fRec5"] = ((jnp.float32(1.05) * inputs[5]) + (jnp.float32(0.9) * fRec5_temp)) 
-		_result1 = ((state["fRec3"] * state["fRec4"]) * state["fRec5"]) 
-		state["fRec6"] = ((jnp.float32(1.05) * inputs[6]) + (jnp.float32(0.9) * fRec6_temp)) 
+		state["fRec5"] = ((jnp.float32(1.05) * inputs[3]) + (jnp.float32(0.9) * fRec5_temp)) 
+		_result1 = ((state["fRec5"] * state["fRec4"]) * state["fRec3"]) 
+		state["fRec6"] = ((jnp.float32(1.05) * inputs[8]) + (jnp.float32(0.9) * fRec6_temp)) 
 		state["fRec7"] = ((jnp.float32(1.05) * inputs[7]) + (jnp.float32(0.9) * fRec7_temp)) 
-		state["fRec8"] = ((jnp.float32(1.05) * inputs[8]) + (jnp.float32(0.9) * fRec8_temp)) 
-		_result2 = ((state["fRec6"] * state["fRec7"]) * state["fRec8"]) 
-		state["fRec9"] = ((jnp.float32(1.05) * inputs[9]) + (jnp.float32(0.9) * fRec9_temp)) 
+		state["fRec8"] = ((jnp.float32(1.05) * inputs[6]) + (jnp.float32(0.9) * fRec8_temp)) 
+		_result2 = ((state["fRec8"] * state["fRec7"]) * state["fRec6"]) 
+		state["fRec9"] = ((jnp.float32(1.05) * inputs[11]) + (jnp.float32(0.9) * fRec9_temp)) 
 		state["fRec10"] = ((jnp.float32(1.05) * inputs[10]) + (jnp.float32(0.9) * fRec10_temp)) 
-		state["fRec11"] = ((jnp.float32(1.05) * inputs[11]) + (jnp.float32(0.9) * fRec11_temp)) 
-		_result3 = ((state["fRec9"] * state["fRec10"]) + state["fRec11"]) 
-		state["fRec12"] = ((jnp.float32(1.05) * inputs[12]) + (jnp.float32(0.9) * fRec12_temp)) 
+		state["fRec11"] = ((jnp.float32(1.05) * inputs[9]) + (jnp.float32(0.9) * fRec11_temp)) 
+		_result3 = ((state["fRec11"] * state["fRec10"]) + state["fRec9"]) 
+		state["fRec12"] = ((jnp.float32(1.05) * inputs[14]) + (jnp.float32(0.9) * fRec12_temp)) 
 		state["fRec13"] = ((jnp.float32(1.05) * inputs[13]) + (jnp.float32(0.9) * fRec13_temp)) 
-		state["fRec14"] = ((jnp.float32(1.05) * inputs[14]) + (jnp.float32(0.9) * fRec14_temp)) 
-		_result4 = ((state["fRec12"] * state["fRec13"]) + state["fRec14"]) 
-		state["fRec15"] = ((jnp.float32(1.05) * inputs[15]) + (jnp.float32(0.9) * fRec15_temp)) 
+		state["fRec14"] = ((jnp.float32(1.05) * inputs[12]) + (jnp.float32(0.9) * fRec14_temp)) 
+		_result4 = ((state["fRec14"] * state["fRec13"]) + state["fRec12"]) 
+		state["fRec15"] = ((jnp.float32(1.05) * inputs[17]) + (jnp.float32(0.9) * fRec15_temp)) 
 		state["fRec16"] = ((jnp.float32(1.05) * inputs[16]) + (jnp.float32(0.9) * fRec16_temp)) 
-		state["fRec17"] = ((jnp.float32(1.05) * inputs[17]) + (jnp.float32(0.9) * fRec17_temp)) 
-		_result5 = (state["fRec15"] * (state["fRec16"] + state["fRec17"])) 
+		state["fRec17"] = ((jnp.float32(1.05) * inputs[15]) + (jnp.float32(0.9) * fRec17_temp)) 
+		_result5 = (state["fRec17"] * (state["fRec16"] + state["fRec15"])) 
 		state["fRec18"] = ((jnp.float32(0.1) * (((jnp.int32((jnp.float32(3.5) * inputs[18])) * jnp.int32((jnp.float32(3.5) * inputs[19]))) % (jnp.int32(inputs[20]) + jnp.int32(3))))) + (jnp.float32(0.9) * fRec18_temp)) 
 		_result6 = state["fRec18"] 
 		state["fRec19"] = ((jnp.float32(0.1) * (((jnp.int32((jnp.float32(3.5) * inputs[21])) * jnp.int32((jnp.float32(3.5) * inputs[22]))) % (jnp.int32(inputs[23]) + jnp.int32(3))))) + (jnp.float32(0.9) * fRec19_temp)) 
@@ -267,7 +268,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -346,13 +347,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -431,13 +433,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

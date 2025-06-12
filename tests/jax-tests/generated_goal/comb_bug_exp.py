@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,27 +61,6 @@ class mydsp(nn.Module):
 		return 2
 	
 	# fmt: off
-	def _initialize_carry(self, x: jnp.ndarray, length: int):
-		state = {}
-		
-		# Initialize scalar delays
-		state["fRec0"] = np.float32(0)
-		state["fRec4"] = np.float32(0)
-		state["fRec6"] = np.float32(0)
-		state["fRec7"] = np.float32(0)
-		state["fVec0"] = np.float32(0)
-		state["fVec2"] = np.float32(0)
-		state["iRec2"] = np.int32(0)
-		state["iRec3"] = np.int32(0)
-		state["iRec5"] = np.int32(0)
-		# Initialize array delays
-		state["fVec1"] = np.zeros((2048,), dtype=np.float32)
-		# Initialize IOTA variables
-		state["IOTA0"] = np.int32(0)
-		# Initialize read-write tables
-		# Initialize waveform arrays for read-write tables
-		return state
-
 	def setup(self):
 		# Initialize static tables
 		# Initialize waveform data
@@ -88,22 +69,22 @@ class mydsp(nn.Module):
 		unnorm_funcs = {}
 		ui_path = []
 		ui_path.append("comb_bug") 
-		self.add_hslider("fHslider0", ui_path, "comb_res", 0.999, -0.999, 0.999, unnorm_funcs, "linear") 
-		self.add_hslider("fHslider2", ui_path, "env_a", 0.95, 0.001, 1.0, unnorm_funcs, "linear") 
-		self.add_hslider("fHslider3", ui_path, "env_r", 0.95, 0.001, 1.0, unnorm_funcs, "linear") 
-		self.add_hslider("fHslider4", ui_path, "freq", 2e+02, 2e+02, 8e+02, unnorm_funcs, "linear") 
-		self.add_hslider("fHslider5", ui_path, "gain", 0.8, 0.0, 1.0, unnorm_funcs, "linear") 
+		self.add_hslider("fHslider4", ui_path, "comb_res", 0.999, -0.999, 0.999, unnorm_funcs, "linear") 
+		self.add_hslider("fHslider1", ui_path, "env_a", 0.95, 0.001, 1.0, unnorm_funcs, "linear") 
+		self.add_hslider("fHslider2", ui_path, "env_r", 0.95, 0.001, 1.0, unnorm_funcs, "linear") 
+		self.add_hslider("fHslider5", ui_path, "freq", 2e+02, 2e+02, 8e+02, unnorm_funcs, "linear") 
+		self.add_hslider("fHslider0", ui_path, "gain", 0.8, 0.0, 1.0, unnorm_funcs, "linear") 
 		self.add_button("fButton0", ui_path, "gate", unnorm_funcs) 
-		self.add_hslider("fHslider1", ui_path, "vitesse", 127.0, 0.0, 127.0, unnorm_funcs, "linear") 
+		self.add_hslider("fHslider3", ui_path, "vitesse", 127.0, 0.0, 127.0, unnorm_funcs, "linear") 
 		ui_path.pop()
 		
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
 		self._fConst0 = np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate))) 
 		
-		self._fConst1 = (np.float32(1.0) / np.maximum(np.float32(1.0), (np.float32(0.1) * self._fConst0))) 
+		self._fConst1 = (np.float32(1.0) / np.maximum(np.float32(1.0), (np.float32(0.01) * self._fConst0))) 
 		
-		self._fConst2 = (np.float32(1.0) / np.maximum(np.float32(1.0), (np.float32(0.01) * self._fConst0))) 
+		self._fConst2 = (np.float32(1.0) / np.maximum(np.float32(1.0), (np.float32(0.1) * self._fConst0))) 
 		
 		self._fConst3 = np.exp(-((np.float32(1e+03) / self._fConst0))) 
 		
@@ -113,45 +94,65 @@ class mydsp(nn.Module):
 		
 		self._fConst6 = (np.float32(1.0006735) * self._fConst0) 
 		
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def _initialize_carry(self, x: jnp.ndarray, length: int):
+		state = {}
 		
-		fSlow0 = params["fHslider0"] 
-		fSlow1 = (jnp.float32(3.6666243e-12) * params["fHslider1"]) 
-		fSlow2 = jnp.maximum(jnp.float32(1.0), (self._fConst0 * params["fHslider2"])) 
-		fSlow3 = (jnp.float32(1.0) / fSlow2) 
-		fSlow4 = params["fButton0"] 
-		fSlow5 = (jnp.float32(1.0) / jnp.maximum(jnp.float32(1.0), (self._fConst0 * params["fHslider3"]))) 
-		iSlow6 = (fSlow4 == jnp.float32(0.0)).astype(jnp.int32) 
-		fSlow7 = (self._fConst4 * params["fHslider4"]) 
-		fSlow8 = (jnp.float32(0.001) * params["fHslider5"]) 
-		iRec2_temp = state["iRec2"] 
+		# Initialize scalar delays
+		state["fRec0"] = np.float32(0)
+		state["fRec1"] = np.float32(0)
+		state["fRec4"] = np.float32(0)
+		state["fRec7"] = np.float32(0)
+		state["fVec0"] = np.float32(0)
+		state["fVec2"] = np.float32(0)
+		state["iRec3"] = np.int32(0)
+		state["iRec5"] = np.int32(0)
+		state["iRec6"] = np.int32(0)
+		# Initialize array delays
+		state["fVec1"] = np.zeros((2048,), dtype=np.float32)
+		# Initialize IOTA variables
+		state["IOTA0"] = np.int32(0)
+		# Initialize waveform arrays for read-write tables
+		return state
+
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
+		
+		fSlow0 = (jnp.float32(0.001) * params["fHslider0"]) 
+		fSlow1 = params["fButton0"] 
+		iSlow2 = (fSlow1 == jnp.float32(0.0)).astype(jnp.int32) 
+		fSlow3 = jnp.maximum(jnp.float32(1.0), (self._fConst0 * params["fHslider1"])) 
+		fSlow4 = (jnp.float32(1.0) / fSlow3) 
+		fSlow5 = (jnp.float32(1.0) / jnp.maximum(jnp.float32(1.0), (self._fConst0 * params["fHslider2"]))) 
+		fSlow6 = (jnp.float32(3.6666243e-12) * params["fHslider3"]) 
+		fSlow7 = params["fHslider4"] 
+		fSlow8 = (self._fConst4 * params["fHslider5"]) 
+		fRec0_temp = state["fRec0"] 
 		fVec0_temp = state["fVec0"] 
 		iRec3_temp = state["iRec3"] 
 		fRec4_temp = state["fRec4"] 
 		iRec5_temp = state["iRec5"] 
-		fRec6_temp = state["fRec6"] 
-		fRec0_temp = state["fRec0"] 
+		iRec6_temp = state["iRec6"] 
 		fRec7_temp = state["fRec7"] 
+		fRec1_temp = state["fRec1"] 
 		fVec2_temp = state["fVec2"] 
-		state["iRec2"] = ((jnp.int32(1103515245) * iRec2_temp) + jnp.int32(12345)) 
-		state["fVec0"] = fSlow4 
-		state["iRec3"] = (((iRec3_temp + (iRec3_temp > jnp.int32(0)).astype(jnp.int32)) * (fSlow4 <= fVec0_temp).astype(jnp.int32)) + (fSlow4 > fVec0_temp).astype(jnp.int32)) 
-		fTemp0 = (state["iRec3"]) 
-		state["fRec4"] = (fSlow4 + (fRec4_temp * ((fVec0_temp >= fSlow4).astype(jnp.int32)))) 
-		state["iRec5"] = (iSlow6 * (iRec5_temp + jnp.int32(1))) 
-		fTemp1 = ((fSlow0 * fRec0_temp) + (fSlow1 * (((state["iRec2"]) * jnp.maximum(jnp.float32(0.0), jnp.minimum((fSlow3 * fTemp0), ((fSlow5 * (fSlow2 - fTemp0)) + jnp.float32(1.0))))) * jnp.maximum(jnp.float32(0.0), (jnp.minimum((self._fConst1 * state["fRec4"]), jnp.float32(1.0)) - (self._fConst2 * (state["iRec5"]))))))) 
+		state["fRec0"] = (fSlow0 + (jnp.float32(0.999) * fRec0_temp)) 
+		state["fVec0"] = fSlow1 
+		state["iRec3"] = (iSlow2 * (iRec3_temp + jnp.int32(1))) 
+		state["fRec4"] = (fSlow1 + (fRec4_temp * ((fVec0_temp >= fSlow1).astype(jnp.int32)))) 
+		state["iRec5"] = (((iRec5_temp + (iRec5_temp > jnp.int32(0)).astype(jnp.int32)) * (fSlow1 <= fVec0_temp).astype(jnp.int32)) + (fSlow1 > fVec0_temp).astype(jnp.int32)) 
+		fTemp0 = (state["iRec5"]) 
+		state["iRec6"] = ((jnp.int32(1103515245) * iRec6_temp) + jnp.int32(12345)) 
+		fTemp1 = ((fSlow7 * fRec1_temp) + (fSlow6 * (((state["iRec6"]) * jnp.maximum(jnp.float32(0.0), jnp.minimum((fSlow4 * fTemp0), ((fSlow5 * (fSlow3 - fTemp0)) + jnp.float32(1.0))))) * jnp.maximum(jnp.float32(0.0), (jnp.minimum((self._fConst2 * state["fRec4"]), jnp.float32(1.0)) - (self._fConst1 * (state["iRec3"]))))))) 
 		state["fVec1"] = state["fVec1"].at[(state["IOTA0"] & 2047).astype(jnp.int32)].set(fTemp1) 
-		state["fRec6"] = (fSlow7 + (self._fConst3 * fRec6_temp)) 
-		fTemp2 = (self._fConst0 / state["fRec6"]) 
+		state["fRec7"] = (fSlow8 + (self._fConst3 * fRec7_temp)) 
+		fTemp2 = (self._fConst0 / state["fRec7"]) 
 		fTemp3 = (fTemp2 - jnp.floor(fTemp2)) 
-		fTemp4 = jnp.where(((fTemp3 <= jnp.float32(0.06)).astype(jnp.int32) != 0), (self._fConst6 / state["fRec6"]), jnp.where(((fTemp3 >= jnp.float32(0.95)).astype(jnp.int32) != 0), (self._fConst5 / state["fRec6"]), fTemp2)) 
+		fTemp4 = jnp.where(((fTemp3 <= jnp.float32(0.06)).astype(jnp.int32) != 0), (self._fConst6 / state["fRec7"]), jnp.where(((fTemp3 >= jnp.float32(0.95)).astype(jnp.int32) != 0), (self._fConst5 / state["fRec7"]), fTemp2)) 
 		fTemp5 = (fTemp4 + jnp.float32(-1.0)) 
 		iTemp6 = jnp.int32(fTemp5) 
 		fTemp7 = jnp.floor(fTemp5) 
-		state["fRec0"] = ((state["fVec1"][((state["IOTA0"] - jnp.minimum(1025, jnp.maximum(0, iTemp6))) & 2047).astype(jnp.int32)] * (fTemp7 + (jnp.float32(2.0) - fTemp4))) + ((fTemp4 + (jnp.float32(-1.0) - fTemp7)) * state["fVec1"][((state["IOTA0"] - jnp.minimum(1025, jnp.maximum(0, (iTemp6 + 1)))) & 2047).astype(jnp.int32)])) 
-		fRec1 = fTemp1 
-		state["fRec7"] = (fSlow8 + (jnp.float32(0.999) * fRec7_temp)) 
-		state["fVec2"] = (fRec1 * state["fRec7"]) 
+		state["fRec1"] = ((state["fVec1"][((state["IOTA0"] - jnp.minimum(1025, jnp.maximum(0, iTemp6))) & 2047).astype(jnp.int32)] * (fTemp7 + (jnp.float32(2.0) - fTemp4))) + ((fTemp4 + (jnp.float32(-1.0) - fTemp7)) * state["fVec1"][((state["IOTA0"] - jnp.minimum(1025, jnp.maximum(0, (iTemp6 + 1)))) & 2047).astype(jnp.int32)])) 
+		fRec2 = fTemp1 
+		state["fVec2"] = (fRec2 * state["fRec0"]) 
 		fTemp8 = (jnp.float32(0.3) * fVec2_temp) 
 		_result0 = fTemp8 
 		_result1 = fTemp8 
@@ -182,7 +183,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -261,13 +262,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -346,13 +348,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

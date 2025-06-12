@@ -240,6 +240,12 @@ class JAXInstVisitor : public TextInstVisitor {
     // Variable classification
     JAXVariableClassifier fClassifier;
     
+    // Track variables accessed in tick context
+    mutable std::set<std::string> fTickAccessedVars;
+    
+    // Flag to indicate we're in variable collection mode (no output)
+    mutable bool fCollectingVars = false;
+    
    private:
     // Helper to get the JAX type manager
     JAXStringTypeManager* getJAXTypeManager() const {
@@ -829,6 +835,18 @@ class JAXInstVisitor : public TextInstVisitor {
     {
         const std::string& varName = named->fName;
         auto category = fClassifier.classifyVariable(varName);
+        
+        // Track variables accessed in tick context
+        if (fStateManager.inTick() && 
+            (category == JAXVariableClassifier::VarCategory::DELAY_LINE ||
+             category == JAXVariableClassifier::VarCategory::READ_WRITE_TABLE ||
+             varName.find("pfPerm") == 0 ||
+             varName.find("IOTA") != std::string::npos ||
+             varName.find("_idx") != std::string::npos ||
+             varName.find("Rec") != std::string::npos ||
+             varName.find("Vec") != std::string::npos)) {
+            fTickAccessedVars.insert(varName);
+        }
         
         // Special case: fSampleRate always uses self.sample_rate
         if (varName == "fSampleRate") {

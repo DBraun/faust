@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,13 +61,6 @@ class mydsp(nn.Module):
 		return 34
 	
 	# fmt: off
-	def _initialize_carry(self, x: jnp.ndarray, length: int):
-		state = {}
-		
-		# Initialize read-write tables
-		# Initialize waveform arrays for read-write tables
-		return state
-
 	def setup(self):
 		# Initialize static tables
 		# Initialize waveform data
@@ -76,10 +71,10 @@ class mydsp(nn.Module):
 		ui_path.append("grp 1") 
 		ui_path.append("hmisc") 
 		self.add_button("fButton1", ui_path, "button", unnorm_funcs) 
-		self.add_hbargraph("fHbargraph1", ui_path, "hbar", 0.0, 127.0) 
+		self.add_hbargraph("fHbargraph1", ui_path, "hbar", 0.0, 127.0, unnorm_funcs) 
 		self.add_hslider("fHslider1", ui_path, "hslider", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		self.add_nentry("fEntry4", ui_path, "num", 6e+01, 0.0, 127.0, 0.1, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph3", ui_path, "vbar", 0.0, 127.0) 
+		self.add_vbargraph("fVbargraph3", ui_path, "vbar", 0.0, 127.0, unnorm_funcs) 
 		self.add_vslider("fVslider16", ui_path, "vslider4", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		ui_path.pop()
 		ui_path.append("knobs") 
@@ -99,12 +94,12 @@ class mydsp(nn.Module):
 		ui_path.pop()
 		ui_path.append("vmisc") 
 		self.add_button("fButton0", ui_path, "button", unnorm_funcs) 
-		self.add_hbargraph("fHbargraph0", ui_path, "hbar", 0.0, 127.0) 
+		self.add_hbargraph("fHbargraph0", ui_path, "hbar", 0.0, 127.0, unnorm_funcs) 
 		self.add_hslider("fHslider0", ui_path, "hslider", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		ui_path.append("small box 1") 
 		self.add_vslider("fVslider9", ui_path, "knob4", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		self.add_nentry("fEntry1", ui_path, "num1", 6e+01, 0.0, 127.0, 0.1, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph0", ui_path, "vbar1", 0.0, 127.0) 
+		self.add_vbargraph("fVbargraph0", ui_path, "vbar1", 0.0, 127.0, unnorm_funcs) 
 		self.add_vslider("fVslider7", ui_path, "vslider5", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		self.add_vslider("fVslider8", ui_path, "vslider6", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		ui_path.pop()
@@ -112,14 +107,14 @@ class mydsp(nn.Module):
 		ui_path.append("small box 2") 
 		self.add_vslider("fVslider12", ui_path, "knob5", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		self.add_nentry("fEntry2", ui_path, "num2", 6e+01, 0.0, 127.0, 0.1, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph1", ui_path, "vbar2", 0.0, 127.0) 
+		self.add_vbargraph("fVbargraph1", ui_path, "vbar2", 0.0, 127.0, unnorm_funcs) 
 		self.add_vslider("fVslider10", ui_path, "vslider7", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		self.add_vslider("fVslider11", ui_path, "vslider8", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		ui_path.pop()
 		ui_path.append("small box 3") 
 		self.add_vslider("fVslider15", ui_path, "knob6", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		self.add_nentry("fEntry3", ui_path, "num3", 6e+01, 0.0, 127.0, 0.1, unnorm_funcs, "linear") 
-		self.add_vbargraph("fVbargraph2", ui_path, "vbar3", 0.0, 127.0) 
+		self.add_vbargraph("fVbargraph2", ui_path, "vbar3", 0.0, 127.0, unnorm_funcs) 
 		self.add_vslider("fVslider14", ui_path, "vslider10", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		self.add_vslider("fVslider13", ui_path, "vslider9", 6e+01, 0.0, 127.0, unnorm_funcs, "linear") 
 		ui_path.pop()
@@ -130,7 +125,13 @@ class mydsp(nn.Module):
 		
 		self._unnorm_funcs = unnorm_funcs
 		# Initialize other constants
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def _initialize_carry(self, x: jnp.ndarray, length: int):
+		state = {}
+		
+		# Initialize waveform arrays for read-write tables
+		return state
+
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
 		
 		fSlow0 = params["fCheckbox0"] 
 		fSlow1 = params["fCheckbox1"] 
@@ -232,7 +233,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -311,13 +312,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -396,13 +398,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

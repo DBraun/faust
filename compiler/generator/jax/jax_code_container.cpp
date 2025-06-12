@@ -663,11 +663,139 @@ void JAXCodeContainer::produceClass()
     tab(n + 1, *fOut);
     *fOut << "def _initialize_carry(self, x: jnp.ndarray, length: int):";
     {
+        JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
+        
+        // Use INITIALIZE_CARRY context
+        JAXStateManager::ContextScope initCarryScope(jaxVisitor->fStateManager, JAXStateManager::Context::INITIALIZE_CARRY);
+        
         tab(n + 2, *fOut);
         *fOut << "state = {}";
         tab(n + 2, *fOut);
         
-        JAXInstVisitor* jaxVisitor = static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor);
+        // First, collect variables accessed in tick method AND inline subcontainers
+        std::set<std::string> tickAccessedVars;
+        std::set<std::string> inlineSubcontainerVars;
+        {
+            // Analyze compute block to find accessed state variables
+            struct TickVarCollector : public DispatchVisitor {
+                std::set<std::string>& fAccessedVars;
+                
+                TickVarCollector(std::set<std::string>& vars) : fAccessedVars(vars) {}
+                
+                virtual void visit(LoadVarInst* inst) {
+                    string varname = inst->fAddress->getName();
+                    if (varname.find("Rec") != std::string::npos || 
+                        varname.find("Vec") != std::string::npos ||
+                        varname.find("IOTA") != std::string::npos ||
+                        varname.find("_idx") != std::string::npos ||
+                        varname.find("pfPerm") == 0 ||
+                        // Include all read-write tables (ftbl and itbl)
+                        // but exclude static initialization tables (ftbl0*SIG*, itbl0*SIG*)
+                        (varname.find("ftbl") == 0 && 
+                         !(varname.find("ftbl0") == 0 && varname.find("SIG") != std::string::npos)) ||
+                        (varname.find("itbl") == 0 && 
+                         !(varname.find("itbl0") == 0 && varname.find("SIG") != std::string::npos))) {
+                        fAccessedVars.insert(varname);
+                    }
+                    DispatchVisitor::visit(inst);
+                }
+                
+                virtual void visit(StoreVarInst* inst) {
+                    string varname = inst->fAddress->getName();
+                    if (varname.find("Rec") != std::string::npos || 
+                        varname.find("Vec") != std::string::npos ||
+                        varname.find("IOTA") != std::string::npos ||
+                        varname.find("_idx") != std::string::npos ||
+                        varname.find("pfPerm") == 0 ||
+                        // Include all read-write tables (ftbl and itbl)
+                        // but exclude static initialization tables (ftbl0*SIG*, itbl0*SIG*)
+                        (varname.find("ftbl") == 0 && 
+                         !(varname.find("ftbl0") == 0 && varname.find("SIG") != std::string::npos)) ||
+                        (varname.find("itbl") == 0 && 
+                         !(varname.find("itbl0") == 0 && varname.find("SIG") != std::string::npos))) {
+                        fAccessedVars.insert(varname);
+                    }
+                    DispatchVisitor::visit(inst);
+                }
+            };
+            
+            // Collect from main tick method
+            TickVarCollector collector(tickAccessedVars);
+            auto loop = fCurLoop->generateOneSample();
+            loop->accept(&collector);
+            
+            // Add variables needed for inline subcontainer operations
+            // First check if there are any read-write tables, and if so, include all state variables
+            // used in inline subcontainers since they may be needed for initialization
+            if (fStaticInitInstructions->fCode.size() > 0) {
+                struct ReadWriteTableDetector : public DispatchVisitor {
+                    bool fHasReadWriteTables = false;
+                    
+                    virtual void visit(StoreVarInst* inst) {
+                        if (IndexedAddress* indexed = dynamic_cast<IndexedAddress*>(inst->fAddress)) {
+                            if (NamedAddress* named = dynamic_cast<NamedAddress*>(indexed->fAddress)) {
+                                string tablename = named->getName();
+                                // Detect read-write tables (not static initialization tables)
+                                if ((tablename.find("ftbl") == 0 && 
+                                     !(tablename.find("ftbl0") == 0 && tablename.find("SIG") != std::string::npos)) ||
+                                    (tablename.find("itbl") == 0 && 
+                                     !(tablename.find("itbl0") == 0 && tablename.find("SIG") != std::string::npos))) {
+                                    fHasReadWriteTables = true;
+                                }
+                            }
+                        }
+                        DispatchVisitor::visit(inst);
+                    }
+                };
+                
+                ReadWriteTableDetector detector;
+                inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&detector);
+                
+                // If we have read-write tables, include all state variables used in inline subcontainers
+                if (detector.fHasReadWriteTables) {
+                    struct InlineSubcontainerVarCollector : public DispatchVisitor {
+                        std::set<std::string>& fAccessedVars;
+                        
+                        InlineSubcontainerVarCollector(std::set<std::string>& vars) : fAccessedVars(vars) {}
+                        
+                        virtual void visit(LoadVarInst* inst) {
+                            string varname = inst->fAddress->getName();
+                            if (varname.find("Rec") != std::string::npos || 
+                                varname.find("Vec") != std::string::npos ||
+                                varname.find("IOTA") != std::string::npos ||
+                                varname.find("_idx") != std::string::npos ||
+                                varname.find("pfPerm") == 0 ||
+                                (varname.find("ftbl") == 0 && 
+                                 !(varname.find("ftbl0") == 0 && varname.find("SIG") != std::string::npos)) ||
+                                (varname.find("itbl") == 0 && 
+                                 !(varname.find("itbl0") == 0 && varname.find("SIG") != std::string::npos))) {
+                                fAccessedVars.insert(varname);
+                            }
+                            DispatchVisitor::visit(inst);
+                        }
+                        
+                        virtual void visit(StoreVarInst* inst) {
+                            string varname = inst->fAddress->getName();
+                            if (varname.find("Rec") != std::string::npos || 
+                                varname.find("Vec") != std::string::npos ||
+                                varname.find("IOTA") != std::string::npos ||
+                                varname.find("_idx") != std::string::npos ||
+                                varname.find("pfPerm") == 0 ||
+                                (varname.find("ftbl") == 0 && 
+                                 !(varname.find("ftbl0") == 0 && varname.find("SIG") != std::string::npos)) ||
+                                (varname.find("itbl") == 0 && 
+                                 !(varname.find("itbl0") == 0 && varname.find("SIG") != std::string::npos))) {
+                                fAccessedVars.insert(varname);
+                            }
+                            DispatchVisitor::visit(inst);
+                        }
+                    };
+                    
+                    InlineSubcontainerVarCollector collector(inlineSubcontainerVars);
+                    inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(&collector);
+                }
+            }
+        }
         
         // Collect all state variables by category
         std::set<std::string> scalarDelays;
@@ -739,11 +867,22 @@ void JAXCodeContainer::produceClass()
             }
         }
         
-        // Section 1: Initialize scalar delays
-        if (!scalarDelays.empty()) {
+        // Combine tick variables and inline subcontainer variables
+        std::set<std::string> allAccessedVars = tickAccessedVars;
+        allAccessedVars.insert(inlineSubcontainerVars.begin(), inlineSubcontainerVars.end());
+        
+        // Section 1: Initialize scalar delays (only those accessed in tick or inline subcontainers)
+        std::set<std::string> usedScalarDelays;
+        for (const auto& varName : scalarDelays) {
+            if (allAccessedVars.find(varName) != allAccessedVars.end()) {
+                usedScalarDelays.insert(varName);
+            }
+        }
+        
+        if (!usedScalarDelays.empty()) {
             tab(n + 2, *fOut);
             *fOut << "# Initialize scalar delays";
-            for (const auto& varName : scalarDelays) {
+            for (const auto& varName : usedScalarDelays) {
                 tab(n + 2, *fOut);
                 *fOut << "state[\"" << varName << "\"] = ";
                 if (varName[0] == 'i' || varName.find("_idx") != std::string::npos) {
@@ -756,14 +895,21 @@ void JAXCodeContainer::produceClass()
             }
         }
         
-        // Section 2: Initialize array delays
-        if (!arrayDelays.empty()) {
+        // Section 2: Initialize array delays (only those accessed in tick or inline subcontainers)
+        std::set<std::string> usedArrayDelays;
+        for (const auto& varName : arrayDelays) {
+            if (allAccessedVars.find(varName) != allAccessedVars.end()) {
+                usedArrayDelays.insert(varName);
+            }
+        }
+        
+        if (!usedArrayDelays.empty()) {
             tab(n + 2, *fOut);
             *fOut << "# Initialize array delays";
             for (const auto& it : fDeclarationInstructions->fCode) {
                 if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
                     string varname = decl->fAddress->getName();
-                    if (arrayDelays.find(varname) != arrayDelays.end()) {
+                    if (usedArrayDelays.find(varname) != usedArrayDelays.end()) {
                         ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
                         if (array_type) {
                             tab(n + 2, *fOut);
@@ -783,7 +929,7 @@ void JAXCodeContainer::produceClass()
             for (const auto& it : fGlobalDeclarationInstructions->fCode) {
                 if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
                     string varname = decl->fAddress->getName();
-                    if (arrayDelays.find(varname) != arrayDelays.end()) {
+                    if (usedArrayDelays.find(varname) != usedArrayDelays.end()) {
                         ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
                         if (array_type) {
                             tab(n + 2, *fOut);
@@ -801,21 +947,35 @@ void JAXCodeContainer::produceClass()
             }
         }
         
-        // Section 3: Initialize IOTA variables
-        if (!iotaVars.empty()) {
+        // Section 3: Initialize IOTA variables (only those accessed in tick or inline subcontainers)
+        std::set<std::string> usedIotaVars;
+        for (const auto& varName : iotaVars) {
+            if (allAccessedVars.find(varName) != allAccessedVars.end()) {
+                usedIotaVars.insert(varName);
+            }
+        }
+        
+        if (!usedIotaVars.empty()) {
             tab(n + 2, *fOut);
             *fOut << "# Initialize IOTA variables";
-            for (const auto& varName : iotaVars) {
+            for (const auto& varName : usedIotaVars) {
                 tab(n + 2, *fOut);
                 *fOut << "state[\"" << varName << "\"] = np.int32(0)";
             }
         }
         
-        // Section 4: Initialize pfPerm variables
-        if (!pfPermVars.empty()) {
+        // Section 4: Initialize pfPerm variables (only those accessed in tick or inline subcontainers)
+        std::set<std::string> usedPfPermVars;
+        for (const auto& varName : pfPermVars) {
+            if (allAccessedVars.find(varName) != allAccessedVars.end()) {
+                usedPfPermVars.insert(varName);
+            }
+        }
+        
+        if (!usedPfPermVars.empty()) {
             tab(n + 2, *fOut);
             *fOut << "# Initialize pfPerm variables";
-            for (const auto& varName : pfPermVars) {
+            for (const auto& varName : usedPfPermVars) {
                 tab(n + 2, *fOut);
                 *fOut << "state[\"" << varName << "\"] = ";
                 
@@ -834,55 +994,71 @@ void JAXCodeContainer::produceClass()
             }
         }
         
-        // Section 5: Initialize read-write tables
-        tab(n + 2, *fOut);
-        *fOut << "# Initialize read-write tables";
-        // Check both global and struct declarations for read-write tables
-        for (const auto& it : fGlobalDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                if (rwTables.find(varname) != rwTables.end()) {
-                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
-                    if (array_type) {
-                        tab(n + 2, *fOut);
-                        *fOut << "state[\"" << varname << "\"] = ";
-                        if (varname[0] == 'i') {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
-                        } else if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
-                        } else {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+        // Section 5: Initialize read-write tables (only those accessed in tick or inline subcontainers)
+        std::set<std::string> usedRwTables;
+        for (const auto& varName : rwTables) {
+            if (allAccessedVars.find(varName) != allAccessedVars.end()) {
+                usedRwTables.insert(varName);
+            }
+        }
+        
+        if (!usedRwTables.empty()) {
+            tab(n + 2, *fOut);
+            *fOut << "# Initialize read-write tables";
+            // Check both global and struct declarations for read-write tables
+            for (const auto& it : fGlobalDeclarationInstructions->fCode) {
+                if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                    string varname = decl->fAddress->getName();
+                    if (usedRwTables.find(varname) != usedRwTables.end()) {
+                        ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                        if (array_type) {
+                            tab(n + 2, *fOut);
+                            *fOut << "state[\"" << varname << "\"] = ";
+                            if (varname[0] == 'i') {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+                            } else if (gGlobal->gFloatSize == 1) {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+                            } else {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+                            }
                         }
                     }
                 }
             }
-        }
-        // Also check struct declarations
-        for (const auto& it : fDeclarationInstructions->fCode) {
-            if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
-                string varname = decl->fAddress->getName();
-                if (rwTables.find(varname) != rwTables.end()) {
-                    ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
-                    if (array_type) {
-                        tab(n + 2, *fOut);
-                        *fOut << "state[\"" << varname << "\"] = ";
-                        if (varname[0] == 'i') {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
-                        } else if (gGlobal->gFloatSize == 1) {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
-                        } else {
-                            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+            // Also check struct declarations
+            for (const auto& it : fDeclarationInstructions->fCode) {
+                if (DeclareVarInst* decl = dynamic_cast<DeclareVarInst*>(it)) {
+                    string varname = decl->fAddress->getName();
+                    if (usedRwTables.find(varname) != usedRwTables.end()) {
+                        ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(decl->fType);
+                        if (array_type) {
+                            tab(n + 2, *fOut);
+                            *fOut << "state[\"" << varname << "\"] = ";
+                            if (varname[0] == 'i') {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+                            } else if (gGlobal->gFloatSize == 1) {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+                            } else {
+                                *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+                            }
                         }
                     }
                 }
             }
         }
         
-        // Section 6: Initialize index variables
-        if (!indexVars.empty()) {
+        // Section 6: Initialize index variables (only those accessed in tick or inline subcontainers)
+        std::set<std::string> usedIndexVars;
+        for (const auto& varName : indexVars) {
+            if (allAccessedVars.find(varName) != allAccessedVars.end()) {
+                usedIndexVars.insert(varName);
+            }
+        }
+        
+        if (!usedIndexVars.empty()) {
             tab(n + 2, *fOut);
             *fOut << "# Initialize index variables";
-            for (const auto& varName : indexVars) {
+            for (const auto& varName : usedIndexVars) {
                 tab(n + 2, *fOut);
                 *fOut << "state[\"" << varName << "\"] = np.int32(0)";
             }
@@ -1162,7 +1338,7 @@ void JAXCodeContainer::produceClass()
     //     tab(n + 1, *fOut);
     // }
 
-    // Compute
+    // Generate tick method
     {
         JAXStateManager::ContextScope tickScope(jaxVisitor->fStateManager, JAXStateManager::Context::TICK);
         generateCompute(n + 1);

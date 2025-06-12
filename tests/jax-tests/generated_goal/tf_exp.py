@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,27 +61,6 @@ class mydsp(nn.Module):
 		return 1
 	
 	# fmt: off
-	def _initialize_carry(self, x: jnp.ndarray, length: int):
-		state = {}
-		
-		# Initialize scalar delays
-		state["fRec2"] = np.float32(0)
-		state["fRec4"] = np.float32(0)
-		state["fRec6"] = np.float32(0)
-		state["fRec8"] = np.float32(0)
-		state["fVec1"] = np.float32(0)
-		state["fVec2"] = np.float32(0)
-		state["iVec0"] = np.int32(0)
-		# Initialize array delays
-		state["fRec1"] = np.zeros((3,), dtype=np.float32)
-		state["fRec0"] = np.zeros((3,), dtype=np.float32)
-		state["fRec5"] = np.zeros((3,), dtype=np.float32)
-		state["fRec3"] = np.zeros((3,), dtype=np.float32)
-		state["fRec7"] = np.zeros((3,), dtype=np.float32)
-		# Initialize read-write tables
-		# Initialize waveform arrays for read-write tables
-		return state
-
 	def setup(self):
 		# Initialize static tables
 		# Initialize waveform data
@@ -94,80 +75,100 @@ class mydsp(nn.Module):
 		# Initialize other constants
 		self._fConst0 = np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate))) 
 		
-		self._fConst1 = np.tan((np.float32(3553.1414) / self._fConst0)) 
+		self._fConst1 = np.tan((np.float32(1776.5707) / self._fConst0)) 
 		
-		self._fConst2 = np.power(self._fConst1, np.float32(2.0)) 
+		self._fConst2 = (np.float32(1.0) / np.power(self._fConst1, np.float32(2.0))) 
 		
-		self._fConst3 = (np.float32(1.0) / self._fConst1) 
+		self._fConst3 = (np.float32(2.0) * (np.float32(1.0) - self._fConst2)) 
 		
-		self._fConst4 = (((self._fConst3 + np.float32(1.0)) / self._fConst1) + np.float32(1.0)) 
+		self._fConst4 = (np.float32(1.0) / self._fConst1) 
 		
-		self._fConst5 = (np.float32(1.0) / (self._fConst2 * self._fConst4)) 
+		self._fConst5 = (((self._fConst4 + np.float32(-1.0)) / self._fConst1) + np.float32(1.0)) 
 		
-		self._fConst6 = (np.float32(1.0) / (self._fConst3 + np.float32(1.0))) 
+		self._fConst6 = (np.float32(1.0) / (((self._fConst4 + np.float32(1.0)) / self._fConst1) + np.float32(1.0))) 
 		
-		self._fConst7 = (np.float32(1.0) - self._fConst3) 
+		self._fConst7 = np.tan((np.float32(3553.1414) / self._fConst0)) 
 		
-		self._fConst8 = (np.float32(1.0) / self._fConst4) 
+		self._fConst8 = np.power(self._fConst7, np.float32(2.0)) 
 		
-		self._fConst9 = (((self._fConst3 + np.float32(-1.0)) / self._fConst1) + np.float32(1.0)) 
+		self._fConst9 = (np.float32(2.0) * (np.float32(1.0) - (np.float32(1.0) / self._fConst8))) 
 		
-		self._fConst10 = (np.float32(2.0) * (np.float32(1.0) - (np.float32(1.0) / self._fConst2))) 
+		self._fConst10 = (np.float32(1.0) / self._fConst7) 
 		
-		self._fConst11 = np.tan((np.float32(1776.5707) / self._fConst0)) 
+		self._fConst11 = (((self._fConst10 + np.float32(-1.0)) / self._fConst7) + np.float32(1.0)) 
 		
-		self._fConst12 = (np.float32(1.0) / self._fConst11) 
+		self._fConst12 = (((self._fConst10 + np.float32(1.0)) / self._fConst7) + np.float32(1.0)) 
 		
-		self._fConst13 = (self._fConst12 + np.float32(1.0)) 
+		self._fConst13 = (np.float32(1.0) / self._fConst12) 
 		
-		self._fConst14 = (np.float32(1.0) / ((self._fConst13 / self._fConst11) + np.float32(1.0))) 
+		self._fConst14 = (np.float32(1.0) - self._fConst10) 
 		
-		self._fConst15 = (np.float32(1.0) - self._fConst12) 
+		self._fConst15 = (np.float32(1.0) / (self._fConst10 + np.float32(1.0))) 
 		
-		self._fConst16 = (np.float32(1.0) - (self._fConst15 / self._fConst11)) 
+		self._fConst16 = (np.float32(1.0) / (self._fConst1 * self._fConst12)) 
 		
-		self._fConst17 = (np.float32(1.0) / np.power(self._fConst11, np.float32(2.0))) 
+		self._fConst17 = (np.float32(1.0) - self._fConst4) 
 		
-		self._fConst18 = (np.float32(2.0) * (np.float32(1.0) - self._fConst17)) 
+		self._fConst18 = (self._fConst4 + np.float32(1.0)) 
 		
-		self._fConst19 = (np.float32(1.0) / (((self._fConst12 + np.float32(1.0)) / self._fConst11) + np.float32(1.0))) 
+		self._fConst19 = (np.float32(1.0) / self._fConst18) 
 		
-		self._fConst20 = (np.float32(1.0) / self._fConst13) 
+		self._fConst20 = (np.float32(1.0) - (self._fConst17 / self._fConst1)) 
 		
-		self._fConst21 = (((self._fConst12 + np.float32(-1.0)) / self._fConst11) + np.float32(1.0)) 
+		self._fConst21 = (np.float32(1.0) / ((self._fConst18 / self._fConst1) + np.float32(1.0))) 
 		
-		self._fConst22 = (np.float32(1.0) / (self._fConst11 * self._fConst4)) 
+		self._fConst22 = (np.float32(1.0) / (self._fConst8 * self._fConst12)) 
 		
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def _initialize_carry(self, x: jnp.ndarray, length: int):
+		state = {}
+		
+		# Initialize scalar delays
+		state["fRec1"] = np.float32(0)
+		state["fRec3"] = np.float32(0)
+		state["fRec5"] = np.float32(0)
+		state["fRec8"] = np.float32(0)
+		state["fVec1"] = np.float32(0)
+		state["fVec2"] = np.float32(0)
+		state["iVec0"] = np.int32(0)
+		# Initialize array delays
+		state["fRec2"] = np.zeros((3,), dtype=np.float32)
+		state["fRec0"] = np.zeros((3,), dtype=np.float32)
+		state["fRec4"] = np.zeros((3,), dtype=np.float32)
+		state["fRec7"] = np.zeros((3,), dtype=np.float32)
+		state["fRec6"] = np.zeros((3,), dtype=np.float32)
+		# Initialize waveform arrays for read-write tables
+		return state
+
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
 		
 		iVec0_temp = state["iVec0"] 
 		fVec1_temp = state["fVec1"] 
-		fRec2_temp = state["fRec2"] 
-		fRec6_temp = state["fRec6"] 
+		fRec3_temp = state["fRec3"] 
 		fVec2_temp = state["fVec2"] 
-		fRec4_temp = state["fRec4"] 
+		fRec1_temp = state["fRec1"] 
+		fRec5_temp = state["fRec5"] 
 		fRec8_temp = state["fRec8"] 
 		state["iVec0"] = jnp.int32(1) 
 		fTemp0 = ((jnp.int32(1) - iVec0_temp)) 
 		state["fVec1"] = jnp.float32(fTemp0) 
-		state["fRec2"] = -((self._fConst6 * ((self._fConst7 * fRec2_temp) - (self._fConst3 * (fTemp0 - fVec1_temp))))) 
-		state["fRec1"] = state["fRec1"].at[0].set((state["fRec2"] - (self._fConst8 * ((self._fConst9 * state["fRec1"][2]) + (self._fConst10 * state["fRec1"][1]))))) 
-		fTemp1 = (self._fConst18 * state["fRec0"][1]) 
-		state["fRec0"] = state["fRec0"].at[0].set(((self._fConst5 * (state["fRec1"][2] + (state["fRec1"][0] - (jnp.float32(2.0) * state["fRec1"][1])))) - (self._fConst14 * ((self._fConst16 * state["fRec0"][2]) + fTemp1)))) 
-		state["fRec6"] = -((self._fConst6 * ((self._fConst7 * fRec6_temp) - (fTemp0 + fVec1_temp)))) 
-		state["fRec5"] = state["fRec5"].at[0].set((state["fRec6"] - (self._fConst8 * ((self._fConst9 * state["fRec5"][2]) + (self._fConst10 * state["fRec5"][1]))))) 
-		fTemp2 = (state["fRec5"][2] + (state["fRec5"][0] + (jnp.float32(2.0) * state["fRec5"][1]))) 
-		state["fVec2"] = jnp.float32(fTemp2) 
-		state["fRec4"] = -((self._fConst20 * ((self._fConst15 * fRec4_temp) - (self._fConst8 * (fTemp2 + fVec2_temp))))) 
-		state["fRec3"] = state["fRec3"].at[0].set((state["fRec4"] - (self._fConst19 * ((self._fConst21 * state["fRec3"][2]) + (self._fConst18 * state["fRec3"][1]))))) 
-		state["fRec8"] = -((self._fConst20 * ((self._fConst15 * fRec8_temp) - (self._fConst22 * (fTemp2 - fVec2_temp))))) 
-		state["fRec7"] = state["fRec7"].at[0].set((state["fRec8"] - (self._fConst19 * ((self._fConst21 * state["fRec7"][2]) + (self._fConst18 * state["fRec7"][1]))))) 
-		_result0 = ((state["fRec0"][2] + (self._fConst14 * (fTemp1 + (self._fConst16 * state["fRec0"][0])))) + (self._fConst19 * ((state["fRec3"][2] + (state["fRec3"][0] + (jnp.float32(2.0) * state["fRec3"][1]))) + (self._fConst17 * (state["fRec7"][2] + (state["fRec7"][0] - (jnp.float32(2.0) * state["fRec7"][1]))))))) 
-		state["fRec1"] = jnp.roll(state["fRec1"], 1) 
+		state["fRec3"] = -((self._fConst15 * ((self._fConst14 * fRec3_temp) - (fTemp0 + fVec1_temp)))) 
+		state["fRec2"] = state["fRec2"].at[0].set((state["fRec3"] - (self._fConst13 * ((self._fConst11 * state["fRec2"][2]) + (self._fConst9 * state["fRec2"][1]))))) 
+		fTemp1 = (state["fRec2"][2] + (state["fRec2"][0] + (jnp.float32(2.0) * state["fRec2"][1]))) 
+		state["fVec2"] = jnp.float32(fTemp1) 
+		state["fRec1"] = -((self._fConst19 * ((self._fConst17 * fRec1_temp) - (self._fConst16 * (fTemp1 - fVec2_temp))))) 
+		state["fRec0"] = state["fRec0"].at[0].set((state["fRec1"] - (self._fConst6 * ((self._fConst5 * state["fRec0"][2]) + (self._fConst3 * state["fRec0"][1]))))) 
+		state["fRec5"] = -((self._fConst19 * ((self._fConst17 * fRec5_temp) - (self._fConst13 * (fTemp1 + fVec2_temp))))) 
+		state["fRec4"] = state["fRec4"].at[0].set((state["fRec5"] - (self._fConst6 * ((self._fConst5 * state["fRec4"][2]) + (self._fConst3 * state["fRec4"][1]))))) 
+		fTemp2 = (self._fConst3 * state["fRec6"][1]) 
+		state["fRec8"] = -((self._fConst15 * ((self._fConst14 * fRec8_temp) - (self._fConst10 * (fTemp0 - fVec1_temp))))) 
+		state["fRec7"] = state["fRec7"].at[0].set((state["fRec8"] - (self._fConst13 * ((self._fConst11 * state["fRec7"][2]) + (self._fConst9 * state["fRec7"][1]))))) 
+		state["fRec6"] = state["fRec6"].at[0].set(((self._fConst22 * (state["fRec7"][2] + (state["fRec7"][0] - (jnp.float32(2.0) * state["fRec7"][1])))) - (self._fConst21 * ((self._fConst20 * state["fRec6"][2]) + fTemp2)))) 
+		_result0 = ((state["fRec6"][2] + (self._fConst21 * (fTemp2 + (self._fConst20 * state["fRec6"][0])))) + (self._fConst6 * ((state["fRec4"][2] + (state["fRec4"][0] + (jnp.float32(2.0) * state["fRec4"][1]))) + (self._fConst2 * (state["fRec0"][2] + (state["fRec0"][0] - (jnp.float32(2.0) * state["fRec0"][1]))))))) 
+		state["fRec2"] = jnp.roll(state["fRec2"], 1) 
 		state["fRec0"] = jnp.roll(state["fRec0"], 1) 
-		state["fRec5"] = jnp.roll(state["fRec5"], 1) 
-		state["fRec3"] = jnp.roll(state["fRec3"], 1) 
+		state["fRec4"] = jnp.roll(state["fRec4"], 1) 
 		state["fRec7"] = jnp.roll(state["fRec7"], 1) 
+		state["fRec6"] = jnp.roll(state["fRec6"], 1) 
 		return state, jnp.stack([_result0]) 
 		
 	# fmt: on	
@@ -194,7 +195,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -273,13 +274,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -358,13 +360,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""

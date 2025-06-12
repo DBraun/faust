@@ -14,8 +14,10 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # ************************************************************************
 
+import json
 import dataclasses
-from typing import Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import numpy as np
 import jax
@@ -33,7 +35,7 @@ except ImportError:
 # Generated code
 """
 Code generated with Faust version 2.80.7
-Compilation options: -a ../../architecture/jax/minimal.py -lang jax -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
+Compilation options: -a ../../architecture/jax/minimal.py -lang jax -it -ct 1 -es 1 -mcd 16 -mdd 1024 -mdy 33 -single -ftz 0 
 """
 
 # enable single precision
@@ -59,24 +61,6 @@ class mydsp(nn.Module):
 		return 1
 	
 	# fmt: off
-	def _initialize_carry(self, x: jnp.ndarray, length: int):
-		state = {}
-		
-		# Initialize array delays
-		state["fRec9"] = np.zeros((3,), dtype=np.float32)
-		state["fRec8"] = np.zeros((3,), dtype=np.float32)
-		state["fRec7"] = np.zeros((3,), dtype=np.float32)
-		state["fRec6"] = np.zeros((3,), dtype=np.float32)
-		state["fRec5"] = np.zeros((3,), dtype=np.float32)
-		state["fRec4"] = np.zeros((3,), dtype=np.float32)
-		state["fRec3"] = np.zeros((3,), dtype=np.float32)
-		state["fRec2"] = np.zeros((3,), dtype=np.float32)
-		state["fRec1"] = np.zeros((3,), dtype=np.float32)
-		state["fRec0"] = np.zeros((3,), dtype=np.float32)
-		# Initialize read-write tables
-		# Initialize waveform arrays for read-write tables
-		return state
-
 	def setup(self):
 		# Initialize static tables
 		# Initialize waveform data
@@ -141,119 +125,136 @@ class mydsp(nn.Module):
 		# Initialize other constants
 		self._fConst0 = (np.float32(3.1415927) / np.minimum(np.float32(1.92e+05), np.maximum(np.float32(1.0), (self.sample_rate)))) 
 		
-	def tick(self, params: dict, state: dict, inputs: jnp.array) -> Tuple[dict, jnp.ndarray]:
+	def _initialize_carry(self, x: jnp.ndarray, length: int):
+		state = {}
+		
+		# Initialize array delays
+		state["fRec9"] = np.zeros((3,), dtype=np.float32)
+		state["fRec8"] = np.zeros((3,), dtype=np.float32)
+		state["fRec7"] = np.zeros((3,), dtype=np.float32)
+		state["fRec6"] = np.zeros((3,), dtype=np.float32)
+		state["fRec5"] = np.zeros((3,), dtype=np.float32)
+		state["fRec4"] = np.zeros((3,), dtype=np.float32)
+		state["fRec3"] = np.zeros((3,), dtype=np.float32)
+		state["fRec2"] = np.zeros((3,), dtype=np.float32)
+		state["fRec1"] = np.zeros((3,), dtype=np.float32)
+		state["fRec0"] = np.zeros((3,), dtype=np.float32)
+		# Initialize waveform arrays for read-write tables
+		return state
+
+	def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:
 		
 		fSlow0 = jnp.tan((self._fConst0 * params["fEntry0"])) 
-		fSlow1 = params["fEntry1"] 
-		fSlow2 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider0"]))) / fSlow1) 
-		fSlow3 = (jnp.float32(1.0) / ((fSlow0 * (fSlow0 + fSlow2)) + jnp.float32(1.0))) 
-		fSlow4 = (jnp.float32(2.0) * (jnp.power(fSlow0, jnp.float32(2.0)) + jnp.float32(-1.0))) 
-		fSlow5 = jnp.tan((self._fConst0 * params["fEntry2"])) 
-		fSlow6 = params["fEntry3"] 
-		fSlow7 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider1"]))) / fSlow6) 
-		fSlow8 = (jnp.float32(1.0) / ((fSlow5 * (fSlow5 + fSlow7)) + jnp.float32(1.0))) 
-		fSlow9 = (jnp.float32(2.0) * (jnp.power(fSlow5, jnp.float32(2.0)) + jnp.float32(-1.0))) 
-		fSlow10 = jnp.tan((self._fConst0 * params["fEntry4"])) 
-		fSlow11 = params["fEntry5"] 
-		fSlow12 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider2"]))) / fSlow11) 
-		fSlow13 = (jnp.float32(1.0) / ((fSlow10 * (fSlow10 + fSlow12)) + jnp.float32(1.0))) 
-		fSlow14 = (jnp.float32(2.0) * (jnp.power(fSlow10, jnp.float32(2.0)) + jnp.float32(-1.0))) 
-		fSlow15 = jnp.tan((self._fConst0 * params["fEntry6"])) 
-		fSlow16 = params["fEntry7"] 
-		fSlow17 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider3"]))) / fSlow16) 
-		fSlow18 = (jnp.float32(1.0) / ((fSlow15 * (fSlow15 + fSlow17)) + jnp.float32(1.0))) 
-		fSlow19 = (jnp.float32(2.0) * (jnp.power(fSlow15, jnp.float32(2.0)) + jnp.float32(-1.0))) 
-		fSlow20 = jnp.tan((self._fConst0 * params["fEntry8"])) 
-		fSlow21 = params["fEntry9"] 
-		fSlow22 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider4"]))) / fSlow21) 
-		fSlow23 = (jnp.float32(1.0) / ((fSlow20 * (fSlow20 + fSlow22)) + jnp.float32(1.0))) 
-		fSlow24 = (jnp.float32(2.0) * (jnp.power(fSlow20, jnp.float32(2.0)) + jnp.float32(-1.0))) 
-		fSlow25 = jnp.tan((self._fConst0 * params["fEntry10"])) 
-		fSlow26 = params["fEntry11"] 
-		fSlow27 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider5"]))) / fSlow26) 
-		fSlow28 = (jnp.float32(1.0) / ((fSlow25 * (fSlow25 + fSlow27)) + jnp.float32(1.0))) 
-		fSlow29 = (jnp.float32(2.0) * (jnp.power(fSlow25, jnp.float32(2.0)) + jnp.float32(-1.0))) 
-		fSlow30 = jnp.tan((self._fConst0 * params["fEntry12"])) 
-		fSlow31 = params["fEntry13"] 
-		fSlow32 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider6"]))) / fSlow31) 
-		fSlow33 = (jnp.float32(1.0) / ((fSlow30 * (fSlow30 + fSlow32)) + jnp.float32(1.0))) 
-		fSlow34 = (jnp.float32(2.0) * (jnp.power(fSlow30, jnp.float32(2.0)) + jnp.float32(-1.0))) 
-		fSlow35 = jnp.tan((self._fConst0 * params["fEntry14"])) 
-		fSlow36 = params["fEntry15"] 
-		fSlow37 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider7"]))) / fSlow36) 
-		fSlow38 = (jnp.float32(1.0) / ((fSlow35 * (fSlow35 + fSlow37)) + jnp.float32(1.0))) 
-		fSlow39 = (jnp.float32(2.0) * (jnp.power(fSlow35, jnp.float32(2.0)) + jnp.float32(-1.0))) 
-		fSlow40 = jnp.tan((self._fConst0 * params["fEntry16"])) 
-		fSlow41 = params["fEntry17"] 
-		fSlow42 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider8"]))) / fSlow41) 
-		fSlow43 = (jnp.float32(1.0) / ((fSlow40 * (fSlow40 + fSlow42)) + jnp.float32(1.0))) 
-		fSlow44 = (jnp.float32(2.0) * (jnp.power(fSlow40, jnp.float32(2.0)) + jnp.float32(-1.0))) 
-		fSlow45 = jnp.tan((self._fConst0 * params["fEntry18"])) 
-		fSlow46 = params["fEntry19"] 
-		fSlow47 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider9"]))) / fSlow46) 
-		fSlow48 = (jnp.float32(1.0) / ((fSlow45 * (fSlow45 + fSlow47)) + jnp.float32(1.0))) 
-		fSlow49 = (jnp.float32(2.0) * (jnp.power(fSlow45, jnp.float32(2.0)) + jnp.float32(-1.0))) 
-		fSlow50 = ((fSlow45 * (fSlow45 - fSlow47)) + jnp.float32(1.0)) 
-		fSlow51 = (jnp.float32(1.0) / fSlow46) 
-		fSlow52 = ((fSlow45 * (fSlow45 + fSlow51)) + jnp.float32(1.0)) 
-		fSlow53 = (jnp.float32(1.0) - (fSlow45 * (fSlow51 - fSlow45))) 
-		fSlow54 = ((fSlow40 * (fSlow40 - fSlow42)) + jnp.float32(1.0)) 
-		fSlow55 = (jnp.float32(1.0) / fSlow41) 
-		fSlow56 = ((fSlow40 * (fSlow40 + fSlow55)) + jnp.float32(1.0)) 
-		fSlow57 = (jnp.float32(1.0) - (fSlow40 * (fSlow55 - fSlow40))) 
-		fSlow58 = ((fSlow35 * (fSlow35 - fSlow37)) + jnp.float32(1.0)) 
-		fSlow59 = (jnp.float32(1.0) / fSlow36) 
-		fSlow60 = ((fSlow35 * (fSlow35 + fSlow59)) + jnp.float32(1.0)) 
-		fSlow61 = (jnp.float32(1.0) - (fSlow35 * (fSlow59 - fSlow35))) 
-		fSlow62 = ((fSlow30 * (fSlow30 - fSlow32)) + jnp.float32(1.0)) 
-		fSlow63 = (jnp.float32(1.0) / fSlow31) 
-		fSlow64 = ((fSlow30 * (fSlow30 + fSlow63)) + jnp.float32(1.0)) 
-		fSlow65 = (jnp.float32(1.0) - (fSlow30 * (fSlow63 - fSlow30))) 
-		fSlow66 = ((fSlow25 * (fSlow25 - fSlow27)) + jnp.float32(1.0)) 
-		fSlow67 = (jnp.float32(1.0) / fSlow26) 
-		fSlow68 = ((fSlow25 * (fSlow25 + fSlow67)) + jnp.float32(1.0)) 
-		fSlow69 = (jnp.float32(1.0) - (fSlow25 * (fSlow67 - fSlow25))) 
-		fSlow70 = ((fSlow20 * (fSlow20 - fSlow22)) + jnp.float32(1.0)) 
-		fSlow71 = (jnp.float32(1.0) / fSlow21) 
-		fSlow72 = ((fSlow20 * (fSlow20 + fSlow71)) + jnp.float32(1.0)) 
-		fSlow73 = (jnp.float32(1.0) - (fSlow20 * (fSlow71 - fSlow20))) 
-		fSlow74 = ((fSlow15 * (fSlow15 - fSlow17)) + jnp.float32(1.0)) 
-		fSlow75 = (jnp.float32(1.0) / fSlow16) 
-		fSlow76 = ((fSlow15 * (fSlow15 + fSlow75)) + jnp.float32(1.0)) 
-		fSlow77 = (jnp.float32(1.0) - (fSlow15 * (fSlow75 - fSlow15))) 
-		fSlow78 = ((fSlow10 * (fSlow10 - fSlow12)) + jnp.float32(1.0)) 
-		fSlow79 = (jnp.float32(1.0) / fSlow11) 
-		fSlow80 = ((fSlow10 * (fSlow10 + fSlow79)) + jnp.float32(1.0)) 
-		fSlow81 = (jnp.float32(1.0) - (fSlow10 * (fSlow79 - fSlow10))) 
-		fSlow82 = ((fSlow5 * (fSlow5 - fSlow7)) + jnp.float32(1.0)) 
-		fSlow83 = (jnp.float32(1.0) / fSlow6) 
-		fSlow84 = ((fSlow5 * (fSlow5 + fSlow83)) + jnp.float32(1.0)) 
-		fSlow85 = (jnp.float32(1.0) - (fSlow5 * (fSlow83 - fSlow5))) 
-		fSlow86 = ((fSlow0 * (fSlow0 - fSlow2)) + jnp.float32(1.0)) 
-		fSlow87 = (jnp.float32(1.0) / fSlow1) 
-		fSlow88 = ((fSlow0 * (fSlow0 + fSlow87)) + jnp.float32(1.0)) 
-		fSlow89 = (jnp.float32(1.0) - (fSlow0 * (fSlow87 - fSlow0))) 
-		fTemp0 = (fSlow49 * state["fRec9"][1]) 
-		state["fRec9"] = state["fRec9"].at[0].set((inputs[0] - (fSlow48 * ((fSlow50 * state["fRec9"][2]) + fTemp0)))) 
-		fTemp1 = (fSlow44 * state["fRec8"][1]) 
-		state["fRec8"] = state["fRec8"].at[0].set(((fSlow48 * ((fTemp0 + (fSlow52 * state["fRec9"][0])) + (fSlow53 * state["fRec9"][2]))) - (fSlow43 * ((fSlow54 * state["fRec8"][2]) + fTemp1)))) 
-		fTemp2 = (fSlow39 * state["fRec7"][1]) 
-		state["fRec7"] = state["fRec7"].at[0].set(((fSlow43 * ((fTemp1 + (fSlow56 * state["fRec8"][0])) + (fSlow57 * state["fRec8"][2]))) - (fSlow38 * ((fSlow58 * state["fRec7"][2]) + fTemp2)))) 
-		fTemp3 = (fSlow34 * state["fRec6"][1]) 
-		state["fRec6"] = state["fRec6"].at[0].set(((fSlow38 * ((fTemp2 + (fSlow60 * state["fRec7"][0])) + (fSlow61 * state["fRec7"][2]))) - (fSlow33 * ((fSlow62 * state["fRec6"][2]) + fTemp3)))) 
-		fTemp4 = (fSlow29 * state["fRec5"][1]) 
-		state["fRec5"] = state["fRec5"].at[0].set(((fSlow33 * ((fTemp3 + (fSlow64 * state["fRec6"][0])) + (fSlow65 * state["fRec6"][2]))) - (fSlow28 * ((fSlow66 * state["fRec5"][2]) + fTemp4)))) 
-		fTemp5 = (fSlow24 * state["fRec4"][1]) 
-		state["fRec4"] = state["fRec4"].at[0].set(((fSlow28 * ((fTemp4 + (fSlow68 * state["fRec5"][0])) + (fSlow69 * state["fRec5"][2]))) - (fSlow23 * ((fSlow70 * state["fRec4"][2]) + fTemp5)))) 
-		fTemp6 = (fSlow19 * state["fRec3"][1]) 
-		state["fRec3"] = state["fRec3"].at[0].set(((fSlow23 * ((fTemp5 + (fSlow72 * state["fRec4"][0])) + (fSlow73 * state["fRec4"][2]))) - (fSlow18 * ((fSlow74 * state["fRec3"][2]) + fTemp6)))) 
-		fTemp7 = (fSlow14 * state["fRec2"][1]) 
-		state["fRec2"] = state["fRec2"].at[0].set(((fSlow18 * ((fTemp6 + (fSlow76 * state["fRec3"][0])) + (fSlow77 * state["fRec3"][2]))) - (fSlow13 * ((fSlow78 * state["fRec2"][2]) + fTemp7)))) 
-		fTemp8 = (fSlow9 * state["fRec1"][1]) 
-		state["fRec1"] = state["fRec1"].at[0].set(((fSlow13 * ((fTemp7 + (fSlow80 * state["fRec2"][0])) + (fSlow81 * state["fRec2"][2]))) - (fSlow8 * ((fSlow82 * state["fRec1"][2]) + fTemp8)))) 
-		fTemp9 = (fSlow4 * state["fRec0"][1]) 
-		state["fRec0"] = state["fRec0"].at[0].set(((fSlow8 * ((fTemp8 + (fSlow84 * state["fRec1"][0])) + (fSlow85 * state["fRec1"][2]))) - (fSlow3 * ((fSlow86 * state["fRec0"][2]) + fTemp9)))) 
-		_result0 = (fSlow3 * ((fTemp9 + (fSlow88 * state["fRec0"][0])) + (fSlow89 * state["fRec0"][2]))) 
+		fSlow1 = (jnp.float32(2.0) * (jnp.power(fSlow0, jnp.float32(2.0)) + jnp.float32(-1.0))) 
+		fSlow2 = params["fEntry1"] 
+		fSlow3 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider0"]))) / fSlow2) 
+		fSlow4 = ((fSlow0 * (fSlow0 - fSlow3)) + jnp.float32(1.0)) 
+		fSlow5 = (jnp.float32(1.0) / ((fSlow0 * (fSlow0 + fSlow3)) + jnp.float32(1.0))) 
+		fSlow6 = jnp.tan((self._fConst0 * params["fEntry2"])) 
+		fSlow7 = (jnp.float32(2.0) * (jnp.power(fSlow6, jnp.float32(2.0)) + jnp.float32(-1.0))) 
+		fSlow8 = params["fEntry3"] 
+		fSlow9 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider1"]))) / fSlow8) 
+		fSlow10 = ((fSlow6 * (fSlow6 - fSlow9)) + jnp.float32(1.0)) 
+		fSlow11 = (jnp.float32(1.0) / ((fSlow6 * (fSlow6 + fSlow9)) + jnp.float32(1.0))) 
+		fSlow12 = jnp.tan((self._fConst0 * params["fEntry4"])) 
+		fSlow13 = (jnp.float32(2.0) * (jnp.power(fSlow12, jnp.float32(2.0)) + jnp.float32(-1.0))) 
+		fSlow14 = params["fEntry5"] 
+		fSlow15 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider2"]))) / fSlow14) 
+		fSlow16 = ((fSlow12 * (fSlow12 - fSlow15)) + jnp.float32(1.0)) 
+		fSlow17 = (jnp.float32(1.0) / ((fSlow12 * (fSlow12 + fSlow15)) + jnp.float32(1.0))) 
+		fSlow18 = jnp.tan((self._fConst0 * params["fEntry6"])) 
+		fSlow19 = (jnp.float32(2.0) * (jnp.power(fSlow18, jnp.float32(2.0)) + jnp.float32(-1.0))) 
+		fSlow20 = params["fEntry7"] 
+		fSlow21 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider3"]))) / fSlow20) 
+		fSlow22 = ((fSlow18 * (fSlow18 - fSlow21)) + jnp.float32(1.0)) 
+		fSlow23 = (jnp.float32(1.0) / ((fSlow18 * (fSlow18 + fSlow21)) + jnp.float32(1.0))) 
+		fSlow24 = jnp.tan((self._fConst0 * params["fEntry8"])) 
+		fSlow25 = (jnp.float32(2.0) * (jnp.power(fSlow24, jnp.float32(2.0)) + jnp.float32(-1.0))) 
+		fSlow26 = params["fEntry9"] 
+		fSlow27 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider4"]))) / fSlow26) 
+		fSlow28 = ((fSlow24 * (fSlow24 - fSlow27)) + jnp.float32(1.0)) 
+		fSlow29 = (jnp.float32(1.0) / ((fSlow24 * (fSlow24 + fSlow27)) + jnp.float32(1.0))) 
+		fSlow30 = jnp.tan((self._fConst0 * params["fEntry10"])) 
+		fSlow31 = (jnp.float32(2.0) * (jnp.power(fSlow30, jnp.float32(2.0)) + jnp.float32(-1.0))) 
+		fSlow32 = params["fEntry11"] 
+		fSlow33 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider5"]))) / fSlow32) 
+		fSlow34 = ((fSlow30 * (fSlow30 - fSlow33)) + jnp.float32(1.0)) 
+		fSlow35 = (jnp.float32(1.0) / ((fSlow30 * (fSlow30 + fSlow33)) + jnp.float32(1.0))) 
+		fSlow36 = jnp.tan((self._fConst0 * params["fEntry12"])) 
+		fSlow37 = (jnp.float32(2.0) * (jnp.power(fSlow36, jnp.float32(2.0)) + jnp.float32(-1.0))) 
+		fSlow38 = params["fEntry13"] 
+		fSlow39 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider6"]))) / fSlow38) 
+		fSlow40 = ((fSlow36 * (fSlow36 - fSlow39)) + jnp.float32(1.0)) 
+		fSlow41 = (jnp.float32(1.0) / ((fSlow36 * (fSlow36 + fSlow39)) + jnp.float32(1.0))) 
+		fSlow42 = jnp.tan((self._fConst0 * params["fEntry14"])) 
+		fSlow43 = (jnp.float32(2.0) * (jnp.power(fSlow42, jnp.float32(2.0)) + jnp.float32(-1.0))) 
+		fSlow44 = params["fEntry15"] 
+		fSlow45 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider7"]))) / fSlow44) 
+		fSlow46 = ((fSlow42 * (fSlow42 - fSlow45)) + jnp.float32(1.0)) 
+		fSlow47 = (jnp.float32(1.0) / ((fSlow42 * (fSlow42 + fSlow45)) + jnp.float32(1.0))) 
+		fSlow48 = jnp.tan((self._fConst0 * params["fEntry16"])) 
+		fSlow49 = (jnp.float32(2.0) * (jnp.power(fSlow48, jnp.float32(2.0)) + jnp.float32(-1.0))) 
+		fSlow50 = params["fEntry17"] 
+		fSlow51 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider8"]))) / fSlow50) 
+		fSlow52 = ((fSlow48 * (fSlow48 - fSlow51)) + jnp.float32(1.0)) 
+		fSlow53 = (jnp.float32(1.0) / ((fSlow48 * (fSlow48 + fSlow51)) + jnp.float32(1.0))) 
+		fSlow54 = jnp.tan((self._fConst0 * params["fEntry18"])) 
+		fSlow55 = (jnp.float32(2.0) * (jnp.power(fSlow54, jnp.float32(2.0)) + jnp.float32(-1.0))) 
+		fSlow56 = params["fEntry19"] 
+		fSlow57 = (jnp.power(jnp.float32(1e+01), -((jnp.float32(0.05) * params["fVslider9"]))) / fSlow56) 
+		fSlow58 = ((fSlow54 * (fSlow54 - fSlow57)) + jnp.float32(1.0)) 
+		fSlow59 = (jnp.float32(1.0) / ((fSlow54 * (fSlow54 + fSlow57)) + jnp.float32(1.0))) 
+		fSlow60 = (jnp.float32(1.0) / fSlow56) 
+		fSlow61 = (jnp.float32(1.0) - (fSlow54 * (fSlow60 - fSlow54))) 
+		fSlow62 = ((fSlow54 * (fSlow54 + fSlow60)) + jnp.float32(1.0)) 
+		fSlow63 = (jnp.float32(1.0) / fSlow50) 
+		fSlow64 = (jnp.float32(1.0) - (fSlow48 * (fSlow63 - fSlow48))) 
+		fSlow65 = ((fSlow48 * (fSlow48 + fSlow63)) + jnp.float32(1.0)) 
+		fSlow66 = (jnp.float32(1.0) / fSlow44) 
+		fSlow67 = (jnp.float32(1.0) - (fSlow42 * (fSlow66 - fSlow42))) 
+		fSlow68 = ((fSlow42 * (fSlow42 + fSlow66)) + jnp.float32(1.0)) 
+		fSlow69 = (jnp.float32(1.0) / fSlow38) 
+		fSlow70 = (jnp.float32(1.0) - (fSlow36 * (fSlow69 - fSlow36))) 
+		fSlow71 = ((fSlow36 * (fSlow36 + fSlow69)) + jnp.float32(1.0)) 
+		fSlow72 = (jnp.float32(1.0) / fSlow32) 
+		fSlow73 = (jnp.float32(1.0) - (fSlow30 * (fSlow72 - fSlow30))) 
+		fSlow74 = ((fSlow30 * (fSlow30 + fSlow72)) + jnp.float32(1.0)) 
+		fSlow75 = (jnp.float32(1.0) / fSlow26) 
+		fSlow76 = (jnp.float32(1.0) - (fSlow24 * (fSlow75 - fSlow24))) 
+		fSlow77 = ((fSlow24 * (fSlow24 + fSlow75)) + jnp.float32(1.0)) 
+		fSlow78 = (jnp.float32(1.0) / fSlow20) 
+		fSlow79 = (jnp.float32(1.0) - (fSlow18 * (fSlow78 - fSlow18))) 
+		fSlow80 = ((fSlow18 * (fSlow18 + fSlow78)) + jnp.float32(1.0)) 
+		fSlow81 = (jnp.float32(1.0) / fSlow14) 
+		fSlow82 = (jnp.float32(1.0) - (fSlow12 * (fSlow81 - fSlow12))) 
+		fSlow83 = ((fSlow12 * (fSlow12 + fSlow81)) + jnp.float32(1.0)) 
+		fSlow84 = (jnp.float32(1.0) / fSlow8) 
+		fSlow85 = (jnp.float32(1.0) - (fSlow6 * (fSlow84 - fSlow6))) 
+		fSlow86 = ((fSlow6 * (fSlow6 + fSlow84)) + jnp.float32(1.0)) 
+		fSlow87 = (jnp.float32(1.0) / fSlow2) 
+		fSlow88 = (jnp.float32(1.0) - (fSlow0 * (fSlow87 - fSlow0))) 
+		fSlow89 = ((fSlow0 * (fSlow0 + fSlow87)) + jnp.float32(1.0)) 
+		fTemp0 = (fSlow1 * state["fRec0"][1]) 
+		fTemp1 = (fSlow7 * state["fRec1"][1]) 
+		fTemp2 = (fSlow13 * state["fRec2"][1]) 
+		fTemp3 = (fSlow19 * state["fRec3"][1]) 
+		fTemp4 = (fSlow25 * state["fRec4"][1]) 
+		fTemp5 = (fSlow31 * state["fRec5"][1]) 
+		fTemp6 = (fSlow37 * state["fRec6"][1]) 
+		fTemp7 = (fSlow43 * state["fRec7"][1]) 
+		fTemp8 = (fSlow49 * state["fRec8"][1]) 
+		fTemp9 = (fSlow55 * state["fRec9"][1]) 
+		state["fRec9"] = state["fRec9"].at[0].set((inputs[0] - (fSlow59 * ((fSlow58 * state["fRec9"][2]) + fTemp9)))) 
+		state["fRec8"] = state["fRec8"].at[0].set(((fSlow59 * ((fTemp9 + (fSlow62 * state["fRec9"][0])) + (fSlow61 * state["fRec9"][2]))) - (fSlow53 * ((fSlow52 * state["fRec8"][2]) + fTemp8)))) 
+		state["fRec7"] = state["fRec7"].at[0].set(((fSlow53 * ((fTemp8 + (fSlow65 * state["fRec8"][0])) + (fSlow64 * state["fRec8"][2]))) - (fSlow47 * ((fSlow46 * state["fRec7"][2]) + fTemp7)))) 
+		state["fRec6"] = state["fRec6"].at[0].set(((fSlow47 * ((fTemp7 + (fSlow68 * state["fRec7"][0])) + (fSlow67 * state["fRec7"][2]))) - (fSlow41 * ((fSlow40 * state["fRec6"][2]) + fTemp6)))) 
+		state["fRec5"] = state["fRec5"].at[0].set(((fSlow41 * ((fTemp6 + (fSlow71 * state["fRec6"][0])) + (fSlow70 * state["fRec6"][2]))) - (fSlow35 * ((fSlow34 * state["fRec5"][2]) + fTemp5)))) 
+		state["fRec4"] = state["fRec4"].at[0].set(((fSlow35 * ((fTemp5 + (fSlow74 * state["fRec5"][0])) + (fSlow73 * state["fRec5"][2]))) - (fSlow29 * ((fSlow28 * state["fRec4"][2]) + fTemp4)))) 
+		state["fRec3"] = state["fRec3"].at[0].set(((fSlow29 * ((fTemp4 + (fSlow77 * state["fRec4"][0])) + (fSlow76 * state["fRec4"][2]))) - (fSlow23 * ((fSlow22 * state["fRec3"][2]) + fTemp3)))) 
+		state["fRec2"] = state["fRec2"].at[0].set(((fSlow23 * ((fTemp3 + (fSlow80 * state["fRec3"][0])) + (fSlow79 * state["fRec3"][2]))) - (fSlow17 * ((fSlow16 * state["fRec2"][2]) + fTemp2)))) 
+		state["fRec1"] = state["fRec1"].at[0].set(((fSlow17 * ((fTemp2 + (fSlow83 * state["fRec2"][0])) + (fSlow82 * state["fRec2"][2]))) - (fSlow11 * ((fSlow10 * state["fRec1"][2]) + fTemp1)))) 
+		state["fRec0"] = state["fRec0"].at[0].set(((fSlow11 * ((fTemp1 + (fSlow86 * state["fRec1"][0])) + (fSlow85 * state["fRec1"][2]))) - (fSlow5 * ((fSlow4 * state["fRec0"][2]) + fTemp0)))) 
+		_result0 = (fSlow5 * ((fTemp0 + (fSlow89 * state["fRec0"][0])) + (fSlow88 * state["fRec0"][2]))) 
 		state["fRec9"] = jnp.roll(state["fRec9"], 1) 
 		state["fRec8"] = jnp.roll(state["fRec8"], 1) 
 		state["fRec7"] = jnp.roll(state["fRec7"], 1) 
@@ -290,7 +291,7 @@ class mydsp(nn.Module):
 		# If none of the paths worked, return the default silence array and sample rate
 		return np.zeros((1, 1024)), self.sample_rate
 	
-	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str):
+	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
 		filepaths = url[2:-2].split("';'")
 		fLength, fOffset, fSR, offset = [], [], [], 0
@@ -369,13 +370,14 @@ class mydsp(nn.Module):
 			def unnorm_nentry(module):
 				logits = getattr(module, logits_zone)
 				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):
+				if module.has_rng("gumbel"):  # training
 					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=FAUSTFLOAT)
 					logits_with_noise = logits + gumbel_noise
-				else:
-					logits_with_noise = logits
-				probs = nn.softmax(logits_with_noise / tau)
-				return jnp.dot(probs, step_values)
+					probs = nn.softmax(logits_with_noise / tau, axis=-1)
+					return jnp.dot(probs, step_values)
+				else:  # inference
+					index = jnp.argmax(logits, axis=-1)
+					return step_values[index]
 			return unnorm_nentry
 		
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
@@ -454,13 +456,20 @@ class mydsp(nn.Module):
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
 	
-	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
+	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		pass
+
+	def random_uniform(self):
+		"""
+		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
+		This method is called by foreign functions declared in Faust code.
+		"""
+		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
 	def unnormalize(self) -> Dict[str, jnp.array]:
 		"""
