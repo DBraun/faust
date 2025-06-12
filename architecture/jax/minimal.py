@@ -239,7 +239,7 @@ except ImportError:
 		"""
 		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 
-	def unnormalize(self) -> Dict[str, jnp.array]:
+	def unnormalize(self) -> Dict[str, jnp.ndarray]:
 		"""
 		Unnormalize all UI parameters from [-1, 1] to their original ranges.
 		
@@ -263,7 +263,7 @@ except ImportError:
 		
 		return params
 
-	def initialize_carry(self) -> Dict[str, jnp.array]:
+	def initialize_carry(self) -> Dict[str, jnp.ndarray]:
 		"""
 		Initialize the carry state for real-time processing.
 			
@@ -281,7 +281,7 @@ except ImportError:
 		
 		return state
 	
-	def process_block(self, carry: Dict[str, jnp.array], inputs: jnp.array = None, length: int = None, unroll: int = 1) -> Tuple[jnp.array, Dict[str, jnp.array]]:
+	def process_block(self, carry: Dict[str, jnp.ndarray], inputs: jnp.ndarray = None, length: int = None, unroll: int = 1) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
 		"""
 		Process one block of audio and return updated state.
 		
@@ -322,7 +322,7 @@ except ImportError:
 
 		return outputs_t, new_carry
 	
-	def __call__(self, x: jnp.array, length: int = None, unroll: int = 1) -> jnp.array:
+	def __call__(self, x: jnp.ndarray, length: int = None, unroll: int = 1) -> jnp.ndarray:
 
 		if length is None and x is not None:
 			length = x.shape[-1]
