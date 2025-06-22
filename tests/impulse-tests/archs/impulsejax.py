@@ -125,24 +125,24 @@ except ImportError:
 		unnorm_funcs[label] = (zone, lambda x: x)
 	
 	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> float:
-		"""Normalize a value from [a_min, a_max] to [-1, 1] based on scale mode."""
+		"""Normalize a value from [a_min, a_max] to [0, 1] based on scale mode."""
 		if scale_mode == "linear":
 			return jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
-							 jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+							 jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
 		elif scale_mode == "exp":
-			# Map to [1, e], take log, then map to [-1, 1]
+			# Map to [1, e], take log, then map to [0, 1]
 			value_exp = jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
 								  jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT))
 			value_log = jnp.log(value_exp)
 			return jnp.interp(value_log, jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), 
-							 jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+							 jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
 		elif scale_mode == "log":
-			# Map to [-4, 0], apply 10^x, then map to [-1, 1]
+			# Map to [-4, 0], apply 10^x, then map to [0, 1]
 			value_log10 = jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
 									jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT))
 			value_pow = jnp.power(FAUSTFLOAT(10), value_log10)
 			return jnp.interp(value_pow, jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), 
-							 jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+							 jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
 		else:
 			raise ValueError(f"Unknown scale mode: {scale_mode}")
 	
@@ -150,25 +150,21 @@ except ImportError:
 		"""Create an unnormalization function for the given scale mode."""
 		if scale_mode == "linear":
 			return lambda normalized: jnp.interp(
-				jnp.clip(normalized, FAUSTFLOAT(-1), FAUSTFLOAT(1)),
-				jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
+				jnp.clip(normalized, FAUSTFLOAT(0), FAUSTFLOAT(1)),
+				jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
 				jnp.array([a_min, a_max], dtype=FAUSTFLOAT)
 			)
 		elif scale_mode == "exp":
 			return lambda normalized: jnp.interp(
-				jnp.exp(jnp.interp(
-					jnp.clip(normalized, FAUSTFLOAT(-1), FAUSTFLOAT(1)),
-					jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
-					jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT)
-				)), 
+				jnp.exp(jnp.clip(normalized, FAUSTFLOAT(0), FAUSTFLOAT(1))), 
 				jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT), 
 				jnp.array([a_min, a_max], dtype=FAUSTFLOAT)
 			)
 		elif scale_mode == "log":
 			return lambda normalized: jnp.interp(
 				jnp.log10(jnp.interp(
-					jnp.clip(normalized, FAUSTFLOAT(-1), FAUSTFLOAT(1)),
-					jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
+					jnp.clip(normalized, FAUSTFLOAT(0), FAUSTFLOAT(1)),
+					jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
 					jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT)
 				)), 
 				jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT), 
@@ -182,7 +178,7 @@ except ImportError:
 		label = "/".join(ui_path + [label])
 		init, a_min, a_max = FAUSTFLOAT(init), FAUSTFLOAT(a_min), FAUSTFLOAT(a_max)
 		
-		# Normalize init value to [-1, 1] based on scale mode
+		# Normalize init value to [0, 1] based on scale mode
 		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
 		
 		# Create the normalized parameter with label as name
@@ -334,7 +330,7 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 	N_CHANNELS = model.num_inputs
 
 	if args.random:
-		input_audio = -1.+2.*random.uniform(key, shape=(N_CHANNELS, BLOCK_SIZE), dtype=FAUSTFLOAT)
+		input_audio = random.uniform(key, shape=(N_CHANNELS, BLOCK_SIZE), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 	else:
 		input_audio = jnp.zeros((N_CHANNELS, BLOCK_SIZE), dtype=FAUSTFLOAT)
 		input_audio = input_audio.at[:,0].set(1.)

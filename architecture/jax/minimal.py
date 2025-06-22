@@ -151,24 +151,24 @@ except ImportError:
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
 	
 	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> float:
-		"""Normalize a value from [a_min, a_max] to [-1, 1] based on scale mode."""
+		"""Normalize a value from [a_min, a_max] to [0, 1] based on scale mode."""
 		if scale_mode == "linear":
 			return jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
-							 jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+							 jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
 		elif scale_mode == "exp":
-			# Map to [1, e], take log, then map to [-1, 1]
+			# Map to [1, e], take log, then map to [0, 1]
 			value_exp = jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
 								  jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT))
 			value_log = jnp.log(value_exp)
 			return jnp.interp(value_log, jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), 
-							 jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+							 jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
 		elif scale_mode == "log":
-			# Map to [-4, 0], apply 10^x, then map to [-1, 1]
+			# Map to [-4, 0], apply 10^x, then map to [0, 1]
 			value_log10 = jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
 									jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT))
 			value_pow = jnp.power(FAUSTFLOAT(10), value_log10)
 			return jnp.interp(value_pow, jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), 
-							 jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+							 jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
 		else:
 			raise ValueError(f"Unknown scale mode: {scale_mode}")
 	
@@ -176,25 +176,21 @@ except ImportError:
 		"""Create an unnormalization function for the given scale mode."""
 		if scale_mode == "linear":
 			return lambda normalized: jnp.interp(
-				jnp.clip(normalized, FAUSTFLOAT(-1), FAUSTFLOAT(1)),
-				jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
+				jnp.clip(normalized, FAUSTFLOAT(0), FAUSTFLOAT(1)),
+				jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
 				jnp.array([a_min, a_max], dtype=FAUSTFLOAT)
 			)
 		elif scale_mode == "exp":
 			return lambda normalized: jnp.interp(
-				jnp.exp(jnp.interp(
-					jnp.clip(normalized, FAUSTFLOAT(-1), FAUSTFLOAT(1)),
-					jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
-					jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT)
-				)), 
+				jnp.exp(jnp.clip(normalized, FAUSTFLOAT(0), FAUSTFLOAT(1))), 
 				jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT), 
 				jnp.array([a_min, a_max], dtype=FAUSTFLOAT)
 			)
 		elif scale_mode == "log":
 			return lambda normalized: jnp.interp(
 				jnp.log10(jnp.interp(
-					jnp.clip(normalized, FAUSTFLOAT(-1), FAUSTFLOAT(1)),
-					jnp.array([FAUSTFLOAT(-1), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
+					jnp.clip(normalized, FAUSTFLOAT(0), FAUSTFLOAT(1)),
+					jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
 					jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT)
 				)), 
 				jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT), 
@@ -208,7 +204,7 @@ except ImportError:
 		label = "/".join(ui_path + [label])
 		init, a_min, a_max = FAUSTFLOAT(init), FAUSTFLOAT(a_min), FAUSTFLOAT(a_max)
 		
-		# Normalize init value to [-1, 1] based on scale mode
+		# Normalize init value to [0, 1] based on scale mode
 		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
 		
 		# Create the normalized parameter with label as name
@@ -385,7 +381,7 @@ def test(args):
 		N_CHANNELS = model.num_inputs
 
 		if args.random:
-			input_audio = -1.+2.*random.uniform(key, shape=(N_CHANNELS, N_SAMPLES), dtype=FAUSTFLOAT)
+			input_audio = random.uniform(key, shape=(N_CHANNELS, N_SAMPLES), minval=-1, maxval=1, dtype=FAUSTFLOAT)
 		else:
 			input_audio = jnp.zeros((N_CHANNELS, N_SAMPLES), dtype=FAUSTFLOAT)
 			input_audio = input_audio.at[:,0].set(1.)
@@ -427,7 +423,7 @@ def test(args):
 	logger.info("All done!")
 
 
-def realtime_audio_example(unroll: int = 1):
+def realtime_audio_example(unroll: int = 1, sample_rate: int = 48_000, block_size: int = 512):
 	"""
 	Real-time audio streaming example using sounddevice.
 	Demonstrates the real-time API with actual audio output.
@@ -440,12 +436,8 @@ def realtime_audio_example(unroll: int = 1):
 	
 	import time
 	
-	# Audio settings
-	SAMPLE_RATE = 48000
-	BLOCK_SIZE = 512
-	
 	# Initialize model
-	model = mydsp(sample_rate=SAMPLE_RATE)
+	model = mydsp(sample_rate=sample_rate)
 	key = random.key(0)
 	
 	# Initialize parameters
@@ -462,7 +454,7 @@ def realtime_audio_example(unroll: int = 1):
 	# JIT compile the process method
 	@jax.jit
 	def process_block_jit(carry, inputs: jnp.ndarray, rng: jax.Array):
-		return model.apply(variables, carry, inputs, length=BLOCK_SIZE, unroll=unroll, method="process_block", rngs={"rng_stream": rng})
+		return model.apply(variables, carry, inputs, length=block_size, unroll=unroll, method="process_block", rngs={"rng_stream": rng})
 	
 	# Create a generator for audio blocks
 	def audio_generator():
@@ -471,11 +463,11 @@ def realtime_audio_example(unroll: int = 1):
 		while True:
 			# For generators, create empty input
 			if model.num_inputs == 0:
-				inputs = jnp.zeros((0, BLOCK_SIZE))
+				inputs = jnp.zeros((0, block_size))
 			else:
 				# For processors, you would get input from sounddevice
 				# For this example, we'll use zeros
-				inputs = jnp.zeros((model.num_inputs, BLOCK_SIZE))
+				inputs = jnp.zeros((model.num_inputs, block_size))
 			
 			# Process block
 			key, subkey = random.split(key)
@@ -501,15 +493,15 @@ def realtime_audio_example(unroll: int = 1):
 		outdata[:] = next(audio_gen)
 	
 	# Start streaming
-	print(f"▶ Streaming audio at {SAMPLE_RATE}Hz, {BLOCK_SIZE} samples/block")
+	print(f"▶ Streaming audio at {sample_rate} Hz, {block_size} samples/block")
 	print(f"  Model: {model.num_inputs} inputs → {model.num_outputs} outputs")
 	print("  Press Ctrl+C to stop...")
 	
 	try:
 		with sd.OutputStream(
 			channels=model.num_outputs,
-			samplerate=SAMPLE_RATE,
-			blocksize=BLOCK_SIZE,
+			samplerate=sample_rate,
+			blocksize=block_size,
 			dtype='float32',
 			callback=callback
 		):
@@ -540,6 +532,7 @@ if __name__ == "__main__":
 						help="Whether to print the variables of the DSP")
 	parser.add_argument("--realtime", default=False, action=argparse.BooleanOptionalAction,
 						help="Run the DSP with silent input and send the output to an audio device in real-time.")
+	parser.add_argument("-bs", "--block-size", type=int, default=512, help="Block size for real-time mode such as 512")
 
 	args = parser.parse_args()
 	
@@ -547,6 +540,6 @@ if __name__ == "__main__":
 	jax.config.update("jax_platform_name", args.platform)
 
 	if args.realtime:
-		realtime_audio_example(args.unroll)
+		realtime_audio_example(args.unroll, sample_rate=args.sample_rate, block_size=args.block_size)
 	else:
 		test(args)
