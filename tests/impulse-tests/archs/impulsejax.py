@@ -99,7 +99,12 @@ except ImportError:
 		else:
 			label = "/".join(ui_path+[label])
 
-		setattr(self, zone, {"fLength": fLength, "fOffset": fOffset, "fBuffers": fBuffers, "fSR": fSR})
+		setattr(self, zone, {
+			"fLength": jnp.array(fLength, dtype=jnp.int32),
+			"fOffset": jnp.array(fOffset, dtype=jnp.int32),
+			"fBuffers": fBuffers,
+			"fSR": jnp.array(fSR, dtype=FAUSTFLOAT)
+		})
 
 	def add_button(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
 		label = "/".join(ui_path+[label])
