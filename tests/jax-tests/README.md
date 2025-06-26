@@ -78,6 +78,7 @@ FAUST=../../build/bin/faust make
 PYTHON=python3.11 make
 
 # Add additional Faust options
+# If you use -double, then the python file should also be executed with "--double"
 FAUSTOPTIONS="-lang jax -a ../../architecture/jax/minimal.py -double" make
 ```
 

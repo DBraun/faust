@@ -50,13 +50,12 @@ with suppress_metal_message():
 	import math
 	import json
 	import dataclasses
-	import re
-	from typing import Any, Dict, List, Tuple
+	from typing import Dict, List, Tuple
 	from pathlib import Path
 	import numpy as np
-	import jax.numpy as jnp
-	from jax import random
+	from jax import numpy as jnp, random
 	from flax import linen as nn
+	from flax.typing import Dtype
 
 try:
 	import librosa
@@ -71,7 +70,7 @@ except ImportError:
 
 	def load_soundfile(self, filepath):
 		# This pre-computed sine is desired for the impulse-tests.
-		audio = jnp.sin(jnp.linspace(0, 2*jnp.pi, num=4096, endpoint=False, dtype=FAUSTFLOAT))
+		audio = jnp.sin(jnp.linspace(0, 2*jnp.pi, num=4096, endpoint=False, dtype=self.faust_float))
 		audio = jnp.stack([audio, audio])
 		return audio, 44100
 		
@@ -86,7 +85,7 @@ except ImportError:
 		for y, sr in audio_data:
 			fSR.append(sr)
 			assert y.ndim == 2
-			y = jnp.array(y, dtype=FAUSTFLOAT)
+			y = jnp.array(y, dtype=self.faust_float)
 			fLength.append(y.shape[1])
 			fOffset.append(offset)
 			fBuffers = fBuffers.at[:y.shape[0],offset:offset+y.shape[1]].set(y)
@@ -103,12 +102,12 @@ except ImportError:
 			"fLength": jnp.array(fLength, dtype=jnp.int32),
 			"fOffset": jnp.array(fOffset, dtype=jnp.int32),
 			"fBuffers": fBuffers,
-			"fSR": jnp.array(fSR, dtype=FAUSTFLOAT)
+			"fSR": jnp.array(fSR, dtype=self.faust_float)
 		})
 
 	def add_button(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
 		label = "/".join(ui_path+[label])
-		setattr(self, zone, self.param(label, nn.initializers.constant(0., dtype=FAUSTFLOAT), ()))
+		setattr(self, zone, self.param(label, nn.initializers.constant(0., dtype=self.faust_float), ()))
 		unnorm_funcs[label] = (zone, lambda x: x)
 	
 	def add_checkbox(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
@@ -121,73 +120,76 @@ except ImportError:
 	):
 		# For deterministic impulse tests, use exact init values like C++ CheckControlUI
 		label = "/".join(ui_path + [label])
-		init = FAUSTFLOAT(init)
+		init = self.faust_float(init)
 		
 		# Create parameter with exact init value (no normalization for impulse tests)
-		setattr(self, zone, self.param(label, nn.initializers.constant(init, dtype=FAUSTFLOAT), ()))
+		setattr(self, zone, self.param(label, nn.initializers.constant(init, dtype=self.faust_float), ()))
 		
 		# Create identity unnormalization function (parameter is already at correct value)
 		unnorm_funcs[label] = (zone, lambda x: x)
 	
 	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> float:
 		"""Normalize a value from [a_min, a_max] to [0, 1] based on scale mode."""
+		faust_float = self.faust_float
 		if scale_mode == "linear":
-			return jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
-							 jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+			return jnp.interp(value, jnp.array([a_min, a_max], dtype=faust_float), 
+							 jnp.array([faust_float(0), faust_float(1)], dtype=faust_float))
 		elif scale_mode == "exp":
 			# Map to [1, e], take log, then map to [0, 1]
-			value_exp = jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
-								  jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT))
+			value_exp = jnp.interp(value, jnp.array([a_min, a_max], dtype=faust_float), 
+								  jnp.array([faust_float(1), jnp.e], dtype=faust_float))
 			value_log = jnp.log(value_exp)
-			return jnp.interp(value_log, jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), 
-							 jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+			return jnp.interp(value_log, jnp.array([faust_float(0), faust_float(1)], dtype=faust_float), 
+							 jnp.array([faust_float(0), faust_float(1)], dtype=faust_float))
 		elif scale_mode == "log":
 			# Map to [-4, 0], apply 10^x, then map to [0, 1]
-			value_log10 = jnp.interp(value, jnp.array([a_min, a_max], dtype=FAUSTFLOAT), 
-									jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT))
-			value_pow = jnp.power(FAUSTFLOAT(10), value_log10)
-			return jnp.interp(value_pow, jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT), 
-							 jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT))
+			value_log10 = jnp.interp(value, jnp.array([a_min, a_max], dtype=faust_float), 
+									jnp.array([faust_float(-4), faust_float(0)], dtype=faust_float))
+			value_pow = jnp.power(faust_float(10), value_log10)
+			return jnp.interp(value_pow, jnp.array([faust_float(10**-4), faust_float(1)], dtype=faust_float), 
+							 jnp.array([faust_float(0), faust_float(1)], dtype=faust_float))
 		else:
 			raise ValueError(f"Unknown scale mode: {scale_mode}")
 	
 	def create_unnormalize_func(self, a_min: float, a_max: float, scale_mode: str):
 		"""Create an unnormalization function for the given scale mode."""
+		faust_float = self.faust_float
 		if scale_mode == "linear":
 			return lambda normalized: jnp.interp(
-				jnp.clip(normalized, FAUSTFLOAT(0), FAUSTFLOAT(1)),
-				jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
-				jnp.array([a_min, a_max], dtype=FAUSTFLOAT)
+				jnp.clip(normalized, faust_float(0), faust_float(1)),
+				jnp.array([faust_float(0), faust_float(1)], dtype=faust_float),
+				jnp.array([a_min, a_max], dtype=faust_float)
 			)
 		elif scale_mode == "exp":
 			return lambda normalized: jnp.interp(
-				jnp.exp(jnp.clip(normalized, FAUSTFLOAT(0), FAUSTFLOAT(1))), 
-				jnp.array([FAUSTFLOAT(1), jnp.e], dtype=FAUSTFLOAT), 
-				jnp.array([a_min, a_max], dtype=FAUSTFLOAT)
+				jnp.exp(jnp.clip(normalized, faust_float(0), faust_float(1))), 
+				jnp.array([faust_float(1), jnp.e], dtype=faust_float), 
+				jnp.array([a_min, a_max], dtype=faust_float)
 			)
 		elif scale_mode == "log":
 			return lambda normalized: jnp.interp(
 				jnp.log10(jnp.interp(
-					jnp.clip(normalized, FAUSTFLOAT(0), FAUSTFLOAT(1)),
-					jnp.array([FAUSTFLOAT(0), FAUSTFLOAT(1)], dtype=FAUSTFLOAT),
-					jnp.array([FAUSTFLOAT(10**-4), FAUSTFLOAT(1)], dtype=FAUSTFLOAT)
+					jnp.clip(normalized, faust_float(0), faust_float(1)),
+					jnp.array([faust_float(0), faust_float(1)], dtype=faust_float),
+					jnp.array([faust_float(10**-4), faust_float(1)], dtype=faust_float)
 				)), 
-				jnp.array([FAUSTFLOAT(-4), FAUSTFLOAT(0)], dtype=FAUSTFLOAT), 
-				jnp.array([a_min, a_max], dtype=FAUSTFLOAT)
+				jnp.array([faust_float(-4), faust_float(0)], dtype=faust_float), 
+				jnp.array([a_min, a_max], dtype=faust_float)
 			)
 		else:
 			raise ValueError(f"Unknown scale mode: {scale_mode}")
 	
 	def add_slider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode="linear"):
 		"""Add a slider UI element with the specified parameters."""
+		faust_float = self.faust_float
 		label = "/".join(ui_path + [label])
-		init, a_min, a_max = FAUSTFLOAT(init), FAUSTFLOAT(a_min), FAUSTFLOAT(a_max)
+		init, a_min, a_max = faust_float(init), faust_float(a_min), faust_float(a_max)
 		
 		# Normalize init value to [0, 1] based on scale mode
 		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
 		
 		# Create the normalized parameter with label as name
-		setattr(self, zone, self.param(label, nn.initializers.constant(normalized_init, dtype=FAUSTFLOAT), ()))
+		setattr(self, zone, self.param(label, nn.initializers.constant(normalized_init, dtype=faust_float), ()))
 		
 		# Create and store the unnormalization function
 		unnorm_func = self.create_unnormalize_func(a_min, a_max, scale_mode)
@@ -206,7 +208,7 @@ except ImportError:
 		self.add_bargraph(zone, ui_path, label, a_min, a_max)
 
 	def add_bargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float):
-		setattr(self, zone, FAUSTFLOAT(0))
+		setattr(self, zone, self.faust_float(0))
 
 	def unnormalize(self, i: int) -> Dict[str, jnp.ndarray]:
 		"""
@@ -245,7 +247,7 @@ except ImportError:
 			Dictionary containing all stateful components (delays, filter states, etc.)
 		"""
 		# Create dummy input for initialization
-		dummy_x = jnp.zeros((self.num_inputs, 1), dtype=FAUSTFLOAT)
+		dummy_x = jnp.zeros((self.num_inputs, 1), dtype=self.faust_float)
 		
 		# Initialize the full state using fast numpy
 		state = self._initialize_carry(dummy_x, 1)
@@ -298,7 +300,7 @@ except ImportError:
 
 		# Handle generators (no input case)
 		if x is None:
-			x = jnp.zeros((self.num_inputs, length), dtype=FAUSTFLOAT)
+			x = jnp.zeros((self.num_inputs, length), dtype=self.faust_float)
 
 		carry = self.initialize_carry()
 		
@@ -326,7 +328,9 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 	from jax import random
 	from scipy.io import wavfile
 
-	model = mydsp(sample_rate=args.sample_rate)
+	faust_float = jnp.float64 if args.double else jnp.float32
+
+	model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float)
 
 	key = random.key(0)
 
@@ -335,9 +339,9 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 	N_CHANNELS = model.num_inputs
 
 	if args.random:
-		input_audio = random.uniform(key, shape=(N_CHANNELS, BLOCK_SIZE), minval=-1, maxval=1, dtype=FAUSTFLOAT)
+		input_audio = random.uniform(key, shape=(N_CHANNELS, BLOCK_SIZE), minval=-1, maxval=1, dtype=faust_float)
 	else:
-		input_audio = jnp.zeros((N_CHANNELS, BLOCK_SIZE), dtype=FAUSTFLOAT)
+		input_audio = jnp.zeros((N_CHANNELS, BLOCK_SIZE), dtype=faust_float)
 		input_audio = input_audio.at[:,0].set(1.)
 
 	variables = model.init({"params": key, "rng_stream": key}, input_audio, length=BLOCK_SIZE)
@@ -388,11 +392,16 @@ if __name__ == '__main__':
 	import argparse
 	parser = argparse.ArgumentParser(description='Run a JAX/Flax model converted from Faust code')
 	parser.add_argument('-sr', '--sample-rate', type=int, default=44100, help='Sample rate (such as 44100)')
+	parser.add_argument("--double", default=True, action=argparse.BooleanOptionalAction,
+						help="Whether to enable double type (jnp.float64)")
 	parser.add_argument('--random', type=bool, default=False, help="Whether the default audio is random. By default it's an impulse.")
 	parser.add_argument('-o', '--output', type=str, default=None, help='Filepath for output audio WAV')
 	parser.add_argument('-d', '--duration', type=int, default=15000, help='duration')
 
 	args = parser.parse_args()
+
+	if args.double:
+		jax.config.update("jax_enable_x64", True)
 
 	duration = args.duration
 

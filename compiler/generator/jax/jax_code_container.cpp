@@ -197,31 +197,6 @@ void JAXCodeContainer::produceClass()
     *fOut << "\"\"\"";
     tab(n, *fOut);
 
-    if (gGlobal->gFloatSize == 2) {
-        tab(n, *fOut);
-        *fOut << "# enable double precision: "
-                 "https://jax.readthedocs.io/en/latest/notebooks/"
-                 "Common_Gotchas_in_JAX.html#double-64bit-precision";
-        tab(n, *fOut);
-        *fOut << "import jax";
-        tab(n, *fOut);
-        *fOut << "jax.config.update(\"jax_enable_x64\", True)";
-        tab(n, *fOut);
-        *fOut << "FAUSTFLOAT = jnp.float64";
-        tab(n, *fOut);
-        *fOut << "FAUSTINT = jnp.int64";
-        tab(n, *fOut);
-    } else {
-        tab(n, *fOut);
-        *fOut << "# enable single precision";
-        tab(n, *fOut);
-        *fOut << "FAUSTFLOAT = jnp.float32";
-        tab(n, *fOut);
-        *fOut << "FAUSTINT = jnp.int32";
-        tab(n, *fOut);
-    }
-
-
     // Handle sub containers based on gInlineTable setting
     if (gGlobal->gInlineTable) {
         // Inline tables: merge sub containers into main class
@@ -282,8 +257,26 @@ void JAXCodeContainer::produceClass()
     *fOut << "sample_rate: int";
     tab(n + 1, *fOut);
     *fOut << "soundfile_dirs: list[str] = dataclasses.field(default_factory=list)";
-
     tab(n + 1, *fOut);
+
+    if (gGlobal->gFloatSize == 2) {
+        *fOut << "# enable double precision: "
+                 "https://docs.jax.dev/en/latest/notebooks/"
+                 "Common_Gotchas_in_JAX.html#double-64bit-precision";
+        tab(n + 1, *fOut);
+        *fOut << "faust_float: Dtype = jnp.float64";
+        tab(n + 1, *fOut);
+        *fOut << "faust_int: Dtype = jnp.int64";
+        tab(n + 1, *fOut);
+    } else {
+        *fOut << "# enable single precision";
+        tab(n + 1, *fOut);
+        *fOut << "faust_float: Dtype = jnp.float32";
+        tab(n + 1, *fOut);
+        *fOut << "faust_int: Dtype = jnp.int32";
+        tab(n + 1, *fOut);
+    }
+
     gGlobal->gJAXVisitor->Tab(n);
 
     tab(n + 1, *fOut);
