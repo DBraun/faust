@@ -54,9 +54,8 @@ except ImportError:
 			except FileNotFoundError:
 				# If not found at this path, continue to the next
 				continue
-		
-		# If none of the paths worked, return the default silence array and sample rate
-		return np.zeros((1, 1024)), self.sample_rate
+
+		raise FileNotFoundError(f"Could not load soundfile for path: {filepath}")
 	
 	def add_soundfile(self, zone: str, ui_path: list[str], label: str, url: str, unnorm_funcs: dict):
 		# example url: {"tango.wav';'foo.wav';'bar/baz.wav'}
