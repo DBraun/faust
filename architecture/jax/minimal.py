@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import jax
 from jax import numpy as jnp, random
-from flax import linen as nn
+from flax import nnx
 from flax.typing import Dtype
 
 try:
@@ -76,7 +76,8 @@ except ImportError:
 		if label.startswith("param:"):
 			label = label[6:]  # remove param:
 			label = "/".join(ui_path+[label])
-			fBuffers = self.param("_"+label, (lambda key, shape: fBuffers), None)
+			fBuffers = nnx.Param(fBuffers)  # todo:
+			setattr(self, "_" + label, fBuffers)  # todo: 
 			unnorm_funcs[zone] = (zone, lambda x: x)
 		else:
 			label = "/".join(ui_path+[label])
@@ -90,7 +91,7 @@ except ImportError:
 	
 	def add_button(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
 		label = "/".join(ui_path+[label])
-		setattr(self, zone, self.param(label, nn.initializers.constant(0., dtype=self.faust_float), ()))
+		setattr(self, zone, nnx.Param(jnp.zeros((), dtype=self.faust_float)))
 		unnorm_funcs[label] = (zone, lambda x: x)
 	
 	def add_checkbox(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
@@ -105,7 +106,7 @@ except ImportError:
 		Gumbel-Softmax version of a FAUST nentry:
 			* logits param  (num_steps,)
 			* learnable temperature τ
-			* optional Gumbel noise from self.make_rng("gumbel")
+			* optional Gumbel noise from self.rngs.gumbel()
 		Returns a *soft* value in the physical range.
 
 		todo: this implementation may be problematic for custom value nentry like:
@@ -120,15 +121,14 @@ except ImportError:
 
 		# ---------- parameters ----------
 		# (1) logits, initialised to favour the initial step
-		def init_logits(key, shape):
-			logits = jnp.zeros(shape, dtype=faust_float)
-			return logits.at[init_step].set(faust_float(5.0))        # bias ≈ exp(5) ≈ 148
+		logits = jnp.zeros((num_steps,), dtype=faust_float)
+		logits = logits.at[init_step].set(faust_float(5.0))  # bias ≈ exp(5) ≈ 148
+
 		logits_zone = zone + "_logits"
-		logits_label = label + ":logits"
-		setattr(self, logits_zone, self.param(logits_label, init_logits, (num_steps,)))
+		setattr(self, logits_zone, nnx.Param(logits))  # todo: possible issue that ":logits" suffix with colon not used
 
 		# temperature (optional learnable scalar)
-		# tau = self.param(f"{zone}_tau", nn.initializers.constant(1.0), ())
+		# tau = nnx.Param(jnp.ones((), dtype=faust_float))
 		tau = 1.0  # TODO: user should be able to configure via UI Label metadata:
 		# https://faustdoc.grame.fr/manual/syntax/#ui-label-metadata
 
@@ -139,19 +139,22 @@ except ImportError:
 		
 		# Add unnormalization lambda for nentry
 		def make_nentry_unnorm(zone, logits_zone, tau, step_values):
-			def unnorm_nentry(module):
-				logits = getattr(module, logits_zone)
-				# Gumbel-softmax computation
-				if module.has_rng("gumbel"):  # training
-					gumbel_noise = random.gumbel(module.make_rng("gumbel"), logits.shape, dtype=faust_float)
-					logits_with_noise = logits + gumbel_noise
-					probs = nn.softmax(logits_with_noise / tau, axis=-1)
-					return jnp.dot(probs, step_values)
-				else:  # inference
-					index = jnp.argmax(logits, axis=-1)
-					return step_values[index]
+			def unnorm_nentry():
+				logits = getattr(self, logits_zone).value
+				# # Gumbel-softmax computation
+				# if hasattr(self.rngs, 'gumbel'):  # training
+				# 	gumbel_noise = random.gumbel(
+				# 		self.rngs.gumbel(), logits.shape, dtype=faust_float
+				# 	)
+				# 	logits_with_noise = logits + gumbel_noise
+				# 	probs = nnx.softmax(logits_with_noise / tau, axis=-1)
+				# 	return jnp.dot(probs, step_values)
+				# else:  # inference
+				index = jnp.argmax(logits, axis=-1)
+				return step_values[index]
+
 			return unnorm_nentry
-		
+
 		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
 	
 	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> float:
@@ -215,8 +218,8 @@ except ImportError:
 		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
 		
 		# Create the normalized parameter with label as name
-		setattr(self, zone, self.param(label, nn.initializers.constant(normalized_init, dtype=faust_float), ()))
-		
+		setattr(self, zone, nnx.Param(normalized_init))
+
 		# Create and store the unnormalization function
 		unnorm_func = self.create_unnormalize_func(a_min, a_max, scale_mode)
 		unnorm_funcs[label] = (zone, unnorm_func)
@@ -240,7 +243,7 @@ except ImportError:
 		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
 		This method is called by foreign functions declared in Faust code.
 		"""
-		return random.uniform(self.make_rng("rng_stream"), shape=(), minval=-1, maxval=1, dtype=self.faust_float)
+		return random.uniform(self.rngs.rng_stream(), shape=(), minval=-1, maxval=1, dtype=self.faust_float)
 
 	def unnormalize(self) -> Dict[str, jnp.ndarray]:
 		"""
@@ -255,14 +258,14 @@ except ImportError:
 		for label, (zone, unnorm_func) in self._unnorm_funcs.items():
 			# Check if it's a nentry (needs module as arg)
 			if hasattr(self, f"_{zone}_logits_zone"):
-				params[zone] = unnorm_func(self)
+				params[zone] = unnorm_func()
 			elif hasattr(self, zone):
 				# Regular parameter
-				normalized_value = getattr(self, zone)
+				normalized_value = getattr(self, zone).value
 				params[zone] = unnorm_func(normalized_value)
 			else:
 				raise ValueError(f"Zone not found: {zone}")
-			self.sow("intermediates", label, params[zone])
+			# self.sow("intermediates", label, params[zone])  # todo: may need to remove this?
 		
 		return params
 
@@ -284,16 +287,22 @@ except ImportError:
 		
 		return state
 	
-	def process_block(self, carry: Dict[str, jnp.ndarray], inputs: jnp.ndarray = None, length: int = None, unroll: int = 1) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+	def process_block(
+		self,
+		carry: Dict[str, jnp.ndarray],
+		inputs: jnp.ndarray = None,
+		length: int = None,
+		unroll: int = 1,
+	) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
 		"""
 		Process one block of audio and return updated state.
-		
+
 		Args:
 			carry: State dictionary from previous block
 			inputs: Input audio block of shape (num_inputs, block_size)
 			length (int): block size of generated output
-			unroll (int): 
-			
+			unroll (int):
+
 		Returns:
 			Tuple of (output_block, new_carry) where:
 			- output_block has shape (num_outputs, block_size)
@@ -304,23 +313,34 @@ except ImportError:
 
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize()
-		
-		def tick(module, carry, *xs):
-			return module.tick(params, carry, *xs)
-		
-		scan_fn = nn.scan(tick,
-			variable_broadcast="params",
-			split_rngs={"rng_stream": True},
-			length=length,
+
+		def scan_body(carry, x):
+			new_carry, y = self.tick(params, carry, x)
+			return new_carry, y
+
+		# Handle input shape for scan
+		if inputs is None or self.num_inputs == 0:
+			# Generator case
+			scan_inputs = jnp.zeros((length, 0), dtype=self.faust_float)
+		else:
+			# Transpose from (channels, time) to (time, channels)
+			scan_inputs = jnp.transpose(inputs)
+
+		new_carry, outputs = jax.lax.scan(
+			scan_body,
+			carry,
+			scan_inputs,
 			unroll=unroll,
-			in_axes=1,
-			out_axes=1,
 		)
-		new_carry, outputs = scan_fn(self, carry, inputs)
+		
+		# Transpose outputs back from (time, channels) to (channels, time)
+		outputs = jnp.transpose(outputs)
 
 		return outputs, new_carry
-	
-	def __call__(self, x: jnp.ndarray, length: int = None, unroll: int = 1) -> jnp.ndarray:
+
+	def __call__(
+		self, x: jnp.ndarray, length: int = None, unroll: int = 1
+	) -> jnp.ndarray:
 
 		if length is None and x is not None:
 			length = x.shape[-1]
@@ -330,23 +350,32 @@ except ImportError:
 			x = jnp.zeros((self.num_inputs, length), dtype=self.faust_float)
 
 		carry = self.initialize_carry()
-		
+
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize()
-		
-		def tick(module, carry, *xs):
-			return module.tick(params, carry, *xs)
 
-		scan_fn = nn.scan(tick,
-			variable_broadcast="params",
-			split_rngs={"rng_stream": True},
-			length=length,
+		def scan_body(carry, x):
+			new_carry, y = self.tick(params, carry, x)
+			return new_carry, y
+
+		# Handle input shape for scan
+		if self.num_inputs == 0:
+			# Generator case
+			scan_inputs = jnp.zeros((length, 0), dtype=self.faust_float)
+		else:
+			# Transpose from (channels, time) to (time, channels)
+			scan_inputs = jnp.transpose(x)
+
+		new_carry, outputs = jax.lax.scan(
+			scan_body,
+			carry,
+			scan_inputs,
 			unroll=unroll,
-			in_axes=1,
-			out_axes=1,
 		)
-		new_carry, outputs = scan_fn(self, carry, x)
 		
+		# Transpose outputs back from (time, channels) to (channels, time)
+		outputs = jnp.transpose(outputs)
+
 		return outputs
 
 
@@ -361,7 +390,8 @@ def test(args):
 
 	faust_float = jnp.float64 if args.double else jnp.float32
 
-	model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float)
+	rngs = nnx.Rngs(args.seed, params=args.seed, rng_stream=args.seed)
+	model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float, rngs=rngs)
 
 	logger.info(f"Number of input channels: {model.num_inputs}")
 	logger.info(f"Number of output channels: {model.num_outputs}")
@@ -372,7 +402,9 @@ def test(args):
 	key = random.key(args.seed)
 
 	if args.input is not None:
-		input_audio, _ = librosa.load(args.input, mono=False, sr=args.sample_rate, duration=args.duration)
+		input_audio, _ = librosa.load(
+			args.input, mono=False, sr=args.sample_rate, duration=args.duration
+		)
 		if input_audio.ndim == 1:
 			input_audio = input_audio.unsqueeze(0)
 
@@ -382,42 +414,51 @@ def test(args):
 
 		input_audio = faust_float(input_audio)
 	else:
-		duration_sec = args.duration or 1.  # default to 1 second when making noise.
+		duration_sec = args.duration or 1.0  # default to 1 second when making noise.
 
-		N_SAMPLES = int(duration_sec*args.sample_rate)
+		N_SAMPLES = int(duration_sec * args.sample_rate)
 		if isinstance(args.unroll, int):
-			N_SAMPLES = (N_SAMPLES//int(args.unroll))*int(args.unroll)
+			N_SAMPLES = (N_SAMPLES // int(args.unroll)) * int(args.unroll)
 		N_CHANNELS = model.num_inputs
 
 		if args.random:
-			input_audio = random.uniform(key, shape=(N_CHANNELS, N_SAMPLES), minval=-1, maxval=1, dtype=faust_float)
+			input_audio = random.uniform(
+				key,
+				shape=(N_CHANNELS, N_SAMPLES),
+				minval=-1,
+				maxval=1,
+				dtype=faust_float,
+			)
 		else:
 			input_audio = jnp.zeros((N_CHANNELS, N_SAMPLES), dtype=faust_float)
-			input_audio = input_audio.at[:,0].set(1.)
+			input_audio = input_audio.at[:, 0].set(1.0)
 
-	variables = model.init({"params": key, "rng_stream": key}, input_audio, length=N_SAMPLES, unroll=args.unroll)
 	if args.verbose:
-		print("variables:", variables)
+		print("model:", model)
 
-	def forward(variables, x: jnp.ndarray):
-		y = model.apply(variables, x, length=N_SAMPLES, unroll=args.unroll, rngs={"rng_stream": key})
+	@nnx.jit
+	def forward(x: jnp.ndarray):
+		y = model(x, length=N_SAMPLES, unroll=args.unroll)
 		return y
-	
-	if args.jit:
-		forward = jax.jit(forward)
+
+	if not args.jit:
+		def forward(x: jnp.ndarray):
+			y = model(x, length=N_SAMPLES, unroll=args.unroll)
+			return y
 
 	if args.benchmark:
 		import tqdm
+
 		for _ in range(3):
-			y = forward(variables, input_audio).block_until_ready()
+			y = forward(input_audio).block_until_ready()
 		for _ in tqdm.trange(args.benchmark):
-			y = forward(variables, input_audio).block_until_ready()
+			y = forward(input_audio).block_until_ready()
 
-	y = forward(variables, input_audio)
+	y = forward(input_audio)
 
-	_, mod_vars = model.apply(variables, mutable="intermediates", rngs={"rng_stream": key}, method="unnormalize")
+	params = model.unnormalize()
 	if args.verbose:
-		print("mod_vars", mod_vars)
+		print("params", params)
 
 	assert y.ndim == 2
 	assert y.shape[0] == model.num_outputs
@@ -426,13 +467,16 @@ def test(args):
 
 	if args.output is not None:
 		from scipy.io import wavfile
+
 		output_audio = np.array(y).T
 		wavfile.write(args.output, args.sample_rate, output_audio)
 
 	logger.info("All done!")
 
 
-def realtime_audio_example(unroll: int = 1, sample_rate: int = 48_000, block_size: int = 512, use_double = False):
+def realtime_audio_example(
+	unroll: int = 1, sample_rate: int = 48_000, block_size: int = 512, use_double=False
+):
 	"""
 	Real-time audio streaming example using sounddevice.
 	Demonstrates the real-time API with actual audio output.
@@ -442,35 +486,32 @@ def realtime_audio_example(unroll: int = 1, sample_rate: int = 48_000, block_siz
 	except ImportError:
 		print("sounddevice not installed. Install with: pip install sounddevice")
 		return
-	
+
 	import time
-	
+
 	# Initialize model
 	faust_float = jnp.float64 if use_double else jnp.float32
 
-	model = mydsp(sample_rate=sample_rate, faust_float=faust_float)
-	key = random.key(0)
-	
-	# Initialize parameters
-	if model.num_inputs > 0:
-		dummy_input = jnp.zeros((model.num_inputs, 1))
-	else:
-		dummy_input = None
-	
-	variables = model.init({"params": key, "rng_stream": key}, dummy_input, length=1)
-	
+	rngs = nnx.Rngs(0, params=0, rng_stream=0)
+	model = mydsp(sample_rate=sample_rate, faust_float=faust_float, rngs=rngs)
+
 	# Initialize carry state
-	carry = model.apply(variables, method="initialize_carry")
-	
+	carry = model.initialize_carry()
+
 	# JIT compile the process method
 	@jax.jit
-	def process_block_jit(carry, inputs: jnp.ndarray, rng: jax.Array):
-		return model.apply(variables, carry, inputs, length=block_size, unroll=unroll, method="process_block", rngs={"rng_stream": rng})
-	
+	def process_block_jit(carry, inputs: jnp.ndarray):
+		outputs, new_carry = model.process_block(
+			carry,
+			inputs,
+			length=block_size,
+			unroll=unroll,
+		)
+		return outputs, new_carry
+
 	# Create a generator for audio blocks
 	def audio_generator():
 		nonlocal carry
-		key = random.key(0)
 		while True:
 			# For generators, create empty input
 			if model.num_inputs == 0:
@@ -479,82 +520,82 @@ def realtime_audio_example(unroll: int = 1, sample_rate: int = 48_000, block_siz
 				# For processors, you would get input from sounddevice
 				# For this example, we'll use zeros
 				inputs = jnp.zeros((model.num_inputs, block_size))
-			
+
 			# Process block
-			key, subkey = random.split(key)
-			outputs, carry = process_block_jit(carry, inputs, subkey)
-			
+			outputs, carry = process_block_jit(carry, inputs)
+
 			# Convert to numpy and reshape for sounddevice
 			# sounddevice expects shape (frames, channels)
 			output_np = np.asarray(outputs.T, dtype=np.float32)
-			
+
 			# If mono, reshape to (frames, 1)
 			if output_np.ndim == 1:
 				output_np = output_np.reshape(-1, 1)
-			
+
 			yield output_np
-	
+
 	# Create the audio generator
 	audio_gen = audio_generator()
-	
+
 	# Sounddevice callback
 	def callback(outdata, frames, time_info, status):
 		if status:
 			print(f"Sounddevice status: {status}")
 		outdata[:] = next(audio_gen)
-	
+
 	# Start streaming
 	print(f"▶ Streaming audio at {sample_rate} Hz, {block_size} samples/block")
 	print(f"  Model: {model.num_inputs} inputs → {model.num_outputs} outputs")
 	print("  Press Ctrl+C to stop...")
-	
+
 	try:
 		with sd.OutputStream(
 			channels=model.num_outputs,
 			samplerate=sample_rate,
 			blocksize=block_size,
-			dtype='float32',
-			callback=callback
+			dtype="float32",
+			callback=callback,
 		):
 			while True:
 				time.sleep(1)
 	except KeyboardInterrupt:
 		print("\n⏹ Stopped.")
-		
+
 
 if __name__ == "__main__":
 	import argparse
-	parser = argparse.ArgumentParser(description="Run a JAX/Flax model converted from Faust code")
+
+	# fmt: off
+	parser = argparse.ArgumentParser(description="Run a JAX/Flax model converted from Faust code")	
 	parser.add_argument("-sr", "--sample-rate", type=int, default=44100, help="Sample rate (such as 44100)")
 	parser.add_argument("-d", "--duration", type=float, default=None, help="Output duration in seconds")
 	parser.add_argument("--unroll", type=int, default=1, help="Unroll size (default is 1)")
-	parser.add_argument("--random", default=False, action=argparse.BooleanOptionalAction,
-		help="Whether the default audio is random. By default it\"s an impulse.")
+	parser.add_argument("--random", default=False, action=argparse.BooleanOptionalAction, help='Whether the default audio is random. By default it"s an impulse.')
 	parser.add_argument("--seed", default=0, type=int, help="Seed for random number generator (default: 0)")
 	parser.add_argument("-i", "--input", type=str, default=None, help="Filepath for input audio WAV")
 	parser.add_argument("-o", "--output", type=str, default=None, help="Filepath for output audio WAV")
-	parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
-						help="Set the logger level (default: INFO)")
-	parser.add_argument("--jit", default=False, action=argparse.BooleanOptionalAction,
-                        help="Whether to use JIT.")
+	parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Set the logger level (default: INFO)")
+	parser.add_argument("--jit", default=False, action=argparse.BooleanOptionalAction, help="Whether to use JIT.")
 	parser.add_argument("--benchmark", type=int, default=0, help="Number of loops for a speed benchmark with tqdm (default=0).")
 	parser.add_argument("--platform", default="cpu", choices=["cpu", "gpu", "metal", "tpu"])
-	parser.add_argument("--double", default=False, action=argparse.BooleanOptionalAction,
-						help="Whether to enable double type (jnp.float64)")
-	parser.add_argument("--verbose", default=False, action=argparse.BooleanOptionalAction,
-						help="Whether to print the variables of the DSP")
-	parser.add_argument("--realtime", default=False, action=argparse.BooleanOptionalAction,
-						help="Run the DSP with silent input and send the output to an audio device in real-time.")
-	parser.add_argument("-bs", "--block-size", type=int, default=512, help="Block size for real-time mode such as 512")
-
+	parser.add_argument("--double", default=False, action=argparse.BooleanOptionalAction, help="Whether to enable double type (jnp.float64)")
+	parser.add_argument("--verbose", default=False, action=argparse.BooleanOptionalAction, help="Whether to print the variables of the DSP")
+	parser.add_argument("--realtime", default=False, action=argparse.BooleanOptionalAction, help="Run the DSP with silent input and send the output to an audio device in real-time.")
+	parser.add_argument("-bs", "--block-size", type=int, default=512, help="Block size for real-time mode such as 512",)
+	# fmt: on
 	args = parser.parse_args()
-	
+
 	# Global flag to set a specific platform, must be used at startup.
 	if args.double:
 		jax.config.update("jax_enable_x64", True)
 	jax.config.update("jax_platform_name", args.platform)
 
 	if args.realtime:
-		realtime_audio_example(args.unroll, sample_rate=args.sample_rate, block_size=args.block_size, use_double=args.double)
+		realtime_audio_example(
+			args.unroll,
+			sample_rate=args.sample_rate,
+			block_size=args.block_size,
+			use_double=args.double,
+		)
 	else:
 		test(args)

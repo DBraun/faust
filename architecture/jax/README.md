@@ -1,6 +1,7 @@
 # Faust JAX Backend Documentation
 
-The JAX backend allows Faust to generate Python code that uses JAX and Flax for efficient numerical computation with automatic differentiation support. For more information on developing backends for Faust, check out [`compiler/generator/template/README.md`](https://github.com/grame-cncm/faust/tree/master-dev/compiler/generator/template) and the related C++ files.
+The JAX backend allows Faust to generate Python code that uses JAX and Flax (NNX) for efficient numerical computation with automatic differentiation support.
+For more information on developing backends for Faust, check out [`compiler/generator/template/README.md`](https://github.com/grame-cncm/faust/tree/master-dev/compiler/generator/template) and the related C++ files.
 
 ## Installing JAX Dependencies
 
@@ -47,7 +48,7 @@ Options:
 - `-cn MyExample`: Sets the class name (default is `mydsp`)
 - `-o my_example.py`: Specifies the output file
 
-The generated code creates a Flax `nn.Module` that can be used in JAX programs. You can also verify its basic execution with:
+The generated code creates a Flax `nnx.Module` that can be used in JAX programs. You can also verify its basic execution with:
 ```bash
 python3 my_example.py
 ```
@@ -60,30 +61,32 @@ python3 my_example.py --help
 
 ```python
 import jax
-import jax.numpy as jnp
-from jax import random
+from jax import numpy as jnp, random
 from my_example import MyExample
 
+# Pick some seed values
+rngs = nnx.Rngs(0, params=42, rng_stream=1337)
+
+sample_rate = 48_000
+
 # Initialize the model
-model = MyExample(sample_rate=48000)
-key = random.key(0)
+model = MyExample(sample_rate=sample_rate, rngs=rngs)
 
 # Create input (channels x samples)
-n_samples = 48000  # 1 second
+n_samples = int(sample_rate*1.0)  # 1 second
 
 input_audio = jnp.zeros((model.num_inputs, n_samples))
 input_audio = input_audio.at[:, 0].set(1.0)  # impulse on all channels
 
-# Initialize and run the model
-variables = model.init({'params': key}, input_audio)
-output_audio = model.apply(variables, input_audio)
+# Run the model
+output_audio = model(input_audio)
 assert output_audio.shape == (model.num_outputs, n_samples)
 
 # For generators, pass None as input and specify `length`
-variables = model.init({'params': key}, None, length=n_samples)
-output_audio = model.apply(variables, None, length=n_samples)
+output_audio = model(None, length=n_samples)
 
 # If bargraphs are in the DSP code:
+# todo: this feature is currently disabled in jax_code_container.cpp
 output_audio, mod_vars = model.apply(variables, input_audio, mutable="intermediates")
 bargraphs = mod_vars["intermediates"]
 ```
@@ -93,7 +96,7 @@ bargraphs = mod_vars["intermediates"]
 **`__call__(x: jnp.ndarray, length: int, unroll: int)`**: Basic offline audio processing without receiving and returning a carry state
 - `x`: Input audio tensor of shape `(num_inputs, num_samples)` or `None` for generators
 - `length`: Number of samples to process (necessary when `x is None`)
-- `unroll`: Unroll size for `nn.scan`
+- `unroll`: Unroll size for `jax.lax.scan`
 
 **Available properties:**
 
@@ -102,31 +105,37 @@ bargraphs = mod_vars["intermediates"]
 
 ### Real-time Processing
 
-The JAX backend supports real-time audio processing with block-wise computation and proper state management. This API enables low-latency processing similar to Flax's `RNNBase` pattern.
+The JAX backend supports real-time audio processing with block-wise computation and proper state management.
+This API enables low-latency processing similar to Flax's `RNNBase` pattern.
 
 **Using the Real-time API:**
 
 ```python
 import jax
-import jax.numpy as jnp
-from jax import random
+from jax import numpy as jnp, random
 from my_example import MyExample
 
+# Pick some seed values
+rngs = nnx.Rngs(0, params=42, rng_stream=1337)
+
 # Initialize model
-model = MyExample(sample_rate=48000)
-key = random.key(0)
+model = MyExample(sample_rate=48000, rngs=rngs)
 
 BLOCK_SIZE = 512
 
+# Initialize carry state
+carry = model.initialize_carry()
+
 # JIT compile the process method
 @jax.jit
-def process_block_jit(carry, inputs: jnp.ndarray, rng: jax.Array):
-   return model.apply(variables, carry, inputs, length=BLOCK_SIZE, method="process_block", rngs={"rng_stream": rng})
-
-# Initialize carry state
-carry, variables = model.init_with_output({"params": key, "rng_stream": key}, method="initialize_carry")
-
-rng = jax.random.key(0)
+def process_block_jit(carry, inputs: jnp.ndarray):
+   outputs, new_carry = model.process_block(
+      carry,
+      inputs,
+      length=block_size,
+      unroll=unroll,
+   )
+   return outputs, new_carry
 
 # Process audio block by block
 for block_idx in range(num_blocks):
@@ -134,8 +143,7 @@ for block_idx in range(num_blocks):
     input_block = get_audio_input()  # shape: (num_inputs, BLOCK_SIZE)
     
     # Process block and get updated state
-    rng, subkey = jax.random.split(rng)
-    (output_block, carry), _ = process_block_jit(carry, input_block, subkey)
+    output_block, carry = process_block_jit(carry, input_block)
     # output_block is (num_outputs, BLOCK_SIZE)
     
     # Send output to audio interface. In reality, audio interfaces use a callback strategy.
@@ -147,20 +155,20 @@ for block_idx in range(num_blocks):
 1. **`initialize_carry(self)`**: Creates initial state for real-time processing
    - Returns: Dictionary containing all stateful components (delays, filter states, etc.)
 
-1. **`process_block(carry, inputs: jnp.ndarray)`**: Processes one block of audio
+1. **`process_block(carry, inputs: jnp.ndarray, length: int = None, unroll: int = 1)`**: Processes one block of audio
    - `carry`: State dictionary from previous block
    - `inputs`: Input block of shape `(num_inputs, block_size)`
    - `length`: output length if `inputs` is None. This is like the block size.
-   - `unroll`: Unroll size for `nn.scan`
+   - `unroll`: Unroll size for `jax.lax.scan`
    - Returns: Tuple `(outputs, new_carry)` where outputs has shape `(num_outputs, block_size)`
 
 ## Features
 
-- **JIT Compilation**: Generated code is compatible with `jax.jit` and `nn.jit` for performance
-- **Automatic Differentiation**: Can be used with `jax.grad` and other JAX transformations
-- **Vectorization**: Compatible with `jax.vmap` for batch processing
+- **JIT Compilation**: Generated code is compatible with `jax.jit` and `nnx.jit` for performance
+- **Automatic Differentiation**: Can be used with `jax.grad`, `nnx.value_and_grad` and other JAX/Flax [transformations](https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/transforms.html)
+- **Vectorization**: Compatible with `jax.vmap` and `nnx.vmap` for batch processing
 - **State Management**: Proper handling of delays and stateful operations
-- **RNG Support**: Compatible with Flax's RNG system via `self.make_rng("rng_stream")` for stochastic DSPs
+- **RNG Support**: Compatible with Flax's RNG system for stochastic DSPs
 
 ### Random Number Generation
 
@@ -174,7 +182,8 @@ jax_noise = ffunction(float self.random_uniform(), "", "");
 process = jax_noise;
 ```
 
-This generates code that calls `self.random_uniform()` which uses JAX's PRNG system with proper RNG key management via `self.make_rng("rng_stream")`. This allows both reproducibility and controllable variation in randomness when using batch sizes or distributed computing.
+This generates code that calls `self.random_uniform()` which uses JAX's PRNG system with proper RNG key management via `self.rngs.rng_stream()`.
+This allows both reproducibility and controllable variation in randomness when using batch sizes or distributed computing.
 
 ## Performance Optimizations
 
@@ -200,7 +209,7 @@ The JAX backend supports polyphonic DSPs. Polyphony in JAX is naturally handled 
 ### Performance
 
 For optimal performance:
-- Use `jax.jit` or `nn.jit`
+- Use `jax.jit` or `nnx.jit`
 - Consider using GPU acceleration with large batch sizes.
 
 ## Integration with Machine Learning

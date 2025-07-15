@@ -1207,8 +1207,9 @@ class JAXInstVisitor : public TextInstVisitor {
                 }
                 
                 // Generate sow() call
+                // todo: this code fails at runtime, so it's disabled now.
                 tab(fTab, *fOut);
-                *fOut << "self.sow(\"intermediates\", \"" << targetVar << "\", " << targetVar << ")";
+                *fOut << "# self.sow(\"intermediates\", \"" << targetVar << "\", " << targetVar << ")";
                 EndLine(' ');
                 return;
             }
