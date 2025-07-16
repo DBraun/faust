@@ -22,6 +22,8 @@ import numpy as np
 import jax
 from jax import numpy as jnp, random
 from flax import nnx
+from flax.nnx import rnglib
+from flax.nnx.module import first_from
 from flax.typing import Dtype
 
 try:
@@ -88,14 +90,33 @@ except ImportError:
 			"fBuffers": fBuffers,
 			"fSR": jnp.array(fSR, dtype=self.faust_float)
 		})
+		
+		# Store parameter metadata
+		self._parameter_metadata[zone] = {
+			"label": label,
+			"type": "soundfile",
+			"internal_name": zone,
+		}
 	
 	def add_button(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
-		label = "/".join(ui_path+[label])
+		full_label = "/".join(ui_path+[label])
 		setattr(self, zone, nnx.Param(jnp.zeros((), dtype=self.faust_float)))
-		unnorm_funcs[label] = (zone, lambda x: x)
+		unnorm_funcs[full_label] = (zone, lambda x: x)
+		
+		# Store parameter metadata
+		self._parameter_metadata[zone] = {
+			"label": label,
+			"type": "button",
+			"internal_name": zone,
+			"min": 0.0,
+			"max": 1.0,
+			"default": 0.0,
+		}
 	
 	def add_checkbox(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
 		self.add_button(zone, ui_path, label, unnorm_funcs)
+		# Update type in metadata
+		self._parameter_metadata[zone]["type"] = "checkbox"
 	
 	def add_nentry(
 		self, zone: str, ui_path: List[str], label: str,
@@ -114,7 +135,7 @@ except ImportError:
 		"""
 		faust_float = self.faust_float
 		# ---------- set up grid ----------
-		label = "/".join(ui_path + [label])
+		full_label = "/".join(ui_path + [label])
 		num_steps  = int(round((a_max - a_min) / step_size)) + 1
 		init_step  = int(round((init - a_min) / step_size))
 		step_values = jnp.arange(num_steps, dtype=faust_float) * faust_float(step_size) + faust_float(a_min)
@@ -156,7 +177,20 @@ except ImportError:
 
 			return unnorm_nentry
 
-		unnorm_funcs[label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
+		unnorm_funcs[full_label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
+		
+		# Store parameter metadata
+		self._parameter_metadata[zone] = {
+			"label": label,
+			"type": "nentry",
+			"internal_name": zone,
+			"min": a_min,
+			"max": a_max,
+			"default": init,
+			"step": step_size,
+			"num_options": num_steps,
+			"scale_mode": scale_mode,
+		}
 	
 	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> float:
 		"""Normalize a value from [a_min, a_max] to [0, 1] based on scale mode."""
@@ -212,7 +246,7 @@ except ImportError:
 	def add_slider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode="linear"):
 		"""Add a slider UI element with the specified parameters."""
 		faust_float = self.faust_float
-		label = "/".join(ui_path + [label])
+		full_label = "/".join(ui_path + [label])
 		init, a_min, a_max = faust_float(init), faust_float(a_min), faust_float(a_max)
 		
 		# Normalize init value to [0, 1] based on scale mode
@@ -223,28 +257,67 @@ except ImportError:
 
 		# Create and store the unnormalization function
 		unnorm_func = self.create_unnormalize_func(a_min, a_max, scale_mode)
-		unnorm_funcs[label] = (zone, unnorm_func)
+		unnorm_funcs[full_label] = (zone, unnorm_func)
+		
+		# Store parameter metadata
+		self._parameter_metadata[zone] = {
+			"label": label,
+			"type": "slider",
+			"internal_name": zone,
+			"min": a_min,
+			"max": a_max,
+			"default": init,
+			"scale_mode": scale_mode,
+		}
 	
 	def add_hslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
+		# Update type in metadata
+		self._parameter_metadata[zone]["type"] = "hslider"
 	
 	def add_vslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
+		# Update type in metadata
+		self._parameter_metadata[zone]["type"] = "vslider"
 	
 	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
-		pass
+		# But we can still store metadata
+		self._parameter_metadata[zone] = {
+			"label": label,
+			"type": "hbargraph",
+			"internal_name": zone,
+			"min": a_min,
+			"max": a_max,
+			"output_only": True,
+		}
 	
 	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
-		pass
+		# But we can still store metadata
+		self._parameter_metadata[zone] = {
+			"label": label,
+			"type": "vbargraph",
+			"internal_name": zone,
+			"min": a_min,
+			"max": a_max,
+			"output_only": True,
+		}
 
 	def random_uniform(self):
 		"""
 		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
 		This method is called by foreign functions declared in Faust code.
 		"""
-		return random.uniform(self.rngs.rng_stream(), shape=(), minval=-1, maxval=1, dtype=self.faust_float)
+		if self.rngs is None:
+			raise ValueError("No RNG provided but random_uniform was called")
+		if isinstance(self.rngs, rnglib.Rngs):
+			rng = self.rngs[self.rng_collection]()
+		elif isinstance(self.rngs, rnglib.RngStream):
+			rng = self.rngs()
+		else:
+			raise TypeError(f"rngs must be Rngs or RngStream, got {type(self.rngs)}")
+		return random.uniform(rng, shape=(), minval=-1, maxval=1, dtype=self.faust_float)
 
 	def unnormalize(self) -> Dict[str, jnp.ndarray]:
 		"""
@@ -269,6 +342,15 @@ except ImportError:
 			# self.sow("intermediates", label, params[zone])  # todo: may need to remove this?
 		
 		return params
+	
+	def get_parameter_metadata(self) -> Dict[str, Dict[str, any]]:
+		"""
+		Get metadata for all parameters.
+		
+		Returns:
+			Dictionary mapping internal names to parameter metadata
+		"""
+		return self._parameter_metadata.copy()
 
 	def initialize_carry(self) -> Dict[str, jnp.ndarray]:
 		"""
@@ -294,6 +376,7 @@ except ImportError:
 		inputs: jnp.ndarray = None,
 		length: int = None,
 		unroll: int = 1,
+		rngs: rnglib.Rngs | rnglib.RngStream | jax.Array | None = None,
 	) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
 		"""
 		Process one block of audio and return updated state.
@@ -302,7 +385,8 @@ except ImportError:
 			carry: State dictionary from previous block
 			inputs: Input audio block of shape (num_inputs, block_size)
 			length (int): block size of generated output
-			unroll (int):
+			unroll (int): unroll argument for nnx.scan
+			rngs: rng key.
 
 		Returns:
 			Tuple of (output_block, new_carry) where:
@@ -315,8 +399,20 @@ except ImportError:
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize()
 
-		def scan_body(carry, x):
-			new_carry, y = self.tick(params, carry, x)
+		rngs = first_from(rngs, self.rngs, error_msg="No `rngs` argument was provided as either a __call__ argument or class attribute")		
+		# Get a key from the rng_stream
+		if isinstance(rngs, jax.Array):
+			rng_key = rngs
+		elif isinstance(rngs, rnglib.Rngs):
+			rng_key = rngs[self.rng_collection]()
+		elif isinstance(rngs, rnglib.RngStream):
+			rng_key = rngs()
+		else:
+			raise TypeError(f"rngs must be JAX array, Rngs or RngStream, got {type(rngs)}")
+		scan_rngs = random.split(rng_key, length)
+
+		def scan_body(carry, x, _rng):
+			new_carry, y = self.tick(params, carry, x, _rng)
 			return new_carry, y
 
 		# Handle input shape for scan
@@ -327,18 +423,33 @@ except ImportError:
 		new_carry, outputs = nnx.scan(
 			scan_body,
 			unroll=unroll,
-			in_axes=(nnx.Carry, 1),
+			in_axes=(nnx.Carry, 1, 0),
 			out_axes=(nnx.Carry, 1),
-		)(carry, inputs)
+		)(carry, inputs, scan_rngs)
 
 		return outputs, new_carry
 
 	def __call__(
-		self, inputs: jnp.ndarray, length: int = None, unroll: int = 1
+		self,
+		inputs: jnp.ndarray,
+		length: int = None,
+		unroll: int = 1,
+		rngs: rnglib.Rngs | rnglib.RngStream | jax.Array | None = None,
 	) -> jnp.ndarray:
 
 		if length is None and inputs is not None:
 			length = inputs.shape[-1]
+
+		rngs = first_from(rngs, self.rngs, error_msg="No `rngs` argument was provided as either a __call__ argument or class attribute")
+		if isinstance(rngs, jax.Array):
+			rng_key = rngs
+		elif isinstance(rngs, rnglib.Rngs):
+			rng_key = rngs[self.rng_collection]()
+		elif isinstance(rngs, rnglib.RngStream):
+			rng_key = rngs()
+		else:
+			raise TypeError(f"rngs must be JAX array, Rngs or RngStream, got {type(rngs)}")
+		scan_rngs = random.split(rng_key, length)
 
 		# Handle generators (no input case)
 		if inputs is None:
@@ -349,8 +460,8 @@ except ImportError:
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize()
 
-		def scan_body(carry, inputs):
-			new_carry, y = self.tick(params, carry, inputs)
+		def scan_body(carry, inputs, _rng):
+			new_carry, y = self.tick(params, carry, inputs, _rng)
 			return new_carry, y
 
 		# Handle input shape for scan
@@ -361,9 +472,9 @@ except ImportError:
 		new_carry, outputs = nnx.scan(
 			scan_body,
 			unroll=unroll,
-			in_axes=(nnx.Carry, 1),
+			in_axes=(nnx.Carry, 1, 0),
 			out_axes=(nnx.Carry, 1),
-		)(carry, inputs)
+		)(carry, inputs, scan_rngs)
 
 		return outputs
 
@@ -425,12 +536,26 @@ def test(args):
 	if args.verbose:
 		print("model:", model)
 
-	@nnx.jit
-	def forward(x: jnp.ndarray):
-		y = model(x, length=N_SAMPLES, unroll=args.unroll)
-		return y
-
-	if not args.jit:
+	if args.jit:
+		# For JIT, we need to handle the model call differently
+		# Extract a key before JIT compilation
+		if model.rngs is not None:
+			# Get a single RNG key to use for the entire forward pass
+			if isinstance(model.rngs, rnglib.Rngs):
+				rng_key = model.rngs[model.rng_collection]()
+			elif isinstance(model.rngs, rnglib.RngStream):
+				rng_key = model.rngs()
+			else:
+				rng_key = None
+		else:
+			rng_key = None
+		
+		@jax.jit
+		def forward(x: jnp.ndarray):
+			# Pass the pre-extracted RNG key
+			y = model(x, length=N_SAMPLES, unroll=args.unroll, rngs=rng_key)
+			return y
+	else:
 		def forward(x: jnp.ndarray):
 			y = model(x, length=N_SAMPLES, unroll=args.unroll)
 			return y
@@ -489,18 +614,20 @@ def realtime_audio_example(
 
 	# JIT compile the process method
 	@jax.jit
-	def process_block_jit(carry, inputs: jnp.ndarray):
+	def process_block_jit(carry, inputs: jnp.ndarray, rng_key: jax.Array):
 		outputs, new_carry = model.process_block(
 			carry,
 			inputs,
 			length=block_size,
 			unroll=unroll,
+			rngs=rng_key,
 		)
 		return outputs, new_carry
 
 	# Create a generator for audio blocks
 	def audio_generator():
 		nonlocal carry
+		rng_key = random.key(0)
 		while True:
 			# For generators, create empty input
 			if model.num_inputs == 0:
@@ -511,7 +638,8 @@ def realtime_audio_example(
 				inputs = jnp.zeros((model.num_inputs, block_size))
 
 			# Process block
-			outputs, carry = process_block_jit(carry, inputs)
+			subkey, rng_key = random.split(rng_key)
+			outputs, carry = process_block_jit(carry, inputs, subkey)
 
 			# Convert to numpy and reshape for sounddevice
 			# sounddevice expects shape (frames, channels)

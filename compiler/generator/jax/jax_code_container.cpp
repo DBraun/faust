@@ -271,12 +271,15 @@ void JAXCodeContainer::produceClass()
 		faust_int: Dtype = jnp.int32,)";
     }
     *fOut << R"(
+		rng_collection: str = "rng_stream",
 		rngs: nnx.Rngs = None,
 	):
+		self._parameter_metadata = {}
 		self.sample_rate = sample_rate
 		self.soundfile_dirs = soundfile_dirs or []
 		self.faust_float = faust_float
 		self.faust_int = faust_int
+		self.rng_collection = rng_collection
 		self.rngs = rngs
 )";
 
@@ -1340,7 +1343,7 @@ void JAXCodeContainer::produceClass()
 void JAXCodeContainer::generateCompute(int n)
 {
     tab(n, *fOut);
-    *fOut << "def tick(self, params: dict, state: dict, inputs: jnp.ndarray) -> Tuple[dict, jnp.ndarray]:";
+    *fOut << "def tick(self, params: dict, state: dict, inputs: jnp.ndarray, rng: jax.Array = None) -> Tuple[dict, jnp.ndarray]:";
     tab(n + 1, *fOut);
 
     tab(n + 1, *fOut);
