@@ -130,7 +130,6 @@ If a test fails:
 3. Examine the generated Python code: `generated/<testname>.py`
 4. The test result file `generated/<testname>.test` will indicate if it was a compilation or runtime error
 
-Common issues:
-- **Missing function error (e.g., `fillmydspSIG0SIG0`)**: The JAX backend may have incomplete support for certain DSP primitives like waveforms
-- **JIT compilation errors**: Ensure the minimal.py architecture file has correct JAX syntax
-- **Import errors**: Install all required Python packages listed above
+Known issues:
+- **Missing function error (e.g., `fillmydspSIG0SIG0`)**: **This is why `waveform_tabulate.dsp` fails. See https://github.com/grame-cncm/faust/issues/737
+- **Missing soundfiles cause failures**. The URLs in `sound.dsp` don't have audio files, so `sound.dsp` fails. In some Faust architectures, missing soundfiles are replaced with silence, but the JAX architecture is stricter.

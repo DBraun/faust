@@ -35,7 +35,7 @@ except ImportError:
 <<includeIntrinsic>>
 <<includeclass>>
 	
-	def load_soundfile(self, filepath: str):
+	def load_soundfile(self, filepath: str) -> Tuple[np.ndarray, int]:
 		if librosa is None:
 			return np.zeros((1, 1024)), self.sample_rate
 		
@@ -141,6 +141,7 @@ except ImportError:
 		def make_nentry_unnorm(zone, logits_zone, tau, step_values):
 			def unnorm_nentry():
 				logits = getattr(self, logits_zone).value
+				# todo: finish Gumbel-softmax for NNX
 				# # Gumbel-softmax computation
 				# if hasattr(self.rngs, 'gumbel'):  # training
 				# 	gumbel_noise = random.gumbel(
@@ -321,60 +322,48 @@ except ImportError:
 		# Handle input shape for scan
 		if inputs is None or self.num_inputs == 0:
 			# Generator case
-			scan_inputs = jnp.zeros((length, 0), dtype=self.faust_float)
-		else:
-			# Transpose from (channels, time) to (time, channels)
-			scan_inputs = jnp.transpose(inputs)
+			inputs = jnp.zeros((0, length), dtype=self.faust_float)
 
-		new_carry, outputs = jax.lax.scan(
+		new_carry, outputs = nnx.scan(
 			scan_body,
-			carry,
-			scan_inputs,
 			unroll=unroll,
-		)
-		
-		# Transpose outputs back from (time, channels) to (channels, time)
-		outputs = jnp.transpose(outputs)
+			in_axes=(nnx.Carry, 1),
+			out_axes=(nnx.Carry, 1),
+		)(carry, inputs)
 
 		return outputs, new_carry
 
 	def __call__(
-		self, x: jnp.ndarray, length: int = None, unroll: int = 1
+		self, inputs: jnp.ndarray, length: int = None, unroll: int = 1
 	) -> jnp.ndarray:
 
-		if length is None and x is not None:
-			length = x.shape[-1]
+		if length is None and inputs is not None:
+			length = inputs.shape[-1]
 
 		# Handle generators (no input case)
-		if x is None:
-			x = jnp.zeros((self.num_inputs, length), dtype=self.faust_float)
+		if inputs is None:
+			inputs = jnp.zeros((self.num_inputs, length), dtype=self.faust_float)
 
 		carry = self.initialize_carry()
 
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize()
 
-		def scan_body(carry, x):
-			new_carry, y = self.tick(params, carry, x)
+		def scan_body(carry, inputs):
+			new_carry, y = self.tick(params, carry, inputs)
 			return new_carry, y
 
 		# Handle input shape for scan
 		if self.num_inputs == 0:
 			# Generator case
-			scan_inputs = jnp.zeros((length, 0), dtype=self.faust_float)
-		else:
-			# Transpose from (channels, time) to (time, channels)
-			scan_inputs = jnp.transpose(x)
+			inputs = jnp.zeros((0, length), dtype=self.faust_float)
 
-		new_carry, outputs = jax.lax.scan(
+		new_carry, outputs = nnx.scan(
 			scan_body,
-			carry,
-			scan_inputs,
 			unroll=unroll,
-		)
-		
-		# Transpose outputs back from (time, channels) to (channels, time)
-		outputs = jnp.transpose(outputs)
+			in_axes=(nnx.Carry, 1),
+			out_axes=(nnx.Carry, 1),
+		)(carry, inputs)
 
 		return outputs
 

@@ -19,7 +19,7 @@ import os
 from os import environ
 environ["JAX_PLATFORM_NAME"] = "cpu"
 environ["CUDA_VISIBLE_DEVICES"] = ""  # Disable CUDA
-environ["JAX_PLATFORMS"] = "cpu"     # Force CPU only
+environ["JAX_PLATFORMS"] = "cpu"      # Force CPU only
 
 import contextlib
 
@@ -54,7 +54,7 @@ with suppress_metal_message():
 	from pathlib import Path
 	import numpy as np
 	from jax import numpy as jnp, random
-	from flax import linen as nn
+	from flax import nnx
 	from flax.typing import Dtype
 
 try:
@@ -68,7 +68,7 @@ except ImportError:
 <<includeIntrinsic>>
 <<includeclass>>
 
-	def load_soundfile(self, filepath):
+	def load_soundfile(self, filepath: str) -> Tuple[np.ndarray, int]:
 		# This pre-computed sine is desired for the impulse-tests.
 		audio = jnp.sin(jnp.linspace(0, 2*jnp.pi, num=4096, endpoint=False, dtype=self.faust_float))
 		audio = jnp.stack([audio, audio])
@@ -93,7 +93,8 @@ except ImportError:
 		if label.startswith("param:"):
 			label = label[6:]  # remove param:
 			label = "/".join(ui_path+[label])
-			fBuffers = self.param("_"+label, (lambda key, shape: fBuffers), None)
+			fBuffers = nnx.Param(fBuffers)
+			setattr(self, "_" + label, fBuffers)
 			unnorm_funcs[zone] = (zone, lambda x: x)
 		else:
 			label = "/".join(ui_path+[label])
@@ -107,7 +108,7 @@ except ImportError:
 
 	def add_button(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
 		label = "/".join(ui_path+[label])
-		setattr(self, zone, self.param(label, nn.initializers.constant(0., dtype=self.faust_float), ()))
+		setattr(self, zone, nnx.Param(jnp.zeros((), dtype=self.faust_float)))
 		unnorm_funcs[label] = (zone, lambda x: x)
 	
 	def add_checkbox(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
@@ -123,7 +124,7 @@ except ImportError:
 		init = self.faust_float(init)
 		
 		# Create parameter with exact init value (no normalization for impulse tests)
-		setattr(self, zone, self.param(label, nn.initializers.constant(init, dtype=self.faust_float), ()))
+		setattr(self, zone, nnx.Param(init))
 		
 		# Create identity unnormalization function (parameter is already at correct value)
 		unnorm_funcs[label] = (zone, lambda x: x)
@@ -189,8 +190,8 @@ except ImportError:
 		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
 		
 		# Create the normalized parameter with label as name
-		setattr(self, zone, self.param(label, nn.initializers.constant(normalized_init, dtype=faust_float), ()))
-		
+		setattr(self, zone, nnx.Param(normalized_init))
+
 		# Create and store the unnormalization function
 		unnorm_func = self.create_unnormalize_func(a_min, a_max, scale_mode)
 		unnorm_funcs[label] = (zone, unnorm_func)
@@ -223,7 +224,7 @@ except ImportError:
 		for label, (zone, unnorm_func) in self._unnorm_funcs.items():
 			# Check if it's a nentry (needs module as arg)
 			if hasattr(self, f"_{zone}_logits_zone"):
-				params[zone] = unnorm_func(self)
+				params[zone] = unnorm_func()
 			elif hasattr(self, zone):
 				# Regular parameter
 				if zone.startswith("fButton"):
@@ -235,7 +236,6 @@ except ImportError:
 					params[zone] = unnorm_func(normalized_value)
 			else:
 				raise ValueError(f"Zone not found: {zone}")
-			self.sow("intermediates", label, params[zone])
 		
 		return params
 	
@@ -257,16 +257,24 @@ except ImportError:
 		
 		return state
 	
-	def process_block(self, i, carry: Dict[str, jnp.ndarray], inputs: jnp.ndarray = None, length: int = None, unroll: int = 1) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+	def process_block(
+		self,
+		i: int,
+		carry: Dict[str, jnp.ndarray],
+		inputs: jnp.ndarray = None,
+		length: int = None,
+		unroll: int = 1,
+	) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
 		"""
 		Process one block of audio and return updated state.
-		
+
 		Args:
+			i: sample index (special for impulsejax.py versus minimal.py)
 			carry: State dictionary from previous block
 			inputs: Input audio block of shape (num_inputs, block_size)
 			length (int): block size of generated output
-			unroll (int): 
-			
+			unroll (int):
+
 		Returns:
 			Tuple of (output_block, new_carry) where:
 			- output_block has shape (num_outputs, block_size)
@@ -277,23 +285,30 @@ except ImportError:
 
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize(i)
-		
-		def tick(module, carry, *xs):
-			return module.tick(params, carry, *xs)
-		
-		scan_fn = nn.scan(tick,
-			variable_broadcast="params",
-			split_rngs={"rng_stream": True},
-			length=length,
+
+		def scan_body(carry, x):
+			new_carry, y = self.tick(params, carry, x)
+			return new_carry, y
+
+		# Handle input shape for scan
+		if inputs is None or self.num_inputs == 0:
+			# Generator case
+			inputs = jnp.zeros((0, length), dtype=self.faust_float)
+
+		new_carry, outputs = nnx.scan(
+			scan_body,
 			unroll=unroll,
-			in_axes=1,
-			out_axes=1,
-		)
-		new_carry, outputs = scan_fn(self, carry, inputs)
+			in_axes=(nnx.Carry, 1),
+			out_axes=(nnx.Carry, 1),
+		)(carry, inputs)
 
 		return outputs, new_carry
 
-	def __call__(self, x: jnp.ndarray, length: int = None, unroll: int = 1) -> jnp.ndarray:
+		return outputs, new_carry
+
+	def __call__(
+		self, x: jnp.ndarray, length: int = None, unroll: int = 1
+	) -> jnp.ndarray:
 
 		if length is None and x is not None:
 			length = x.shape[-1]
@@ -303,23 +318,26 @@ except ImportError:
 			x = jnp.zeros((self.num_inputs, length), dtype=self.faust_float)
 
 		carry = self.initialize_carry()
-		
+
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize(0)
-		
-		def tick(module, carry, *xs):
-			return module.tick(params, carry, *xs)
 
-		scan_fn = nn.scan(tick,
-			variable_broadcast="params",
-			split_rngs={"rng_stream": True},
-			length=length,
+		def scan_body(carry, x):
+			new_carry, y = self.tick(params, carry, x)
+			return new_carry, y
+
+		# Handle input shape for scan
+		if self.num_inputs == 0:
+			# Generator case
+			x = jnp.zeros((0, length), dtype=self.faust_float)
+
+		new_carry, outputs = nnx.scan(
+			scan_body,
 			unroll=unroll,
-			in_axes=1,
-			out_axes=1,
-		)
-		new_carry, outputs = scan_fn(self, carry, x)
-		
+			in_axes=(nnx.Carry, 1),
+			out_axes=(nnx.Carry, 1),
+		)(carry, x)
+
 		return outputs
 
 
@@ -330,28 +348,26 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 
 	faust_float = jnp.float64 if args.double else jnp.float32
 
-	model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float)
-
-	key = random.key(0)
+	rngs = nnx.Rngs(1, params=1, rng_stream=2)
+	model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float, rngs=rngs)
 
 	BLOCK_SIZE = 1
 
 	N_CHANNELS = model.num_inputs
 
 	if args.random:
-		input_audio = random.uniform(key, shape=(N_CHANNELS, BLOCK_SIZE), minval=-1, maxval=1, dtype=faust_float)
+		input_audio = random.uniform(random.key(3), shape=(N_CHANNELS, BLOCK_SIZE), minval=-1, maxval=1, dtype=faust_float)
 	else:
 		input_audio = jnp.zeros((N_CHANNELS, BLOCK_SIZE), dtype=faust_float)
 		input_audio = input_audio.at[:,0].set(1.)
-
-	variables = model.init({"params": key, "rng_stream": key}, input_audio, length=BLOCK_SIZE)
 	
 	# Initialize carry state
-	carry = model.apply(variables, method="initialize_carry")
+	carry = model.initialize_carry()
 
 	@jax.jit
-	def process_block_jit(i, carry, inputs: jnp.ndarray, rng: jax.Array):
-		return model.apply(variables, i, carry, inputs, length=BLOCK_SIZE, unroll=1, method="process_block", rngs={"rng_stream": rng})
+	def process_block_jit(i, carry, inputs: jnp.ndarray):
+		outputs, new_carry = model.process_block(i, carry, inputs, length=BLOCK_SIZE, unroll=1)
+		return outputs, new_carry
 
 	out_blocks = []
 	did_silence_audio = False
@@ -361,8 +377,7 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 			did_silence_audio = True
 			input_audio = jnp.zeros_like(input_audio)
 
-		key, subkey = random.split(key)
-		out_block, carry = process_block_jit(i, carry, input_audio, subkey)
+		out_block, carry = process_block_jit(i, carry, input_audio)
 		out_blocks.append(np.array(out_block))
 
 	y = np.concatenate(out_blocks, axis=-1)
