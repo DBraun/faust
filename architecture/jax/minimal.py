@@ -77,12 +77,12 @@ except ImportError:
 			offset += y.shape[1]
 		if label.startswith("param:"):
 			label = label[6:]  # remove param:
-			label = "/".join(ui_path+[label])
+			full_label = "/".join(ui_path+[label])
 			fBuffers = nnx.Param(fBuffers)  # todo:
-			setattr(self, "_" + label, fBuffers)  # todo: 
+			setattr(self, "_" + full_label, fBuffers)  # todo: 
 			unnorm_funcs[zone] = (zone, lambda x: x)
 		else:
-			label = "/".join(ui_path+[label])
+			full_label = "/".join(ui_path+[full_label])
 
 		setattr(self, zone, {
 			"fLength": jnp.array(fLength, dtype=jnp.int32),
@@ -93,6 +93,7 @@ except ImportError:
 		
 		# Store parameter metadata
 		self._parameter_metadata[zone] = {
+			"full_label": full_label,
 			"label": label,
 			"type": "soundfile",
 			"internal_name": zone,
@@ -105,6 +106,7 @@ except ImportError:
 		
 		# Store parameter metadata
 		self._parameter_metadata[zone] = {
+			"full_label": full_label,
 			"label": label,
 			"type": "button",
 			"internal_name": zone,
@@ -146,7 +148,7 @@ except ImportError:
 		logits = logits.at[init_step].set(faust_float(5.0))  # bias ≈ exp(5) ≈ 148
 
 		logits_zone = zone + "_logits"
-		setattr(self, logits_zone, nnx.Param(logits))  # todo: possible issue that ":logits" suffix with colon not used
+		setattr(self, logits_zone, nnx.Param(logits))
 
 		# temperature (optional learnable scalar)
 		# tau = nnx.Param(jnp.ones((), dtype=faust_float))
@@ -181,6 +183,7 @@ except ImportError:
 		
 		# Store parameter metadata
 		self._parameter_metadata[zone] = {
+			"full_label": full_label,
 			"label": label,
 			"type": "nentry",
 			"internal_name": zone,
@@ -261,6 +264,7 @@ except ImportError:
 		
 		# Store parameter metadata
 		self._parameter_metadata[zone] = {
+			"full_label": full_label,
 			"label": label,
 			"type": "slider",
 			"internal_name": zone,
@@ -284,6 +288,7 @@ except ImportError:
 		# Bargraphs are output-only, no parameters needed
 		# But we can still store metadata
 		self._parameter_metadata[zone] = {
+			"full_label": "/".join(ui_path + [label]),
 			"label": label,
 			"type": "hbargraph",
 			"internal_name": zone,
@@ -296,6 +301,7 @@ except ImportError:
 		# Bargraphs are output-only, no parameters needed
 		# But we can still store metadata
 		self._parameter_metadata[zone] = {
+			"full_label": "/".join(ui_path + [label]),
 			"label": label,
 			"type": "vbargraph",
 			"internal_name": zone,
