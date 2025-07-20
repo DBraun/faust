@@ -60,6 +60,9 @@ class InstructionsCompilerJAX : public InstructionsCompiler {
     ValueInst* generateDelayAccess(Tree sig, Tree exp, Tree delay) override;
 
     ValueInst* generateSoundfile(Tree sig, Tree path) override;
+    
+    // Override to handle self.random_uniform with proper RNG splitting
+    ValueInst* generateFFun(Tree sig, Tree ff, Tree largs) override;
 };
 
 #endif

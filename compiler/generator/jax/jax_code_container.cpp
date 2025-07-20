@@ -1346,6 +1346,11 @@ void JAXCodeContainer::generateCompute(int n)
     *fOut << "def tick(self, params: dict, state: dict, inputs: jnp.ndarray, rng: jax.Array = None) -> Tuple[dict, jnp.ndarray]:";
     tab(n + 1, *fOut);
 
+    // Add RNG setup for proper random number generation
+    tab(n + 1, *fOut);
+    *fOut << "rngs = nnx.Rngs(rng) if rng is not None else None";
+    tab(n + 1, *fOut);
+
     tab(n + 1, *fOut);
     gGlobal->gJAXVisitor->Tab(n + 1);
 

@@ -24,6 +24,7 @@
 #include "sigtyperules.hh"
 #include "jax_instructions.hh"
 #include "fir_function_builder.hh"
+#include "prim2.hh"
 
 using namespace std;
 
@@ -244,6 +245,27 @@ ValueInst* InstructionsCompilerJAX::generateDelayAccess(Tree sig, Tree exp, Tree
         // For all other cases, use the default implementation
         return InstructionsCompiler::generateDelayAccess(sig, exp, delay);
     }
+}
+
+ValueInst* InstructionsCompilerJAX::generateFFun(Tree sig, Tree ff, Tree largs)
+{
+    string funname = ffname(ff);
+    
+    // Special handling for self.random_uniform
+    if (funname == "self.random_uniform") {
+        // Generate the call with rngs() as argument (fresh subkey each time)
+        Values uniform_args;
+        uniform_args.push_back(IB::genFunCallInst("rngs", Values()));
+        ValueInst* random_call = IB::genFunCallInst("self.random_uniform", uniform_args);
+        
+        // Don't cache random function calls in JAX backend to ensure different values
+        // Mark as compiled to prevent infinite recursion
+        setCompiledExpression(sig, random_call);
+        return random_call;
+    }
+    
+    // For all other foreign functions, use the default implementation
+    return InstructionsCompiler::generateFFun(sig, ff, largs);
 }
 
 ValueInst* InstructionsCompilerJAX::generateSoundfile(Tree sig, Tree path)

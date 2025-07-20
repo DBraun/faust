@@ -177,13 +177,20 @@ The JAX backend supports native JAX random number generation through foreign fun
 ```faust
 import("stdfaust.lib");
 
-// Use JAX's random uniform function
-jax_noise = ffunction(float self.random_uniform(), "", "");
-process = jax_noise;
+// Declare JAX's random uniform function as a foreign function
+random_uniform = ffunction(float self.random_uniform(), <stdlib.h>, "");
+
+// Use it to generate random values in [-1, 1]
+process = random_uniform, random_uniform;  // stereo noise
 ```
 
-This generates code that calls `self.random_uniform()` which uses JAX's PRNG system with proper RNG key management via `self.rngs.rng_stream()`.
-This allows both reproducibility and controllable variation in randomness when using batch sizes or distributed computing.
+This generates code that calls `self.random_uniform(rngs())` where `rngs` is a Flax `nnx.Rngs` object initialized at the start of each `tick()` call. Each call to `random_uniform` receives a fresh RNG subkey, ensuring different random values even when used multiple times in the same expression.
+
+The `self.random_uniform()` method is implemented in the architecture file and returns uniform random values in the range [-1, 1], compatible with Faust's standard noise generators. This approach provides:
+- Proper JAX PRNG state management
+- Reproducibility with seed control
+- Different values for each channel (no caching of foreign function calls in JAX backend)
+- Compatibility with JAX transformations like `vmap` and `jit`
 
 ## Performance Optimizations
 

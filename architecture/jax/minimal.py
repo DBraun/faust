@@ -310,19 +310,10 @@ except ImportError:
 			"output_only": True,
 		}
 
-	def random_uniform(self):
+	def random_uniform(self, rng: jax.Array):
 		"""
 		Generate a random uniform value in the range [-1, 1] using JAX's PRNG.
-		This method is called by foreign functions declared in Faust code.
 		"""
-		if self.rngs is None:
-			raise ValueError("No RNG provided but random_uniform was called")
-		if isinstance(self.rngs, rnglib.Rngs):
-			rng = self.rngs[self.rng_collection]()
-		elif isinstance(self.rngs, rnglib.RngStream):
-			rng = self.rngs()
-		else:
-			raise TypeError(f"rngs must be Rngs or RngStream, got {type(self.rngs)}")
 		return random.uniform(rng, shape=(), minval=-1, maxval=1, dtype=self.faust_float)
 
 	def unnormalize(self) -> Dict[str, jnp.ndarray]:
