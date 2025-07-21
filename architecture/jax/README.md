@@ -301,3 +301,4 @@ The Faust executable will be in `build/bin/faust`. Verify JAX backend is include
 * We could try to generate more efficient code in the `tick` function, but it's possible that XLA is already equivalently optimizing the code for us when we use JIT. We could look at the HLO or other to investigate.
 * * Try to minimize the amount of `jnp.roll` operations (see `DELAY_LINES.md`)
 * * Avoid unnecessary casts from `bool` to `jnp.int32`
+* Bargraph support is incomplete. Ideally we would use `nnx.Module.sow` within a scan (see https://github.com/google/flax/discussions/4799)
