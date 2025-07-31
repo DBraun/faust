@@ -36,7 +36,11 @@ except ImportError:
 # Generated code
 <<includeIntrinsic>>
 <<includeclass>>
-	
+
+	def __repr__(self):
+		name = self.__class__.__name__
+		return f"{name}(sample_rate={self.sample_rate}, soundfile_dirs={self.soundfile_dirs})"
+
 	def load_soundfile(self, filepath: str) -> Tuple[np.ndarray, int]:
 		if librosa is None:
 			return np.zeros((1, 1024)), self.sample_rate
