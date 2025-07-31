@@ -222,14 +222,10 @@ except ImportError:
 		
 		# Simply use the stored unnormalization functions
 		for label, (zone, unnorm_func) in self._unnorm_funcs.items():
-			# Check if it's a nentry (needs module as arg)
-			if hasattr(self, f"_{zone}_logits_zone"):
-				params[zone] = unnorm_func()
-			elif hasattr(self, zone):
-				# Regular parameter
+			if hasattr(self, zone):
 				if zone.startswith("fButton"):
 					normalized_value = getattr(self, zone)
-					# Press buttons for exactly 64 samples, which is for desired for the impulse-tests.
+					# Press buttons for exactly 64 samples, which is desired for the impulse-tests.
 					params[zone] = jnp.where(i > 63, jnp.zeros_like(normalized_value), jnp.ones_like(normalized_value))
 				else:
 					normalized_value = getattr(self, zone)
@@ -297,12 +293,11 @@ except ImportError:
 
 		new_carry, outputs = nnx.scan(
 			scan_body,
+			length=length,
 			unroll=unroll,
 			in_axes=(nnx.Carry, 1),
 			out_axes=(nnx.Carry, 1),
 		)(carry, inputs)
-
-		return outputs, new_carry
 
 		return outputs, new_carry
 
@@ -333,6 +328,7 @@ except ImportError:
 
 		new_carry, outputs = nnx.scan(
 			scan_body,
+			length=length,
 			unroll=unroll,
 			in_axes=(nnx.Carry, 1),
 			out_axes=(nnx.Carry, 1),

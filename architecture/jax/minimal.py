@@ -158,12 +158,10 @@ except ImportError:
 		# Store nentry metadata as attributes. TODO: necessary?
 		setattr(self, f"_{zone}_step_values", step_values)
 		setattr(self, f"_{zone}_tau", tau)
-		setattr(self, f"_{zone}_logits_zone", logits_zone)
 		
 		# Add unnormalization lambda for nentry
-		def make_nentry_unnorm(zone, logits_zone, tau, step_values):
-			def unnorm_nentry():
-				logits = getattr(self, logits_zone).value
+		def make_nentry_unnorm(zone, tau, step_values):
+			def unnorm_nentry(logits):
 				# todo: finish Gumbel-softmax for NNX
 				# # Gumbel-softmax computation
 				# if hasattr(self.rngs, 'gumbel'):  # training
@@ -179,7 +177,7 @@ except ImportError:
 
 			return unnorm_nentry
 
-		unnorm_funcs[full_label] = (zone, make_nentry_unnorm(zone, logits_zone, tau, step_values))
+		unnorm_funcs[full_label] = (zone, make_nentry_unnorm(zone, tau, step_values))
 		
 		# Store parameter metadata
 		self._parameter_metadata[zone] = {
@@ -328,8 +326,9 @@ except ImportError:
 		# Simply use the stored unnormalization functions
 		for label, (zone, unnorm_func) in self._unnorm_funcs.items():
 			# Check if it's a nentry (needs module as arg)
-			if hasattr(self, f"_{zone}_logits_zone"):
-				params[zone] = unnorm_func()
+			if hasattr(self, f"{zone}_logits"):
+				logits = getattr(self, f"{zone}_logits").value
+				params[zone] = unnorm_func(logits)
 			elif hasattr(self, zone):
 				# Regular parameter
 				normalized_value = getattr(self, zone).value
@@ -419,6 +418,7 @@ except ImportError:
 
 		new_carry, outputs = nnx.scan(
 			scan_body,
+			length=length,
 			unroll=unroll,
 			in_axes=(nnx.Carry, 1, 0),
 			out_axes=(nnx.Carry, 1),
@@ -468,6 +468,7 @@ except ImportError:
 
 		new_carry, outputs = nnx.scan(
 			scan_body,
+			length=length,
 			unroll=unroll,
 			in_axes=(nnx.Carry, 1, 0),
 			out_axes=(nnx.Carry, 1),
