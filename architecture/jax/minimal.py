@@ -82,7 +82,7 @@ except ImportError:
 			setattr(self, "_" + full_label, fBuffers)  # todo: 
 			unnorm_funcs[zone] = (zone, lambda x: x)
 		else:
-			full_label = "/".join(ui_path+[full_label])
+			full_label = "/".join(ui_path+[label])
 
 		setattr(self, zone, {
 			"fLength": jnp.array(fLength, dtype=jnp.int32),
