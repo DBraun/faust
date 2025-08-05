@@ -28,7 +28,7 @@ system := $(shell echo $(system) | grep MINGW > /dev/null && echo MINGW || echo 
 # output directories
 FAUSTDIR ?= faustdir
 IOSDIR   := iosdir
-VERSION := 2.80.7
+VERSION := 2.81.3
 
 #===============================================================
 # current generator and backends
@@ -54,7 +54,6 @@ else
 endif
 DESTDIR ?=
 
-
 .PHONY: faust install uninstall osc http package wasmglue cmake
 
 MAKE ?= make
@@ -75,6 +74,7 @@ CXX_COMPILER_OPT = "-DCMAKE_CXX_COMPILER=$(shell llvm-config --bindir)/clang++"
 endif
 
 RELEASE_TYPE ?= Release
+#RELEASE_TYPE ?= Debug
 CMAKEOPT ?=
 BUILDOPT ?= --config $(RELEASE_TYPE)
 CMAKEOPTS = -DCMAKE_BUILD_TYPE=$(RELEASE_TYPE) $(WORKLETOPT) $(CMAKEOPT) $(NONDETERMINISM_LINT_OPT) $(CXX_COMPILER_OPT)
