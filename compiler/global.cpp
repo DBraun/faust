@@ -1748,8 +1748,8 @@ bool global::processCmdline(int argc, const char* argv[])
     }
 
     // gInlinetable check
-    if (gInlineTable && (gOutputLang != "cpp" && gOutputLang != "c" && gOutputLang != "llvm")) {
-        throw faustexception("ERROR : -it can only be used with 'cpp', 'c' and 'llvm' backends\n");
+    if (gInlineTable && (gOutputLang != "cpp" && gOutputLang != "c" && gOutputLang != "llvm" && gOutputLang != "jax")) {
+        throw faustexception("ERROR : -it can only be used with 'cpp', 'c', 'llvm' and 'jax' backends\n");
     }
 
     // gMemoryManager check

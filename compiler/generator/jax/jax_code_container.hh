@@ -39,6 +39,9 @@ class JAXCodeContainer : public virtual CodeContainer {
     std::ostream*          fOut;
 
     virtual void produceClass();
+    
+    // Helper method to collect waveform data from global declarations
+    std::map<std::string, ValueInst*> collectWaveformData();
 
     // Not used
     virtual void produceInternal() {}
@@ -46,6 +49,11 @@ class JAXCodeContainer : public virtual CodeContainer {
     void generateCompute(int n);
 
     virtual void generateSR();
+    
+    virtual void produceInfoFunctions(int tabs, const std::string& classname, const std::string& obj,
+                                     bool ismethod, FunTyped::FunAttribute funtype,
+                                     TextInstVisitor* producer, const std::string& in_fun = "getNumInputs",
+                                     const std::string& out_fun = "getNumOutputs");
 
    public:
     JAXCodeContainer() {}

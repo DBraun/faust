@@ -22,11 +22,28 @@
 #include "instructions_compiler_jax.hh"
 #include "ppsig.hh"
 #include "sigtyperules.hh"
+#include "jax_instructions.hh"
+#include "fir_function_builder.hh"
+#include "prim2.hh"
 
 using namespace std;
 
 StatementInst* InstructionsCompilerJAX::generateShiftArray(const string& vname, int delay)
 {
+    // JAX Circular Buffer Implementation Strategy:
+    // 
+    // For small delay arrays (mxd < gMaxCopyDelay), we preserve the original jnp.roll behavior
+    // because these are typically used in recursive filter structures where the shift operation
+    // is tightly coupled with the algorithm (e.g., IIR filters, recursive delays).
+    // 
+    // Circular buffers are applied selectively to:
+    // 1. Larger delay lines that benefit from O(1) access vs O(n) roll operations
+    // 2. Variable delay lines where dynamic indexing is required
+    // 3. Simple delay taps that don't rely on the roll semantics
+    //
+    // This hybrid approach maintains compatibility with complex filter designs while
+    // optimizing performance for straightforward delay operations.
+    
     Values truncated_args;
     truncated_args.push_back(IB::genLoadArrayStructVar(vname));
     truncated_args.push_back(IB::genLoadStackVar("1"));
@@ -47,15 +64,56 @@ ValueInst* InstructionsCompilerJAX::generateDelayLine(ValueInst* exp, BasicTyped
             pushComputeDSPMethod(IB::genControlInst(ccs, IB::genStoreStackVar(vname, exp)));
         }
 
+    } else if (mxd == 1) {
+        // Special optimization for single-sample delays in JAX
+        // Use array type for compatibility, but mark as scalar for JAX generation
+        generateInitArray(vname, ctype, 1);
+        
+        // Mark this as a scalar delay variable
+        fScalarDelayVars.insert(vname);
+        
+        // Also add to global JAX visitor if available
+        if (gGlobal->gJAXVisitor) {
+            static_cast<JAXInstVisitor*>(gGlobal->gJAXVisitor)->fScalarDelayVars.insert(vname);
+        }
+        
+        // In the compute method:
+        // Store current state value in a temporary variable, then update state
+        string temp_name = vname + "_temp";
+        
+        // 1. Store current state value in the temporary variable BEFORE any computation
+        // Use pushPreComputeDSPMethod to ensure it happens before the signal is used
+        pushPreComputeDSPMethod(IB::genControlInst(
+            ccs, IB::genDecStackVar(temp_name, ctype,
+                IB::genLoadArrayStructVar(vname, IB::genInt32NumInst(0)))));
+        
+        // 2. Update state with new value
+        pushComputeDSPMethod(IB::genControlInst(
+            ccs, IB::genStoreArrayStructVar(vname, IB::genInt32NumInst(0), exp)));
+        
+        // 3. The delayed value is in the temporary variable
+        // (will be used by generateDelayAccess)
+        
     } else if (mxd < gGlobal->gMaxCopyDelay) {
+        // Small delay arrays (typically 2-16 elements): Use traditional roll-based approach
+        // 
+        // These arrays are commonly used in recursive filter structures (IIR filters, 
+        // feedback delays) where the shift semantics are integral to the algorithm.
+        // Examples: tf_exp.dsp (3-element arrays for biquad sections)
+        //          vcf_wah_pedals.dsp, zita_rev1.dsp (filter matrices)
+        //
+        // The roll operation maintains the expected array state for recursive feedback,
+        // ensuring compatibility with complex filter designs.
+        
         // Generates table init
         generateInitArray(vname, ctype, mxd + 1);
 
-        // Generate table use
+        // Generate table use: write to index [0]
         pushComputeDSPMethod(IB::genControlInst(
             ccs, IB::genStoreArrayStructVar(vname, IB::genInt32NumInst(0), exp)));
 
         // Generates post processing copy code to update delay values
+        // This creates the jnp.roll operation that shifts array elements
         pushPostComputeDSPMethod(IB::genControlInst(ccs, generateShiftArray(vname, mxd)));
 
     } else {
@@ -131,6 +189,85 @@ ValueInst* InstructionsCompilerJAX::generateDelayLine(ValueInst* exp, BasicTyped
     return exp;
 }
 
+ValueInst* InstructionsCompilerJAX::generateDelayAccess(Tree sig, Tree exp, Tree delay)
+{
+    ValueInst* code = CS(exp);  // Ensure exp is compiled to have a vector name
+    int        mxd  = fOccMarkup->retrieve(exp)->getMaxDelay();
+    string     vname;
+
+    if (!getVectorNameProperty(exp, vname)) {
+        if (mxd == 0) {
+            return code;
+        } else {
+            cerr << "ASSERT : no vector name for : " << ppsig(exp, MAX_ERROR_SIZE) << endl;
+            faustassert(false);
+        }
+    }
+
+    if (mxd == 0) {
+        // not a real vector name but a scalar name
+        return IB::genLoadStackVar(vname);
+    } else if (mxd == 1) {
+        int d;
+        if (isSigInt(delay, &d) && d == 1) {
+            // For single-sample delays, we stored the delayed value in a temporary variable
+            string temp_name = vname + "_temp";
+            return IB::genLoadStackVar(temp_name);
+        } else {
+            // Variable delay or delay != 1, use array access
+            return IB::genLoadArrayStructVar(vname, IB::genInt32NumInst(0));
+        }
+    } else if (fCircularBufferVars.find(vname) != fCircularBufferVars.end()) {
+        // Circular buffer delay access for larger delay lines
+        //
+        // This provides O(1) performance for delay access instead of O(n) roll operations.
+        // Used for:
+        // - Variable delay lines (e.g., comb_delay1.dsp with modulated delay time)
+        // - Large delay buffers where roll operations would be expensive
+        // - Simple delay taps that don't require complex shift semantics
+        
+        int d;
+        if (isSigInt(delay, &d)) {
+            // Constant delay - can optimize index calculation
+            string idx_name = vname + "_idx";
+            int buffer_size = fDelayLineSizes[vname];
+            
+            // Calculate delayed index: (idx - d + buffer_size) % buffer_size
+            // Note: We add buffer_size before modulo to handle negative values correctly
+            FIRIndex curr_idx = FIRIndex(IB::genLoadStructVar(idx_name));
+            FIRIndex delay_idx = (curr_idx - FIRIndex(d) + FIRIndex(buffer_size)) % FIRIndex(buffer_size);
+            return IB::genLoadArrayStructVar(vname, delay_idx);
+        } else {
+            // Variable delay - handled by JAXInstVisitor LoadVarInst for dynamic indexing
+            return InstructionsCompiler::generateDelayAccess(sig, exp, delay);
+        }
+    } else {
+        // For all other cases, use the default implementation
+        return InstructionsCompiler::generateDelayAccess(sig, exp, delay);
+    }
+}
+
+ValueInst* InstructionsCompilerJAX::generateFFun(Tree sig, Tree ff, Tree largs)
+{
+    string funname = ffname(ff);
+    
+    // Special handling for self.random_uniform
+    if (funname == "self.random_uniform") {
+        // Generate the call with rngs() as argument (fresh subkey each time)
+        Values uniform_args;
+        uniform_args.push_back(IB::genFunCallInst("rngs", Values()));
+        ValueInst* random_call = IB::genFunCallInst("self.random_uniform", uniform_args);
+        
+        // Don't cache random function calls in JAX backend to ensure different values
+        // Mark as compiled to prevent infinite recursion
+        setCompiledExpression(sig, random_call);
+        return random_call;
+    }
+    
+    // For all other foreign functions, use the default implementation
+    return InstructionsCompiler::generateFFun(sig, ff, largs);
+}
+
 ValueInst* InstructionsCompilerJAX::generateSoundfile(Tree sig, Tree path)
 {
     string varname = gGlobal->getFreshID("fSoundfile");
@@ -151,13 +288,10 @@ ValueInst* InstructionsCompilerJAX::generateSoundfile(Tree sig, Tree path)
             block, IB::genBlockInst()));
     }
 
-    if (gGlobal->gOneSample >= 0) {
-        pushDeclare(IB::genDecStructVar(SFcache, IB::genBasicTyped(Typed::kSound_ptr)));
-        pushComputeBlockMethod(IB::genStoreStructVar(SFcache, IB::genLoadStructVar(varname)));
-    } else {
-        pushComputeBlockMethod(IB::genDecStackVar(SFcache, IB::genBasicTyped(Typed::kSound_ptr),
-                                                  IB::genLoadStructVar(varname)));
-    }
+    // In JAX, use a local variable for the soundfile cache
+    // The cache is a temporary variable used within the tick method
+    pushComputeBlockMethod(IB::genDecStackVar(SFcache, IB::genBasicTyped(Typed::kSound_ptr),
+                                              IB::genLoadFunArgsVar(varname)));
 
-    return IB::genLoadStructVar(varname);
+    return IB::genLoadFunArgsVar(varname);
 }

@@ -35,6 +35,10 @@ user.mk
 !*.xcodeproj/xcshareddata/
 !*.xcworkspace/contents.xcworkspacedata
 tests/impulse-tests/ir
+tests/impulse-tests/filesCompare
+tests/impulse-tests/filesCompare.exe
+tests/impulse-tests/test_*.py
+tests/impulse-tests/test_*.ir
 ### ESLint
 .eslintrc.json
 *-mdoc

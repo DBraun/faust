@@ -757,6 +757,7 @@ signature       : type fun                      LPAR typelist RPAR { $$ = cons($
                 ;
                 
 fun             : IDENT                         { $$ = tree(FAUSTtext); }
+                | fun DOT IDENT                 { $$ = tree((std::string(tree2str($1)) + "." + FAUSTtext).c_str()); }
                 ;
 
 typelist        : argtype                       { $$ = cons($1,gGlobal->nil); }

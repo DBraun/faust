@@ -601,7 +601,6 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
             }
 
         } else if (gGlobal->gOutputLang == "jax") {
-            res               = CS(sig);
             string result_var = "_result" + to_string(index);
             return_string     = return_string + sep + result_var;
             sep               = ",";
