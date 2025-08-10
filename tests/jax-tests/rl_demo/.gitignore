@@ -1,0 +1,18 @@
+# Generated Python files from Faust compilation
+synth.py
+*.py.bak
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Test outputs
+*.wav
+*.png
+
+# TensorBoard logs
+logs/
+
+# Training artifacts
+checkpoints/
+checkpoints_stage*/

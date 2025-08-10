@@ -576,6 +576,10 @@ void global::reset()
     gJAXVisitor = nullptr;  // Will be (possibly) allocated in JAX backend
 #endif
 
+#ifdef LINEN_BUILD
+    gLinenVisitor = nullptr;  // Will be (possibly) allocated in Linen backend
+#endif
+
 #ifdef TEMPLATE_BUILD
     gTemplateVisitor = nullptr;  // Will be (possibly) allocated in Template backend
 #endif
@@ -973,7 +977,8 @@ bool global::hasForeignFunction(const string& name, const string& inc_file)
          startWith(gOutputLang, "wasm") || (gOutputLang == "interp") ||
          startWith(gOutputLang, "cmajor") || startWith(gOutputLang, "codebox") ||
          (gOutputLang == "dlang") || (gOutputLang == "csharp") || (gOutputLang == "rust") ||
-         (gOutputLang == "julia") || startWith(gOutputLang, "jsfx") || (gOutputLang == "jax"));
+         (gOutputLang == "julia") || startWith(gOutputLang, "jsfx") || (gOutputLang == "jax") ||
+         (gOutputLang == "linen"));
 
     return (internal_math_ff &&
             (gMathForeignFunctions.find(name) != gMathForeignFunctions.end())) ||
@@ -2183,7 +2188,7 @@ string global::printHelp()
     sstr << tab
          << "                                        'lang' should be c, cpp (default), cmajor, "
             "codebox, csharp, "
-            "dlang, fir, interp, java, jax, jsfx, julia, llvm, "
+            "dlang, fir, interp, java, jax, jsfx, julia, linen, llvm, "
             "ocpp, rust, sdf3, vhdl or wast/wasm."
          << endl;
 #endif

@@ -64,6 +64,7 @@ struct DispatchVisitor;
 class WASTInstVisitor;
 class WASMInstVisitor;
 class JAXInstVisitor;
+class LinenInstVisitor;
 class JuliaInstVisitor;
 class JSFXInstVisitor;
 class TemplateInstVisitor;
@@ -707,6 +708,10 @@ struct global {
 
 #ifdef JAX_BUILD
     JAXInstVisitor* gJAXVisitor;
+#endif
+
+#ifdef LINEN_BUILD
+    LinenInstVisitor* gLinenVisitor;
 #endif
 
 #ifdef TEMPLATE_BUILD
