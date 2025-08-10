@@ -64,6 +64,7 @@ struct DispatchVisitor;
 class WASTInstVisitor;
 class WASMInstVisitor;
 class JAXInstVisitor;
+class LinenInstVisitor;
 class JuliaInstVisitor;
 class JSFXInstVisitor;
 class AssemblyScriptInstVisitor;
@@ -712,6 +713,10 @@ struct global {
 
 #ifdef ASSEMBLYSCRIPT_BUILD
     AssemblyScriptInstVisitor* gAssemblyScriptVisitor;
+#endif
+
+#ifdef LINEN_BUILD
+    LinenInstVisitor* gLinenVisitor;
 #endif
 
 #ifdef TEMPLATE_BUILD

@@ -1,0 +1,865 @@
+/************************************************************************
+ ************************************************************************
+    FAUST compiler
+    Copyright (C) 2021 GRAME, Centre National de Creation Musicale
+    ---------------------------------------------------------------------
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ ************************************************************************
+ ************************************************************************/
+
+#ifndef _JAX_BASE_INSTRUCTIONS_H
+#define _JAX_BASE_INSTRUCTIONS_H
+
+#include <string>
+
+#include "struct_manager.hh"
+#include "text_instructions.hh"
+
+/**
+ * Base visitor for initializing array fields into the DSP structure during _initialize_carry().
+ * Subclasses (JAX/NNX and Linen) override visit(NamedAddress*) for params/state routing.
+ */
+struct JAXBaseInitFieldsVisitor : public DispatchVisitor {
+    std::ostream* fOut;
+    int           fTab;
+
+    JAXBaseInitFieldsVisitor(std::ostream* out, int tab = 0) : fOut(out), fTab(tab) {}
+
+    virtual void visit(DeclareVarInst* inst)
+    {
+        ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(inst->fType);
+        if (array_type) {
+            tab(fTab, *fOut);
+            inst->fAddress->accept(this);
+            *fOut << " = ";
+            if (inst->fValue) {
+                inst->fValue->accept(this);
+            } else {
+                ZeroInitializer(fOut, inst->fType);
+            }
+        }
+    }
+
+    // Pure virtual: subclasses route to params/state differently
+    virtual void visit(NamedAddress* named) = 0;
+
+    static void ZeroInitializer(std::ostream* fOut, Typed* typed)
+    {
+        ArrayTyped* array_type = dynamic_cast<ArrayTyped*>(typed);
+        faustassert(array_type);
+        if (isIntPtrType(typed->getType())) {
+            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.int32)";
+        } else if (isFloatType(typed->getType())) {
+            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float32)";
+        } else {
+            *fOut << "np.zeros((" << array_type->fSize << ",), dtype=np.float64)";
+        }
+    }
+
+    // Needed for waveforms
+    virtual void visit(Int32ArrayNumInst* inst)
+    {
+        *fOut << "np.array(";
+        char sep = '[';
+        for (size_t i = 0; i < inst->fNumTable.size(); i++) {
+            *fOut << sep << inst->fNumTable[i];
+            sep = ',';
+        }
+        *fOut << "], dtype=np.int32)";
+    }
+
+    virtual void visit(FloatArrayNumInst* inst)
+    {
+        *fOut << "np.array(";
+        char sep = '[';
+        for (size_t i = 0; i < inst->fNumTable.size(); i++) {
+            *fOut << sep << checkFloat(inst->fNumTable[i]);
+            sep = ',';
+        }
+        *fOut << "], dtype=np.float32)";
+    }
+
+    virtual void visit(DoubleArrayNumInst* inst)
+    {
+        *fOut << "np.array(";
+        char sep = '[';
+        for (size_t i = 0; i < inst->fNumTable.size(); i++) {
+            *fOut << sep << checkDouble(inst->fNumTable[i]);
+            sep = ',';
+        }
+        *fOut << "], dtype=np.float64)";
+    }
+};
+
+/**
+ * Base instruction visitor for JAX code generation.
+ *
+ * Contains all shared visit methods for both NNX and Linen backends.
+ * Subclasses override only visit(NamedAddress*) for different routing.
+ */
+class JAXBaseInstVisitor : public TextInstVisitor {
+   protected:
+    /*
+     Global functions names table as a static variable in the visitor
+     so that each function prototype is generated as most once in the module.
+     */
+    inline static std::map<std::string, bool> gFunctionSymbolTable;
+
+    // Polymorphic math functions
+    std::map<std::string, std::string> gPolyMathLibTable;
+
+    // bool for "is storing left-hand-side".
+    bool fIsStoringLhs = false;
+
+    // bool for "will set array" (JAX .at[X].set(Y) pattern).
+    bool fWillSetArray = false;
+
+    // Used so that we don't cast to integers in the condition of a while (cond) loop.
+    bool fIsDoingWhile = false;
+
+    std::set<std::string> fLogSet;  // set of widget zone having a log UI scale
+    std::set<std::string> fExpSet;  // set of widget zone having an exp UI scale
+
+   public:
+    using TextInstVisitor::visit;
+
+    // Use numpy functions (prefix "np.") when true, jax.numpy "jnp." when false.
+    bool fUseNumpy = true;
+
+    JAXBaseInstVisitor(std::ostream* out, const std::string& struct_name, int tab = 0)
+        : TextInstVisitor(out, ".", new JAXStringTypeManager(xfloat(), "*", struct_name), tab)
+    {
+        // Mark all math.h functions as generated...
+        gFunctionSymbolTable["abs"] = true;
+
+        gFunctionSymbolTable["max_i"] = true;
+        gFunctionSymbolTable["min_i"] = true;
+
+        gFunctionSymbolTable["max_f"] = true;
+        gFunctionSymbolTable["min_f"] = true;
+
+        gFunctionSymbolTable["max_"] = true;
+        gFunctionSymbolTable["min_"] = true;
+
+        gFunctionSymbolTable["max_l"] = true;
+        gFunctionSymbolTable["min_l"] = true;
+
+        // Float version
+        gFunctionSymbolTable["fabsf"]      = true;
+        gFunctionSymbolTable["acosf"]      = true;
+        gFunctionSymbolTable["asinf"]      = true;
+        gFunctionSymbolTable["atanf"]      = true;
+        gFunctionSymbolTable["atan2f"]     = true;
+        gFunctionSymbolTable["ceilf"]      = true;
+        gFunctionSymbolTable["cosf"]       = true;
+        gFunctionSymbolTable["expf"]       = true;
+        gFunctionSymbolTable["exp10f"]     = false;
+        gFunctionSymbolTable["floorf"]     = true;
+        gFunctionSymbolTable["fmodf"]      = true;
+        gFunctionSymbolTable["logf"]       = true;
+        gFunctionSymbolTable["log10f"]     = true;
+        gFunctionSymbolTable["powf"]       = true;
+        gFunctionSymbolTable["remainderf"] = true;
+        gFunctionSymbolTable["rintf"]      = true;
+        gFunctionSymbolTable["roundf"]     = true;
+        gFunctionSymbolTable["sinf"]       = true;
+        gFunctionSymbolTable["sqrtf"]      = true;
+        gFunctionSymbolTable["tanf"]       = true;
+
+        // Hyperbolic
+        gFunctionSymbolTable["acoshf"] = true;
+        gFunctionSymbolTable["asinhf"] = true;
+        gFunctionSymbolTable["atanhf"] = true;
+        gFunctionSymbolTable["coshf"]  = true;
+        gFunctionSymbolTable["sinhf"]  = true;
+        gFunctionSymbolTable["tanhf"]  = true;
+
+        // Double version
+        gFunctionSymbolTable["fabs"]      = true;
+        gFunctionSymbolTable["acos"]      = true;
+        gFunctionSymbolTable["asin"]      = true;
+        gFunctionSymbolTable["atan"]      = true;
+        gFunctionSymbolTable["atan2"]     = true;
+        gFunctionSymbolTable["ceil"]      = true;
+        gFunctionSymbolTable["cos"]       = true;
+        gFunctionSymbolTable["exp"]       = true;
+        gFunctionSymbolTable["exp10"]     = false;
+        gFunctionSymbolTable["floor"]     = true;
+        gFunctionSymbolTable["fmod"]      = true;
+        gFunctionSymbolTable["log"]       = true;
+        gFunctionSymbolTable["log10"]     = true;
+        gFunctionSymbolTable["pow"]       = true;
+        gFunctionSymbolTable["remainder"] = true;
+        gFunctionSymbolTable["rint"]      = true;
+        gFunctionSymbolTable["round"]     = true;
+        gFunctionSymbolTable["sin"]       = true;
+        gFunctionSymbolTable["sqrt"]      = true;
+        gFunctionSymbolTable["tan"]       = true;
+
+        // Hyperbolic
+        gFunctionSymbolTable["acosh"] = true;
+        gFunctionSymbolTable["asinh"] = true;
+        gFunctionSymbolTable["atanh"] = true;
+        gFunctionSymbolTable["coshf"] = true;
+        gFunctionSymbolTable["sinh"]  = true;
+        gFunctionSymbolTable["tanh"]  = true;
+
+        // Quad version
+        gFunctionSymbolTable["fabsl"]      = true;
+        gFunctionSymbolTable["acosl"]      = true;
+        gFunctionSymbolTable["asinl"]      = true;
+        gFunctionSymbolTable["atanl"]      = true;
+        gFunctionSymbolTable["atan2l"]     = true;
+        gFunctionSymbolTable["ceill"]      = true;
+        gFunctionSymbolTable["cosl"]       = true;
+        gFunctionSymbolTable["expl"]       = true;
+        gFunctionSymbolTable["exp10l"]     = false;
+        gFunctionSymbolTable["floorl"]     = true;
+        gFunctionSymbolTable["fmodl"]      = true;
+        gFunctionSymbolTable["logl"]       = true;
+        gFunctionSymbolTable["log10l"]     = true;
+        gFunctionSymbolTable["powl"]       = true;
+        gFunctionSymbolTable["remainderl"] = true;
+        gFunctionSymbolTable["rintl"]      = true;
+        gFunctionSymbolTable["roundl"]     = true;
+        gFunctionSymbolTable["sinl"]       = true;
+        gFunctionSymbolTable["sqrtl"]      = true;
+        gFunctionSymbolTable["tanl"]       = true;
+
+        // Hyperbolic
+        gFunctionSymbolTable["acoshl"] = true;
+        gFunctionSymbolTable["asinhl"] = true;
+        gFunctionSymbolTable["atanhl"] = true;
+        gFunctionSymbolTable["coshl"]  = true;
+        gFunctionSymbolTable["sinhl"]  = true;
+        gFunctionSymbolTable["tanhl"]  = true;
+
+        // Polymath mapping int version
+        gPolyMathLibTable["abs"]   = "jnp.abs";
+        gPolyMathLibTable["max_i"] = "jnp.maximum";
+        gPolyMathLibTable["min_i"] = "jnp.minimum";
+
+        // Polymath mapping float version
+        gPolyMathLibTable["max_f"] = "jnp.maximum";
+        gPolyMathLibTable["min_f"] = "jnp.minimum";
+
+        gPolyMathLibTable["fabsf"]  = "jnp.abs";
+        gPolyMathLibTable["acosf"]  = "jnp.arccos";
+        gPolyMathLibTable["asinf"]  = "jnp.arcsin";
+        gPolyMathLibTable["atanf"]  = "jnp.arctan";
+        gPolyMathLibTable["atan2f"] = "jnp.arctan2";
+        gPolyMathLibTable["ceilf"]  = "jnp.ceil";
+        gPolyMathLibTable["cosf"]   = "jnp.cos";
+        gPolyMathLibTable["expf"]   = "jnp.exp";
+        gPolyMathLibTable["exp2f"]  = "jnp.exp2";
+        gPolyMathLibTable["exp10f"] = "jnp.exp10f";
+        gPolyMathLibTable["floorf"] = "jnp.floor";
+        gPolyMathLibTable["fmodf"]  = "jnp.mod";
+        gPolyMathLibTable["logf"]   = "jnp.log";
+        gPolyMathLibTable["log2f"]  = "jnp.log2";
+        gPolyMathLibTable["log10f"] = "jnp.log10";
+        gPolyMathLibTable["powf"]   = "jnp.power";
+        gPolyMathLibTable["remainderf"] =
+            "remainder";  // todo: we currently rely on a custom remainder implementation in the
+                          // architecture file.
+        gPolyMathLibTable["rintf"]  = "jnp.rint";
+        gPolyMathLibTable["roundf"] = "jnp.round";
+        gPolyMathLibTable["sinf"]   = "jnp.sin";
+        gPolyMathLibTable["sqrtf"]  = "jnp.sqrt";
+        gPolyMathLibTable["tanf"]   = "jnp.tan";
+
+        // Hyperbolic
+        gPolyMathLibTable["acoshf"] = "jnp.arccosh";
+        gPolyMathLibTable["asinhf"] = "jnp.arcsinh";
+        gPolyMathLibTable["atanhf"] = "jnp.arctanh";
+        gPolyMathLibTable["coshf"]  = "jnp.cosh";
+        gPolyMathLibTable["sinhf"]  = "jnp.sinh";
+        gPolyMathLibTable["tanhf"]  = "jnp.tanh";
+
+        gPolyMathLibTable["isnanf"]    = "jnp.isnan";
+        gPolyMathLibTable["isinff"]    = "jnp.isinf";
+        gPolyMathLibTable["copysignf"] = "jnp.copysign";
+
+        // Polymath mapping double version
+        gPolyMathLibTable["max_"] = "jnp.maximum";
+        gPolyMathLibTable["min_"] = "jnp.minimum";
+
+        gPolyMathLibTable["fabs"]  = "jnp.abs";
+        gPolyMathLibTable["acos"]  = "jnp.arccos";
+        gPolyMathLibTable["asin"]  = "jnp.arcsin";
+        gPolyMathLibTable["atan"]  = "jnp.arctan";
+        gPolyMathLibTable["atan2"] = "jnp.arctan2";
+        gPolyMathLibTable["ceil"]  = "jnp.ceil";
+        gPolyMathLibTable["cos"]   = "jnp.cos";
+        gPolyMathLibTable["exp"]   = "jnp.exp";
+        gPolyMathLibTable["exp2"]  = "jnp.exp2";
+        gPolyMathLibTable["exp10"] = "jnp.exp10";
+        gPolyMathLibTable["floor"] = "jnp.floor";
+        gPolyMathLibTable["fmod"]  = "jnp.mod";
+        gPolyMathLibTable["log"]   = "jnp.log";
+        gPolyMathLibTable["log2"]  = "jnp.log2";
+        gPolyMathLibTable["log10"] = "jnp.log10";
+        gPolyMathLibTable["pow"]   = "jnp.power";
+        gPolyMathLibTable["remainder"] =
+            "remainder";  // todo: we currently rely on a custom remainder implementation in the
+                          // architecture file.
+        gPolyMathLibTable["rint"]  = "jnp.rint";
+        gPolyMathLibTable["round"] = "jnp.round";
+        gPolyMathLibTable["sin"]   = "jnp.sin";
+        gPolyMathLibTable["sqrt"]  = "jnp.sqrt";
+        gPolyMathLibTable["tan"]   = "jnp.tan";
+
+        // Hyperbolic
+        gPolyMathLibTable["acosh"] = "jnp.arccosh";
+        gPolyMathLibTable["asinh"] = "jnp.arcsinh";
+        gPolyMathLibTable["atanh"] = "jnp.arctanh";
+        gPolyMathLibTable["cosh"]  = "jnp.cosh";
+        gPolyMathLibTable["sinh"]  = "jnp.sinh";
+        gPolyMathLibTable["tanh"]  = "jnp.tanh";
+
+        gPolyMathLibTable["isnan"]    = "jnp.isnan";
+        gPolyMathLibTable["isinf"]    = "jnp.isinf";
+        gPolyMathLibTable["copysign"] = "jnp.copysign";
+    }
+
+    virtual ~JAXBaseInstVisitor() {}
+
+    virtual void visit(AddMetaDeclareInst* inst)
+    {
+        if (inst->fKey == "scale") {
+            if (inst->fValue == "exp") {
+                fExpSet.emplace(inst->fZone);
+            } else if (inst->fValue == "log") {
+                fLogSet.emplace(inst->fZone);
+            } else {
+                // it's linear by default
+            }
+        }
+    }
+
+    virtual void visit(OpenboxInst* inst)
+    {
+        *fOut << "ui_path.append(" << quote(inst->fName) << ")";
+        EndLine(' ');
+    }
+
+    virtual void visit(CloseboxInst* inst)
+    {
+        *fOut << "ui_path.pop()";
+        tab(fTab, *fOut);
+    }
+
+    virtual void visit(AddButtonInst* inst)
+    {
+        *fOut << "self.add_button(" << quote(inst->fZone) << ", ui_path, "
+              << quote(inst->fLabel) << ", unnorm_funcs)";
+        EndLine(' ');
+    }
+
+    virtual void visit(AddSliderInst* inst)
+    {
+        std::string scaleMode = "";
+        if (fExpSet.count(inst->fZone)) {
+            scaleMode = "\"exp\"";
+        } else if (fLogSet.count(inst->fZone)) {
+            scaleMode = "\"log\"";
+        } else {
+            scaleMode = "\"linear\"";
+        }
+
+        switch (inst->fType) {
+            case AddSliderInst::kHorizontal:
+                // clang-format off
+                *fOut << "self.add_hslider("
+                    << quote(inst->fZone) << ", ui_path, "
+                    << quote(inst->fLabel) << ", "
+                    << checkReal(inst->fInit) << ", "
+                    << checkReal(inst->fMin) << ", "
+                    << checkReal(inst->fMax) << ", unnorm_funcs, "
+                    << scaleMode << ")";
+                break;
+                // clang-format on
+            case AddSliderInst::kVertical:
+                // clang-format off
+                *fOut << "self.add_vslider("
+                    << quote(inst->fZone) << ", ui_path, "
+                    << quote(inst->fLabel) << ", "
+                    << checkReal(inst->fInit) << ", "
+                    << checkReal(inst->fMin) << ", "
+                    << checkReal(inst->fMax) << ", unnorm_funcs, "
+                    << scaleMode << ")";
+                break;
+                // clang-format on
+            case AddSliderInst::kNumEntry:
+                // clang-format off
+                *fOut << "self.add_nentry("
+                    << quote(inst->fZone) << ", ui_path, "
+                    << quote(inst->fLabel) << ", "
+                    << checkReal(inst->fInit) << ", "
+                    << checkReal(inst->fMin) << ", "
+                    << checkReal(inst->fMax) << ", "
+                    << checkReal(inst->fStep) << ", unnorm_funcs)";
+                break;
+                // clang-format on
+        }
+        EndLine(' ');
+    }
+
+    virtual void visit(AddBargraphInst* inst)
+    {
+        *fOut << "self.add_hbargraph(" << quote(inst->fZone) << ", ui_path, "
+              << quote(inst->fLabel) << ", "
+              << checkReal(inst->fMin) << ", "
+              << checkReal(inst->fMax) << ", unnorm_funcs)";
+        EndLine(' ');
+    }
+
+    virtual void visit(AddSoundfileInst* inst)
+    {
+        *fOut << "self.add_soundfile(" << quote(inst->fSFZone) << ", ui_path, "
+              << quote(inst->fLabel) << ", " << quote(inst->fURL) << ", unnorm_funcs)";
+        EndLine(' ');
+    }
+
+    virtual void visit(Int32NumInst* inst) { *fOut << inst->fNum; }
+
+    virtual void visit(Int64NumInst* inst) { *fOut << inst->fNum; }
+
+    virtual void visit(Int32ArrayNumInst* inst)
+    {
+        *fOut << "jnp.array(";
+        char sep = '[';
+        for (size_t i = 0; i < inst->fNumTable.size(); i++) {
+            *fOut << sep << inst->fNumTable[i];
+            sep = ',';
+        }
+        *fOut << "], dtype=jnp.int32)";
+    }
+
+    virtual void visit(FloatArrayNumInst* inst)
+    {
+        *fOut << "jnp.array(";
+        char sep = '[';
+        for (size_t i = 0; i < inst->fNumTable.size(); i++) {
+            *fOut << sep << checkFloat(inst->fNumTable[i]);
+            sep = ',';
+        }
+        *fOut << "], dtype=jnp.float32)";
+    }
+
+    virtual void visit(DoubleArrayNumInst* inst)
+    {
+        *fOut << "jnp.array(";
+        char sep = '[';
+        for (size_t i = 0; i < inst->fNumTable.size(); i++) {
+            *fOut << sep << checkDouble(inst->fNumTable[i]);
+            sep = ',';
+        }
+        *fOut << "], dtype=jnp.float64)";
+    }
+
+    virtual void visit(BinopInst* inst)
+    {
+        if (inst->fOpcode == kXOR) {
+            *fOut << "(";
+            inst->fInst1->accept(this);
+            *fOut << " ^ ";
+            inst->fInst2->accept(this);
+            *fOut << ")";
+        } else {
+            *fOut << "(";
+            inst->fInst1->accept(this);
+            *fOut << " ";
+            *fOut << gBinOpTable[inst->fOpcode]->fName;
+            *fOut << " ";
+            inst->fInst2->accept(this);
+            *fOut << ")";
+
+            bool opCodeIsBoolean = inst->fOpcode >= kGT && inst->fOpcode <= kXOR;
+            if (opCodeIsBoolean && !fIsDoingWhile) {
+                *fOut << ".astype(jnp.int32)";
+            }
+        }
+    }
+
+    virtual void visit(DeclareVarInst* inst)
+    {
+        if (inst->fAddress->isStaticStruct()) {
+            *fOut << fTypeManager->generateType(inst->fType, inst->getName());
+            // Allocation is actually done in JAXBaseInitFieldsVisitor
+        } else {
+            *fOut << fTypeManager->generateType(inst->fType, inst->getName());
+            if (inst->fValue) {
+                *fOut << " = ";
+                inst->fValue->accept(this);
+            }
+        }
+        EndLine(' ');
+    }
+
+    virtual void visitAux(RetInst* inst, bool gen_empty)
+    {
+        if (inst->fResult) {
+            *fOut << "return ";
+            inst->fResult->accept(this);
+            EndLine(' ');
+        } else if (gen_empty) {
+            *fOut << "return";
+            EndLine(' ');
+        }
+    }
+
+    virtual void visit(DropInst* inst)
+    {
+        if (inst->fResult) {
+            inst->fResult->accept(this);
+            EndLine(' ');
+        }
+    }
+
+    virtual void visit(DeclareFunInst* inst)
+    {
+        // Already generated
+        if (gFunctionSymbolTable.find(inst->fName) != gFunctionSymbolTable.end()) {
+            return;
+        } else {
+            gFunctionSymbolTable[inst->fName] = true;
+        }
+
+        *fOut << "def " << inst->fName;
+        generateFunDefArgs(inst);
+        generateFunDefBody(inst);
+    }
+
+    virtual void visit(DeclareBufferIterators* inst)
+    {
+        // Don't generate if no channels
+        if (inst->fChannels == 0) {
+            return;
+        }
+
+        for (int i = 0; i < inst->fChannels; ++i) {
+            *fOut << inst->fBufferName1 << i << " = " << inst->fBufferName2 << "[ " << i << ":"
+                  << i + 1 << ",:]";
+            tab(fTab, *fOut);
+        }
+    }
+
+    virtual void generateFunDefBody(DeclareFunInst* inst)
+    {
+        if (inst->fCode->fCode.size() == 0) {
+            *fOut << "):";
+            fTab++;
+            tab(fTab, *fOut);
+            *fOut << "pass";
+            fTab--;
+            tab(fTab, *fOut);
+            tab(fTab, *fOut);
+        } else {
+            // Function body
+            *fOut << "):";
+            fTab++;
+            tab(fTab, *fOut);
+            inst->fCode->accept(this);
+            fTab--;
+            back(1, *fOut);
+            tab(fTab, *fOut);
+        }
+    }
+
+    // Pure virtual: subclasses route to params/state differently
+    virtual void visit(NamedAddress* named) = 0;
+
+    /*
+    Indexed address can actually be values in an array or fields in a struct type
+    */
+    virtual void visit(IndexedAddress* indexed)
+    {
+        if (fUseNumpy) {
+            indexed->fAddress->accept(this);
+            DeclareStructTypeInst* struct_type = isStructType(indexed->getName());
+            if (struct_type) {
+                Int32NumInst* field_index = static_cast<Int32NumInst*>(indexed->getIndex());
+                *fOut << "[\"" << struct_type->fType->getName(field_index->fNum) << "\"]";
+            } else {
+                Int32NumInst* field_index = dynamic_cast<Int32NumInst*>(indexed->getIndex());
+                if (field_index) {
+                    *fOut << "[" << field_index->fNum << "]";
+                } else {
+                    *fOut << "[";
+                    indexed->getIndex()->accept(this);
+                    *fOut << "]";
+                }
+            }
+
+        } else {
+            indexed->fAddress->accept(this);
+            DeclareStructTypeInst* struct_type = isStructType(indexed->getName());
+            if (struct_type) {
+                Int32NumInst* field_index = static_cast<Int32NumInst*>(indexed->getIndex());
+                *fOut << "[\"" << struct_type->fType->getName(field_index->fNum) << "\"]";
+            } else {
+                if (fIsStoringLhs) {
+                    fWillSetArray = true;
+                    return;
+                }
+
+                if (fWillSetArray) {
+                    *fOut << ".at";
+                    fWillSetArray = false;
+                }
+
+                Int32NumInst* field_index = dynamic_cast<Int32NumInst*>(indexed->getIndex());
+                if (field_index) {
+                    *fOut << "[" << field_index->fNum << "]";
+                } else {
+                    *fOut << "[";
+                    indexed->getIndex()->accept(this);
+                    *fOut << "]";
+                }
+            }
+        }
+    }
+
+    virtual void visit(LoadVarAddressInst* inst) { faustassert(false); }
+
+    virtual void visit(StoreVarInst* inst)
+    {
+        // Check if this is a cache variable assignment (ends with "ca")
+        NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress);
+        bool isCacheVar = false;
+        if (named) {
+            std::string name = named->fName;
+            isCacheVar = (name.length() > 2 && name.substr(name.length() - 2) == "ca");
+        }
+
+        if (isCacheVar) {
+            // For cache variables, create a local variable instead of storing to state
+            *fOut << named->fName << " = ";
+            inst->fValue->accept(this);
+        } else {
+            fIsStoringLhs = true;
+            inst->fAddress->accept(this);
+            fIsStoringLhs = false;
+            *fOut << " = ";
+
+            if (fWillSetArray) {
+                inst->fAddress->accept(this);
+                *fOut << ".set(";
+                inst->fValue->accept(this);
+                *fOut << ")";
+            } else {
+                inst->fValue->accept(this);
+            }
+        }
+
+        EndLine(' ');
+    }
+
+    virtual void visit(::CastInst* inst)
+    {
+        if (isIntType(inst->fType->getType())) {
+            *fOut << (fUseNumpy ? "np.int32(" : "jnp.int32(");
+            inst->fInst->accept(this);
+            *fOut << ")";
+        } else {
+            *fOut << fTypeManager->generateType(inst->fType) << "(";
+            inst->fInst->accept(this);
+            *fOut << ")";
+        }
+    }
+
+    virtual void visit(BitcastInst* inst) { faustassert(false); }
+
+    virtual void visitCond(ValueInst* cond)
+    {
+        *fOut << "(";
+        cond->accept(this);
+        *fOut << " != 0)";
+    }
+
+    virtual void visit(Select2Inst* inst)
+    {
+        *fOut << "jnp.where(";
+        visitCond(inst->fCond);
+        *fOut << ", ";
+        inst->fThen->accept(this);
+        *fOut << ", ";
+        inst->fElse->accept(this);
+        *fOut << ")";
+    }
+
+    // Generate standard funcall (not 'method' like funcall...)
+    virtual void visit(FunCallInst* inst)
+    {
+        // Special handling for random_uniform function
+        if (inst->fName == "random_uniform") {
+            *fOut << "self.random_uniform(rngs())";
+            return;
+        }
+
+        // Special handling for random_normal function
+        if (inst->fName == "random_normal") {
+            *fOut << "self.random_normal(rngs())";
+            return;
+        }
+
+        // Special handling for random_exponential function
+        if (inst->fName == "random_exponential") {
+            if (inst->fArgs.size() == 1) {
+                *fOut << "self.random_exponential(rngs(), ";
+                generateFunCallArgs(inst->fArgs.begin(), inst->fArgs.end(), inst->fArgs.size());
+                *fOut << ")";
+            } else {
+                *fOut << "self.random_exponential(rngs())";
+            }
+            return;
+        }
+
+        // Special handling for random_bernoulli function
+        if (inst->fName == "random_bernoulli") {
+            if (inst->fArgs.size() == 1) {
+                *fOut << "self.random_bernoulli(rngs(), ";
+                generateFunCallArgs(inst->fArgs.begin(), inst->fArgs.end(), inst->fArgs.size());
+                *fOut << ")";
+            } else {
+                *fOut << "self.random_bernoulli(rngs())";
+            }
+            return;
+        }
+
+        // Special handling for random_beta function
+        if (inst->fName == "random_beta") {
+            if (inst->fArgs.size() == 2) {
+                *fOut << "self.random_beta(rngs(), ";
+                generateFunCallArgs(inst->fArgs.begin(), inst->fArgs.end(), inst->fArgs.size());
+                *fOut << ")";
+            } else {
+                *fOut << "self.random_beta(rngs())";
+            }
+            return;
+        }
+
+        std::string name = (gPolyMathLibTable.find(inst->fName) != gPolyMathLibTable.end())
+                               ? gPolyMathLibTable[inst->fName]
+                               : inst->fName;
+        if (fUseNumpy && name.rfind("jnp.") == 0) {
+            // turn "jnp." into "np."
+            name = name.substr(1, name.size() - 1);
+        }
+        *fOut << name << "(";
+        // Compile parameters
+        generateFunCallArgs(inst->fArgs.begin(), inst->fArgs.end(), inst->fArgs.size());
+        *fOut << ")";
+    }
+
+    virtual void visit(IfInst* inst)
+    {
+        *fOut << "if ";
+        visitCond(inst->fCond);
+        *fOut << ":";
+        fTab++;
+        tab(fTab, *fOut);
+        inst->fThen->accept(this);
+        fTab--;
+        back(1, *fOut);
+        if (inst->fElse->fCode.size() > 0) {
+            *fOut << "else:";
+            fTab++;
+            tab(fTab, *fOut);
+            inst->fElse->accept(this);
+            fTab--;
+            back(1, *fOut);
+        }
+        tab(fTab, *fOut);
+    }
+
+    virtual void visit(ForLoopInst* inst)
+    {
+        // Don't generate empty loops...
+        if (inst->fCode->size() == 0) {
+            return;
+        }
+
+        fIsDoingWhile = true;
+
+        fFinishLine = false;
+        inst->fInit->accept(this);
+        tab(fTab, *fOut);
+        *fOut << "while ";
+        inst->fEnd->accept(this);
+        fIsDoingWhile = false;
+        *fOut << ":";
+        tab(fTab, *fOut);
+        fFinishLine = true;
+        fTab++;
+        tab(fTab, *fOut);
+        inst->fCode->accept(this);
+        tab(fTab, *fOut);
+        inst->fIncrement->accept(this);
+        fTab--;
+        back(1, *fOut);
+        tab(fTab, *fOut);
+    }
+
+    virtual void visit(SimpleForLoopInst* inst)
+    {
+        // Don't generate empty loops...
+        if (inst->fCode->size() == 0) {
+            return;
+        }
+        *fOut << "for " << inst->getName() << " in ";
+
+        if (inst->fReverse) {
+            // todo:
+            *fOut << "reverse(";
+            Int32NumInst* lower_bound = dynamic_cast<Int32NumInst*>(inst->fLowerBound);
+            faustassert(lower_bound);
+            *fOut << lower_bound->fNum << ":";
+            Int32NumInst* upper_bound = dynamic_cast<Int32NumInst*>(inst->fUpperBound);
+            if (upper_bound) {
+                *fOut << upper_bound->fNum;
+            } else {
+                inst->fUpperBound->accept(this);
+            }
+            *fOut << ")";
+        } else {
+            Int32NumInst* lower_bound = dynamic_cast<Int32NumInst*>(inst->fLowerBound);
+            faustassert(lower_bound);
+            Int32NumInst* upper_bound = dynamic_cast<Int32NumInst*>(inst->fUpperBound);
+            if (upper_bound) {
+                *fOut << "range(" << lower_bound->fNum << ", " << upper_bound->fNum;
+                if (upper_bound->fNum <= lower_bound->fNum) {
+                    *fOut << ", -1";
+                }
+            } else {
+                *fOut << "range(" << lower_bound->fNum << ", ";
+                inst->fUpperBound->accept(this);
+            }
+            *fOut << "):";
+        }
+
+        fTab++;
+        tab(fTab, *fOut);
+        inst->fCode->accept(this);
+        fTab--;
+        back(1, *fOut);
+        tab(fTab, *fOut);
+    }
+
+    static void cleanup() { gFunctionSymbolTable.clear(); }
+};
+
+#endif

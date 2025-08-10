@@ -101,6 +101,10 @@
 #include "jax_code_container.hh"
 #endif
 
+#ifdef LINEN_BUILD
+#include "linen_code_container.hh"
+#endif
+
 #ifdef JULIA_BUILD
 #include "julia_code_container.hh"
 #endif
@@ -673,6 +677,32 @@ static void compileJAX(Tree signals, int numInputs, int numOutputs, ostream* out
 #endif
 }
 
+static void compileLinen(Tree signals, int numInputs, int numOutputs, ostream* out)
+{
+#ifdef LINEN_BUILD
+    gGlobal->gAllowForeignFunction =
+        true;  // foreign functions are supported (we use jax.random.PRNG for example)
+    gGlobal->gNeedManualPow =
+        false;  // Standard pow function will be used in pow(x,y) when y in an integer
+    gGlobal->gFAUSTFLOAT2Internal = true;
+    gContainer =
+        LinenCodeContainer::createContainer(gGlobal->gClassName, numInputs, numOutputs, out);
+
+    if (gGlobal->gVectorSwitch) {
+        gNewComp = new DAGInstructionsCompiler(gContainer);
+    } else {
+        gNewComp = new InstructionsCompilerJAX(gContainer);
+    }
+
+    if (gGlobal->gPrintXMLSwitch || gGlobal->gPrintDocSwitch) {
+        gNewComp->setDescription(new Description());
+    }
+    gNewComp->compileMultiSignal(signals);
+#else
+    throw faustexception("ERROR : -lang linen not supported since Linen backend is not built\n");
+#endif
+}
+
 static void compileTemplate(Tree signals, int numInputs, int numOutputs, ostream* out)
 {
 #ifdef TEMPLATE_BUILD
@@ -1115,6 +1145,8 @@ static void generateCode(Tree signals, int numInputs, int numOutputs, bool gener
         compileJava(signals, numInputs, numOutputs, gDst.get());
     } else if (gGlobal->gOutputLang == "jax") {
         compileJAX(signals, numInputs, numOutputs, gDst.get());
+    } else if (gGlobal->gOutputLang == "linen") {
+        compileLinen(signals, numInputs, numOutputs, gDst.get());
     } else if (gGlobal->gOutputLang == "temp") {
         compileTemplate(signals, numInputs, numOutputs, gDst.get());
     } else if (gGlobal->gOutputLang == "asc") {
