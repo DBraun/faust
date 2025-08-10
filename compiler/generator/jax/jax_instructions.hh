@@ -27,7 +27,14 @@
 #include "struct_manager.hh"
 #include "text_instructions.hh"
 
-// Visitor used to initialize array fields into the DSP structure
+/**
+ * JAX backend instruction visitors for Flax NNX code generation.
+ * 
+ * These visitors handle the conversion of Faust IR to Python/JAX code
+ * with proper NNX module structure and parameter/state management.
+ */
+
+// Visitor used to initialize array fields into the DSP structure during _initialize_carry()
 struct JAXInitFieldsVisitor : public DispatchVisitor {
     std::ostream* fOut;
     int           fTab;
@@ -51,13 +58,39 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
 
     virtual void visit(NamedAddress* named)
     {
+        // Check if this is a UI parameter
+        bool isUIParam = false;
+        bool isCacheVar = false;
+        if (named->isStruct() || named->isStaticStruct()) {
+            std::string name = named->fName;
+            // UI parameters start with these prefixes
+            isUIParam = (name.find("fButton") == 0) ||
+                       (name.find("fCheckbox") == 0) ||
+                       (name.find("fVslider") == 0) ||
+                       (name.find("fHslider") == 0) ||
+                       (name.find("fEntry") == 0) ||
+                       (name.find("fVbargraph") == 0) ||
+                       (name.find("fHbargraph") == 0);
+        } else {
+            // Check for cache variables (ending with "ca") even if not struct
+            std::string name = named->fName;
+            isCacheVar = (name.length() > 2 && name.substr(name.length() - 2) == "ca");
+        }
+        
         // kStaticStruct are actually merged in the main DSP
         if (named->isStruct() || named->isStaticStruct()) {
-            *fOut << "state[\"";
-        }
-        *fOut << named->fName;
-        if (named->isStruct() || named->isStaticStruct()) {
+            if (isUIParam) {
+                *fOut << "params[\"";
+            } else {
+                *fOut << "state[\"";
+            }
+            *fOut << named->fName;
             *fOut << "\"]";
+        } else if (isCacheVar) {
+            // Cache variables are local variables, not in state
+            *fOut << named->fName;
+        } else {
+            *fOut << named->fName;
         }
     }
 
@@ -109,6 +142,15 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
     }
 };
 
+/**
+ * Main instruction visitor for JAX/NNX code generation.
+ * 
+ * Converts Faust intermediate representation to Python/JAX code with:
+ * - Proper parameter/state dictionary access patterns
+ * - Cache variable handling (soundfiles, etc.)
+ * - NNX-compatible method signatures
+ * - JAX array mutation patterns (.at[].set())
+ */
 class JAXInstVisitor : public TextInstVisitor {
    private:
     /*
@@ -373,8 +415,8 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddButtonInst* inst)
     {
-        *fOut << "self.add_button(state, " << quote(inst->fZone) << ", ui_path,"
-              << quote(inst->fLabel) << ")";
+        *fOut << "self.add_button(" << quote(inst->fZone) << ", ui_path, "
+              << quote(inst->fLabel) << ", unnorm_funcs)";
         EndLine(' ');
     }
 
@@ -391,26 +433,36 @@ class JAXInstVisitor : public TextInstVisitor {
 
         switch (inst->fType) {
             case AddSliderInst::kHorizontal:
-            case AddSliderInst::kVertical:
                 // clang-format off
-                *fOut << "self.add_slider(state, " 
+                *fOut << "self.add_hslider(" 
                     << quote(inst->fZone) << ", ui_path, "
                     << quote(inst->fLabel) << ", "
                     << checkReal(inst->fInit) << ", "
                     << checkReal(inst->fMin) << ", "
-                    << checkReal(inst->fMax) << ", "
+                    << checkReal(inst->fMax) << ", unnorm_funcs, "
+                    << scaleMode << ")";
+                break;
+                // clang-format on
+            case AddSliderInst::kVertical:
+                // clang-format off
+                *fOut << "self.add_vslider(" 
+                    << quote(inst->fZone) << ", ui_path, "
+                    << quote(inst->fLabel) << ", "
+                    << checkReal(inst->fInit) << ", "
+                    << checkReal(inst->fMin) << ", "
+                    << checkReal(inst->fMax) << ", unnorm_funcs, "
                     << scaleMode << ")";
                 break;
                 // clang-format on
             case AddSliderInst::kNumEntry:
                 // clang-format off
-                *fOut << "self.add_nentry(state, " 
+                *fOut << "self.add_nentry(" 
                     << quote(inst->fZone) << ", ui_path, "
                     << quote(inst->fLabel) << ", "
                     << checkReal(inst->fInit) << ", "
                     << checkReal(inst->fMin) << ", "
                     << checkReal(inst->fMax) << ", "
-                    << checkReal(inst->fStep) << ")";
+                    << checkReal(inst->fStep) << ", unnorm_funcs)";
                 break;
                 // clang-format on
         }
@@ -419,14 +471,17 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddBargraphInst* inst)
     {
-        *fOut << "state[" + quote(inst->fZone) + "] = 0.";
+        *fOut << "self.add_hbargraph(" << quote(inst->fZone) << ", ui_path, "
+              << quote(inst->fLabel) << ", "
+              << checkReal(inst->fMin) << ", "
+              << checkReal(inst->fMax) << ", unnorm_funcs)";
         EndLine(' ');
     }
 
     virtual void visit(AddSoundfileInst* inst)
     {
-        *fOut << "self.add_soundfile(state, " << quote(inst->fSFZone) << ", ui_path, "
-              << quote(inst->fLabel) << ", " << quote(inst->fURL) << ", x)";
+        *fOut << "self.add_soundfile(" << quote(inst->fSFZone) << ", ui_path, "
+              << quote(inst->fLabel) << ", " << quote(inst->fURL) << ", unnorm_funcs)";
         EndLine(' ');
     }
 
@@ -582,13 +637,39 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(NamedAddress* named)
     {
+        // Check if this is a UI parameter
+        bool isUIParam = false;
+        bool isCacheVar = false;
+        if (named->isStruct() || named->isStaticStruct()) {
+            std::string name = named->fName;
+            // UI parameters start with these prefixes
+            isUIParam = (name.find("fButton") == 0) ||
+                       (name.find("fCheckbox") == 0) ||
+                       (name.find("fVslider") == 0) ||
+                       (name.find("fHslider") == 0) ||
+                       (name.find("fEntry") == 0) ||
+                       (name.find("fVbargraph") == 0) ||
+                       (name.find("fHbargraph") == 0);
+        } else {
+            // Check for cache variables (ending with "ca") even if not struct
+            std::string name = named->fName;
+            isCacheVar = (name.length() > 2 && name.substr(name.length() - 2) == "ca");
+        }
+        
         // kStaticStruct are actually merged in the main DSP
         if (named->isStruct() || named->isStaticStruct()) {
-            *fOut << "state[\"";
-        }
-        *fOut << named->fName;
-        if (named->isStruct() || named->isStaticStruct()) {
+            if (isUIParam) {
+                *fOut << "params[\"";
+            } else {
+                *fOut << "state[\"";
+            }
+            *fOut << named->fName;
             *fOut << "\"]";
+        } else if (isCacheVar) {
+            // Cache variables are local variables, not in state
+            *fOut << named->fName;
+        } else {
+            *fOut << named->fName;
         }
     }
 
@@ -647,18 +728,32 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(StoreVarInst* inst)
     {
-        fIsStoringLhs = true;
-        inst->fAddress->accept(this);
-        fIsStoringLhs = false;
-        *fOut << " = ";
-
-        if (fWillSetArray) {
-            inst->fAddress->accept(this);
-            *fOut << ".set(";
+        // Check if this is a cache variable assignment (ends with "ca")
+        NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress);
+        bool isCacheVar = false;
+        if (named) {
+            std::string name = named->fName;
+            isCacheVar = (name.length() > 2 && name.substr(name.length() - 2) == "ca");
+        }
+        
+        if (isCacheVar) {
+            // For cache variables, create a local variable instead of storing to state
+            *fOut << named->fName << " = ";
             inst->fValue->accept(this);
-            *fOut << ")";
         } else {
-            inst->fValue->accept(this);
+            fIsStoringLhs = true;
+            inst->fAddress->accept(this);
+            fIsStoringLhs = false;
+            *fOut << " = ";
+
+            if (fWillSetArray) {
+                inst->fAddress->accept(this);
+                *fOut << ".set(";
+                inst->fValue->accept(this);
+                *fOut << ")";
+            } else {
+                inst->fValue->accept(this);
+            }
         }
 
         EndLine(' ');
@@ -700,6 +795,14 @@ class JAXInstVisitor : public TextInstVisitor {
     // Generate standard funcall (not 'method' like funcall...)
     virtual void visit(FunCallInst* inst)
     {
+        // Special handling for random_uniform function
+        if (inst->fName == "random_uniform") {
+            // For JAX backend, random_uniform needs an RNG key
+            // Get a fresh RNG key for this call
+            *fOut << "self.random_uniform(rngs())";
+            return;
+        }
+        
         std::string name = (gPolyMathLibTable.find(inst->fName) != gPolyMathLibTable.end())
                                ? gPolyMathLibTable[inst->fName]
                                : inst->fName;

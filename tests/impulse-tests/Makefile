@@ -127,6 +127,9 @@ github_action:
 	$(MAKE) -f Make.rust outdir=rust/no CARGOOPTIONS="" FAUSTOPTIONS="-I ../../libraries/ -double -a archs/rust/architecture_trait.rs"
 	$(MAKE) -f Make.gcc outdir=cpp/double lang=cpp arch=impulsearch.cpp FAUSTOPTIONS="-I ../../libraries/ -I dsp -double"
 
+github_action_jax:
+	$(MAKE) -f Make.jax outdir=jax/double FAUSTOPTIONS="-I ../../libraries/ -I dsp -double"
+
 #########################################################################
 # c++ and c backends
 cpp:

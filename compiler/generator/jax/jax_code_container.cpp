@@ -29,33 +29,37 @@
 using namespace std;
 
 /*
- JAX backend and module description:
+ JAX backend implementation with Flax NNX support:
 
- - Whereas a normal code container would generate a "compute" method, we generate
-   a one-sample loop "tick" method. Our hard-coded "compute" method __call__ is implemented
-   in an architecture file. It uses JAX's scan function in conjunction with the generated tick
- function.
- - Inside "__call__" and before using "scan", we setup the arrays, soundfiles, user interface
- parameters, and other state variables.
- - One tricky part of JAX is modifying arrays in-place:
-   https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.ndarray.at.html
-   Whereas C++ would look like
-   `fRec1[0] = fTemp0`
-   in JAX we have to do
-   `state["fRec1"] = state["fRec1"].at[0].set(fTemp0)`
-   Also, this at-and-set operation is slow, so we only use it inside the tick method.
-   This is why in all other places (like initializing sound files which are arrays),
-   we use numpy arrays instead of jnp arrays. It's best to just look at the generated code and
- notice how the jnp prefix is used differently than the np prefix.
- - In order to simplify global array typing, subcontainers are actually merged in the main DSP
- structure:
-    - so 'mergeSubContainers' is used
-    - global variables are added in the DSP structure
-    - the JAXInitFieldsVisitor class does initialisation for waveforms. This makes it easy to use
- numpy instead of jax when initializing arrays (good for speed). We also use fUseNumpy in this
- decision making. We convert the numpy arrays to jax numpy before they're used in the tick method.
-    - the fGlobalDeclarationInstructions contains global functions and variables. It is "manually"
- used to generate global functions and move global variables declaration at DSP structure level.
+ ### Core Architecture:
+ - Generates a one-sample "tick" method instead of a traditional "compute" method
+ - Uses JAX's nnx.scan for efficient loop processing over audio blocks
+ - Architecture files (minimal.py, impulsejax.py) provide the __call__ wrapper
+ - Flax NNX modules handle parameter management and state initialization
+
+ ### Key Design Decisions:
+ - **Flax NNX Integration**: Uses nnx.Module, nnx.Param, nnx.Variable for parameter/state management
+ - **Immutable Arrays**: JAX arrays require `.at[index].set(value)` instead of in-place updates
+ - **Parameter Separation**: UI parameters stored in `params` dict, state variables in `state` dict
+ - **Cache Variables**: Soundfile cache variables (ending in "ca") are local vars, not state entries
+ - **NumPy Initialization**: Use mutable NumPy arrays during setup, convert to JAX in tick method
+
+ ### Code Generation:
+ - `tick(params, state, inputs, rng)` signature for NNX compatibility
+ - `_initialize_carry()` method sets up initial state dictionary
+ - `build_interface()` method creates UI parameter structure
+ - UI parameters accessed via `params["fVslider0"]`, state via `state["fRec0"]`
+ - Soundfiles initialized in `initialize_carry()` and copied to state
+
+ ### Subcontainer Handling:
+ - All subcontainers merged into main DSP structure for simplified typing
+ - Global variables moved to DSP structure level
+ - JAXInitFieldsVisitor handles waveform initialization with NumPy for speed
+
+ ### Delay Line Optimization:
+ - Small delays (≤16 samples) use jnp.roll operations
+ - Large delays use circular buffer indexing for O(1) performance
+ - Controlled by -mcd compiler flag (default 16)
 */
 
 map<string, bool> JAXInstVisitor::gFunctionSymbolTable;
@@ -154,9 +158,9 @@ void JAXCodeContainer::produceClass()
                  "https://jax.readthedocs.io/en/latest/notebooks/"
                  "Common_Gotchas_in_JAX.html#double-64bit-precision";
         tab(n, *fOut);
-        *fOut << "from jax.config import config";
+        *fOut << "import jax";
         tab(n, *fOut);
-        *fOut << "config.update(\"jax_enable_x64\", True)";
+        *fOut << "jax.config.update(\"jax_enable_x64\", True)";
         tab(n, *fOut);
         *fOut << "FAUSTFLOAT = jnp.float64";
         tab(n, *fOut);
@@ -186,7 +190,7 @@ void JAXCodeContainer::produceClass()
     tab(n, *fOut);
     gGlobal->gJAXVisitor->Tab(n);
 
-    *fOut << "class " << fKlassName << "(nn.Module):";
+    *fOut << "class " << fKlassName << "(nnx.Module):";
     tab(n + 1, *fOut);
 
     // Fields
@@ -200,10 +204,46 @@ void JAXCodeContainer::produceClass()
     tab(n + 1, *fOut);
     gGlobal->gJAXVisitor->Tab(n);
 
+    // Generate __init__ method for NNX
+    tab(n + 1, *fOut);
+    *fOut << "def __init__(self, sample_rate: int = 44100, faust_float = jnp.float32, soundfile_dirs: list[str] = [], rngs = None):";
+    tab(n + 2, *fOut);
+    *fOut << "self.sample_rate = sample_rate";
+    tab(n + 2, *fOut);
+    *fOut << "self.soundfile_dirs = soundfile_dirs if soundfile_dirs else []";
+    tab(n + 2, *fOut);
+    *fOut << "self.faust_float = faust_float";
+    tab(n + 2, *fOut);
+    *fOut << "self.rngs = rngs";
+    tab(n + 2, *fOut);
+    *fOut << "self.rng_collection = \"default\"";
+    tab(n + 2, *fOut);
+    *fOut << "self._parameter_metadata = {}";
+    tab(n + 2, *fOut);
+    *fOut << "self._unnorm_funcs = {}";
+    tab(n + 2, *fOut);
+    *fOut << "self.num_inputs = " << fNumInputs;
+    tab(n + 2, *fOut);
+    *fOut << "self.num_outputs = " << fNumOutputs;
+    tab(n + 2, *fOut);
+    *fOut << "self.json_metadata = self.getJSON()";
+    tab(n + 2, *fOut);
+    tab(n + 2, *fOut);
+    *fOut << "# Build UI interface";
+    tab(n + 2, *fOut);
+    *fOut << "ui_path = []";
+    tab(n + 2, *fOut);
+    *fOut << "unnorm_funcs = {}";
+    tab(n + 2, *fOut);
+    *fOut << "self.build_interface(ui_path, unnorm_funcs)";
+    tab(n + 2, *fOut);
+    *fOut << "self._unnorm_funcs = unnorm_funcs";
+    tab(n + 1, *fOut);
+
     tab(n + 1, *fOut);
     produceInfoFunctions(n + 1, "", "self", false, FunTyped::kDefault, gGlobal->gJAXVisitor);
 
-    *fOut << "def initialize(self, x, T):";
+    *fOut << "def _initialize_carry(self, x, T):";
     {
         tab(n + 2, *fOut);
         *fOut << "state = {}";
@@ -234,6 +274,10 @@ void JAXCodeContainer::produceClass()
         tab(n + 2, *fOut);
         generateClear(gGlobal->gJAXVisitor);
         tab(n + 2, *fOut);
+        
+        // TODO: Initialize bargraphs if needed
+        
+        tab(n + 2, *fOut);
         *fOut << "return state";
         tab(n + 1, *fOut);
     }
@@ -258,14 +302,12 @@ void JAXCodeContainer::produceClass()
 
     // User interface
     tab(n + 1, *fOut);
-    *fOut << "def build_interface(self, state, x, T: int):";
-    tab(n + 2, *fOut);
-    *fOut << "ui_path = []";
+    *fOut << "def build_interface(self, ui_path: list[str], unnorm_funcs: dict):";
     tab(n + 2, *fOut);
     gGlobal->gJAXVisitor->Tab(n + 2);
     generateUserInterface(gGlobal->gJAXVisitor);
     tab(n + 2, *fOut);
-    *fOut << "return state";
+    *fOut << "return";
 
     // Compute
     tab(n + 1, *fOut);
@@ -277,9 +319,28 @@ void JAXCodeContainer::generateCompute(int n)
 {
     // Generates declaration
     tab(n, *fOut);
-    *fOut << "@staticmethod";
-    tab(n, *fOut);
-    *fOut << "def tick(state: dict, inputs: jnp.array):";
+    *fOut << "def tick(self, params: dict, state: dict, inputs: jnp.array, rng = None):";
+    tab(n + 1, *fOut);
+    
+    // Generate RNG helper function for random_uniform calls
+    tab(n + 1, *fOut);
+    *fOut << "# Helper function to get RNG keys";
+    tab(n + 1, *fOut);
+    *fOut << "if rng is not None and self.rngs is not None:";
+    tab(n + 2, *fOut);
+    *fOut << "def rngs():";
+    tab(n + 3, *fOut);
+    *fOut << "nonlocal rng";
+    tab(n + 3, *fOut);
+    *fOut << "rng, next_rng = random.split(rng)";
+    tab(n + 3, *fOut);
+    *fOut << "return next_rng";
+    tab(n + 1, *fOut);
+    *fOut << "else:";
+    tab(n + 2, *fOut);
+    *fOut << "def rngs():";
+    tab(n + 3, *fOut);
+    *fOut << "return None";
     tab(n + 1, *fOut);
 
     tab(n + 1, *fOut);

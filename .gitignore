@@ -43,3 +43,10 @@ tests/impulse-tests/ir
 .idea/
 ### Pyenv
 .python-version
+
+# JAX test artifacts
+tests/impulse-tests/ir/jax/
+tests/jax-tests/generated/
+tests/jax-tests/*.test
+tests/jax-tests/*.output.log
+

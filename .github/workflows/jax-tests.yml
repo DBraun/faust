@@ -1,0 +1,161 @@
+name: JAX Tests
+
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches: [ master-dev ]
+
+jobs:
+  build-faust:
+    # Build Faust once and share with other jobs
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    - name: Checkout submodules
+      run: git submodule update --init --recursive
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y build-essential cmake pkg-config libmicrohttpd-dev
+
+    - name: Build Faust
+      run: make
+
+    - name: Upload Faust build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: faust-build
+        path: |
+          build/bin/
+          build/lib/
+          architecture/
+          libraries/
+        retention-days: 1
+
+  test-jax-impulse:
+    # Run JAX impulse tests
+    needs: build-faust
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    - name: Checkout submodules
+      run: git submodule update --init --recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Download Faust build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: faust-build
+        path: .
+
+    - name: Install JAX dependencies
+      run: |
+        pip install --upgrade pip
+        pip install jax jaxlib
+        pip install flax
+        pip install scipy
+
+    - name: Run JAX impulse tests
+      env:
+        JAX_PLATFORMS: cpu
+      run: |
+        cd tests/impulse-tests
+        make -f Make.jax jax
+
+  test-jax-tests:
+    # Run JAX-specific tests
+    needs: build-faust
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    - name: Checkout submodules
+      run: git submodule update --init --recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Download Faust build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: faust-build
+        path: .
+
+    - name: Install JAX dependencies
+      run: |
+        pip install --upgrade pip
+        pip install jax jaxlib
+        pip install flax
+        pip install scipy
+        pip install librosa
+        pip install tqdm  # Required for benchmark script
+
+    - name: Run JAX tests
+      env:
+        JAX_PLATFORMS: cpu
+      run: |
+        cd tests/jax-tests
+        make test
+    
+    - name: Run CI validation tests
+      env:
+        JAX_PLATFORMS: cpu
+      run: |
+        cd tests/jax-tests
+        echo "Running CI validation tests..."
+        python test_ci_validation.py
+
+    - name: Run random_uniform tests
+      env:
+        JAX_PLATFORMS: cpu
+      run: |
+        cd tests/jax-tests
+        # Test random generation specifically
+        echo "Testing random generation with JAX PRNG..."
+        make test-random_test test-random_uniform test-random_stereo
+    
+    - name: Run delay line benchmarks
+      env:
+        JAX_PLATFORMS: cpu
+      run: |
+        cd tests/jax-tests
+        echo "Running delay line optimization benchmarks..."
+        # Run benchmark script - it will test various -mcd values
+        python benchmark_delays.py
+    
+    - name: Upload benchmark results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: jax-benchmark-results
+        path: tests/jax-tests/delay_benchmark_results.json
+        retention-days: 7
+    
+    - name: Display benchmark summary
+      if: always()
+      env:
+        JAX_PLATFORMS: cpu
+      run: |
+        cd tests/jax-tests
+        if [ -f delay_benchmark_results.json ]; then
+          echo "=== Benchmark Summary ==="
+          python -c "
+          import json
+          with open('delay_benchmark_results.json') as f:
+              results = json.load(f)
+          for test, data in results.items():
+              if data.get('best_mcd'):
+                  print(f\"{data['description']:45s}: best with -mcd {data['best_mcd']:3d} ({data['best_time']:.3f} ms)\")
+          "
+        fi
