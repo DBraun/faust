@@ -161,14 +161,4 @@ jobs:
         JAX_PLATFORMS: cpu
       run: |
         cd tests/jax-tests
-        if [ -f delay_benchmark_results.json ]; then
-          echo "=== Benchmark Summary ==="
-          python -c "
-          import json
-          with open('delay_benchmark_results.json') as f:
-              results = json.load(f)
-          for test, data in results.items():
-              if data.get('best_mcd'):
-                  print(f\"{data['description']:45s}: best with -mcd {data['best_mcd']:3d} ({data['best_time']:.3f} ms)\")
-          "
-        fi
+        python display_benchmark_summary.py

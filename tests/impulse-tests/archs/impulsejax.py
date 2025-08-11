@@ -398,7 +398,7 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 	if print_header:
 		print(f"number_of_inputs  :   {model.num_inputs}")
 		print(f"number_of_outputs :   {model.num_outputs}")
-		print(f"number_of_frames  :  {N_SAMPLES*4}")
+		print(f"number_of_frames  :   {N_SAMPLES*4}")
 
 	# print the samples
 	for i, frame in enumerate(output_audio):
