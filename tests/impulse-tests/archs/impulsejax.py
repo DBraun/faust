@@ -241,12 +241,9 @@ except ImportError:
 			
 		Returns:
 			Dictionary containing all stateful components (delays, filter states, etc.)
-		"""
-		# Create dummy input for initialization
-		dummy_x = jnp.zeros((self.num_inputs, 1), dtype=self.faust_float)
-		
+		"""		
 		# Initialize the full state using fast numpy
-		state = self._initialize_carry(dummy_x, 1)
+		state = self._initialize_carry()
 		
 		# Add soundfiles to state if they exist
 		for attr_name in dir(self):

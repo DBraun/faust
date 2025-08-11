@@ -226,8 +226,6 @@ void JAXCodeContainer::produceClass()
     tab(n + 2, *fOut);
     *fOut << "self.num_outputs = " << fNumOutputs;
     tab(n + 2, *fOut);
-    *fOut << "self.json_metadata = self.getJSON()";
-    tab(n + 2, *fOut);
     tab(n + 2, *fOut);
     *fOut << "# Build UI interface";
     tab(n + 2, *fOut);
@@ -243,7 +241,7 @@ void JAXCodeContainer::produceClass()
     tab(n + 1, *fOut);
     produceInfoFunctions(n + 1, "", "self", false, FunTyped::kDefault, gGlobal->gJAXVisitor);
 
-    *fOut << "def _initialize_carry(self, x, T):";
+    *fOut << "def _initialize_carry(self):";
     {
         tab(n + 2, *fOut);
         *fOut << "state = {}";
@@ -285,7 +283,9 @@ void JAXCodeContainer::produceClass()
 
     // JSON generation
     tab(n + 1, *fOut);
-    *fOut << "def getJSON(self):";
+    *fOut << "@property";
+    tab(n + 1, *fOut);
+    *fOut << "def json_metadata(self):";
     {
         string json;
         if (gGlobal->gFloatSize == 1) {
