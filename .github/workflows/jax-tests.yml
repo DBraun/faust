@@ -57,12 +57,21 @@ jobs:
         name: faust-build
         path: .
 
+    - name: Make binaries executable
+      run: |
+        chmod +x build/bin/*
+
     - name: Install JAX dependencies
       run: |
         pip install --upgrade pip
         pip install jax jaxlib
         pip install flax
         pip install scipy
+
+    - name: Build test tools
+      run: |
+        cd tests/impulse-tests
+        make filesCompare
 
     - name: Run JAX impulse tests
       env:
@@ -91,6 +100,10 @@ jobs:
       with:
         name: faust-build
         path: .
+
+    - name: Make binaries executable
+      run: |
+        chmod +x build/bin/*
 
     - name: Install JAX dependencies
       run: |
