@@ -213,7 +213,7 @@ except ImportError:
 
 	def unnormalize(self, i: int) -> Dict[str, jnp.ndarray]:
 		"""
-		Unnormalize all UI parameters from [-1, 1] to their original ranges.
+		Unnormalize all UI parameters from [0, 1] to their original ranges.
 		
 		Returns:
 			Dictionary mapping zones to unnormalized parameter values

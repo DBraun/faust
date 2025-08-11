@@ -22,7 +22,6 @@ make test
 Test a specific DSP file:
 ```bash
 make test-simple_gain    # Compile and test simple_gain.dsp
-make test-stereo_pan     # Compile and test stereo_pan.dsp
 ```
 
 Only compile a DSP file without running:
@@ -91,12 +90,6 @@ Place test DSP files in the `dsp/` directory. For example:
 process = *(0.5);
 ```
 
-```faust
-// dsp/sine_oscillator.dsp
-import("stdfaust.lib");
-process = os.osc(440);
-```
-
 ## Special Tests
 
 ### Random Number Generation Tests
@@ -157,4 +150,3 @@ If a test fails:
 
 Known issues:
 - **Missing function error (e.g., `fillmydspSIG0SIG0`)**: **This is why `waveform_tabulate.dsp` fails. See https://github.com/grame-cncm/faust/issues/737
-- **Missing soundfiles cause failures**. The URLs in `sound.dsp` don't have audio files, so `sound.dsp` fails. In some Faust architectures, missing soundfiles are replaced with silence, but the JAX architecture is stricter.

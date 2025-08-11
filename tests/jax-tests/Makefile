@@ -92,9 +92,17 @@ help:
 	@echo "  PYTHON='python3'            : Specify Python interpreter"
 	@echo "  FAUSTOPTIONS='-lang jax...' : Additional Faust options"
 
-# Create output directory
+# Create output directory and dummy WAV files for sound.dsp
 $(outdir):
 	@mkdir -p $(outdir)
+	@mkdir -p assets
+	@echo "Creating dummy 4-channel WAV files for sound.dsp..."
+	@$(PYTHON) -c "import numpy as np; from scipy.io import wavfile; \
+		sr = 44100; duration = 1; channels = 4; \
+		silence = np.zeros((int(sr * duration), channels), dtype=np.float32); \
+		wavfile.write('assets/sound1.wav', sr, silence); \
+		wavfile.write('assets/sound2.wav', sr, silence); \
+		print('Created sound1.wav and sound2.wav with 4 channels in assets/')"
 
 # Rule to compile DSP to Python
 $(outdir)/%.py: dsp/%.dsp | $(outdir)

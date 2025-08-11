@@ -285,8 +285,8 @@ except ImportError:
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
 		# Update type in metadata
 		self._parameter_metadata[zone]["type"] = "vslider"
-	
-	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
+
+	def add_bargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
 		# Bargraphs are output-only, no parameters needed
 		# But we can still store metadata
 		self._parameter_metadata[zone] = {
@@ -299,18 +299,13 @@ except ImportError:
 			"output_only": True,
 		}
 	
+	def add_hbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
+		self.add_bargraph(zone, ui_path, label, a_min, a_max, unnorm_funcs)
+		self._parameter_metadata[zone]["type"] = "hbargraph"
+	
 	def add_vbargraph(self, zone: str, ui_path: list[str], label: str, a_min: float, a_max: float, unnorm_funcs: dict):
-		# Bargraphs are output-only, no parameters needed
-		# But we can still store metadata
-		self._parameter_metadata[zone] = {
-			"full_label": "/".join(ui_path + [label]),
-			"label": label,
-			"type": "vbargraph",
-			"internal_name": zone,
-			"min": a_min,
-			"max": a_max,
-			"output_only": True,
-		}
+		self.add_bargraph(zone, ui_path, label, a_min, a_max, unnorm_funcs)
+		self._parameter_metadata[zone]["type"] = "vbargraph"
 
 	def random_uniform(self, rng: jax.Array):
 		"""
@@ -320,7 +315,7 @@ except ImportError:
 
 	def unnormalize(self) -> Dict[str, jnp.ndarray]:
 		"""
-		Unnormalize all UI parameters from [-1, 1] to their original ranges.
+		Unnormalize all UI parameters from [0, 1] to their original ranges.
 		
 		Returns:
 			Dictionary mapping zones to unnormalized parameter values
@@ -395,7 +390,8 @@ except ImportError:
 			- output_block has shape (num_outputs, block_size)
 			- new_carry is the updated state dictionary
 		"""
-		if length is None and inputs is not None and hasattr(inputs, "shape"):
+		if length is None:
+			assert inputs is not None, "You must specify `inputs` when `length` is not specified."
 			length = inputs.shape[-1]
 
 		# Unnormalize parameters once before the scan
@@ -418,9 +414,11 @@ except ImportError:
 			return new_carry, y
 
 		# Handle input shape for scan
-		if inputs is None or self.num_inputs == 0:
+		if inputs is None:
 			# Generator case
-			inputs = jnp.zeros((0, length), dtype=self.faust_float)
+			inputs = jnp.zeros((self.num_inputs, length), dtype=self.faust_float)
+		else:
+			assert inputs.shape == (self.num_inputs, length)
 
 		new_carry, outputs = nnx.scan(
 			scan_body,
@@ -440,7 +438,8 @@ except ImportError:
 		rngs: rnglib.Rngs | rnglib.RngStream | jax.Array | None = None,
 	) -> jnp.ndarray:
 
-		if length is None and inputs is not None:
+		if length is None:
+			assert inputs is not None, "You must specify `inputs` when `length` is not specified."
 			length = inputs.shape[-1]
 
 		rngs = first_from(rngs, self.rngs, error_msg="No `rngs` argument was provided as either a __call__ argument or class attribute")
@@ -457,6 +456,8 @@ except ImportError:
 		# Handle generators (no input case)
 		if inputs is None:
 			inputs = jnp.zeros((self.num_inputs, length), dtype=self.faust_float)
+		else:
+			assert inputs.shape == (self.num_inputs, length)
 
 		carry = self.initialize_carry()
 
@@ -466,11 +467,6 @@ except ImportError:
 		def scan_body(carry, inputs, _rng):
 			new_carry, y = self.tick(params, carry, inputs, _rng)
 			return new_carry, y
-
-		# Handle input shape for scan
-		if self.num_inputs == 0:
-			# Generator case
-			inputs = jnp.zeros((0, length), dtype=self.faust_float)
 
 		new_carry, outputs = nnx.scan(
 			scan_body,
@@ -498,7 +494,7 @@ def test(args):
 	model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float, rngs=rngs)
 	
 	# Display model structure if requested
-	if args.tabulate:
+	if args.tabulate > 0:
 		logger.info("\n" + "="*60)
 		logger.info("Model Structure Analysis")
 		logger.info("="*60)
@@ -519,7 +515,7 @@ def test(args):
 			dummy_rng = random.key(0)
 		
 		# Tabulate the model structure
-		table_str = nnx.tabulate(model, dummy_inputs, length=dummy_length, unroll=args.unroll, rngs=dummy_rng)
+		table_str = nnx.tabulate(model, dummy_inputs, length=dummy_length, unroll=args.unroll, rngs=dummy_rng, depth=args.tabulate)
 		
 		logger.info(table_str)
 		logger.info("="*60 + "\n")
@@ -754,8 +750,8 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Run a JAX/Flax model converted from Faust code")	
 	parser.add_argument("-sr", "--sample-rate", type=int, default=44100, help="Sample rate (such as 44100)")
 	parser.add_argument("-d", "--duration", type=float, default=None, help="Output duration in seconds")
-	parser.add_argument("--unroll", type=int, default=1, help="Unroll size (default is 1)")
-	parser.add_argument("--random", default=False, action=argparse.BooleanOptionalAction, help='Whether the default audio is random. By default it"s an impulse.')
+	parser.add_argument("--unroll", type=int, default=1, help="Unroll size for jax.lax.scan (default is 1)")
+	parser.add_argument("--random", default=False, action=argparse.BooleanOptionalAction, help="Whether the default audio is random. By default it's an impulse.")
 	parser.add_argument("--seed", default=0, type=int, help="Seed for random number generator (default: 0)")
 	parser.add_argument("-i", "--input", type=str, default=None, help="Filepath for input audio WAV")
 	parser.add_argument("-o", "--output", type=str, default=None, help="Filepath for output audio WAV")
@@ -767,7 +763,7 @@ if __name__ == "__main__":
 	parser.add_argument("--verbose", default=False, action=argparse.BooleanOptionalAction, help="Whether to print the variables of the DSP")
 	parser.add_argument("--realtime", default=False, action=argparse.BooleanOptionalAction, help="Run the DSP with silent input and send the output to an audio device in real-time.")
 	parser.add_argument("-bs", "--block-size", type=int, default=512, help="Block size for real-time mode such as 512",)
-	parser.add_argument("--tabulate", default=False, action=argparse.BooleanOptionalAction, help="Display model structure analysis using nnx.tabulate")
+	parser.add_argument("--tabulate", type=int, default=0, help="Tabulate depth for nnx.tabulate, where the default 0 will skip tabulation.")
 	# fmt: on
 	args = parser.parse_args()
 
