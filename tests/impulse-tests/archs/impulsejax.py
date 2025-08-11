@@ -351,12 +351,6 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 
 	rngs = nnx.Rngs(1, params=1, rng_stream=2)
 	model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float, rngs=rngs)
-	
-	# Ensure num_inputs and num_outputs are set
-	if not hasattr(model, 'num_inputs'):
-		model.num_inputs = model.getNumInputs() if hasattr(model, 'getNumInputs') else 1
-	if not hasattr(model, 'num_outputs'):
-		model.num_outputs = model.getNumOutputs() if hasattr(model, 'getNumOutputs') else 1
 
 	BLOCK_SIZE = 1
 
