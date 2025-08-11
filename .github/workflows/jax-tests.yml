@@ -64,9 +64,7 @@ jobs:
     - name: Install JAX dependencies
       run: |
         pip install --upgrade pip
-        pip install jax jaxlib
-        pip install flax
-        pip install scipy
+        pip install jax-ai-stack
 
     - name: Build test tools
       run: |
@@ -78,7 +76,7 @@ jobs:
         JAX_PLATFORMS: cpu
       run: |
         cd tests/impulse-tests
-        make -f Make.jax jax
+        make jax
 
   test-jax-tests:
     # Run JAX-specific tests

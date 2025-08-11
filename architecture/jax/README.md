@@ -319,9 +319,7 @@ The `tests/impulse-tests/archs/impulsejax.py` file is a specialized architecture
    number_of_frames  :   60000 # 3 spaces after colon
    ```
 
-2. **Error Handling**: Includes defensive error handling to ensure valid output even if processing fails, preventing CI test failures.
-
-3. **Soundfile Workaround**: Like `minimal.py`, it includes the soundfile state workaround described above.
+2. **Soundfile Workaround**: Like `minimal.py`, it includes the soundfile state workaround described below.
 
 ## Polyphony Support
 
@@ -389,7 +387,7 @@ However, the generated `_initialize_carry()` method does NOT include soundfiles 
 Architecture files work around this by manually adding soundfiles to the state in `initialize_carry()`:
 ```python
 def initialize_carry(self):
-    state = self._initialize_carry(dummy_x, 1)
+    state = self._initialize_carry()
     
     # Add soundfiles to state if they exist
     for attr_name in dir(self):
