@@ -308,6 +308,21 @@ make jax
 
 There are several todo items marked in `tests/impulse-tests/Make.jax`.
 
+### Impulse Test Architecture
+
+The `tests/impulse-tests/archs/impulsejax.py` file is a specialized architecture for impulse response testing. It has specific requirements:
+
+1. **Output Formatting**: Must match the reference format exactly with proper spacing:
+   ```
+   number_of_inputs  :   1    # 3 spaces after colon
+   number_of_outputs :   1    # 3 spaces after colon  
+   number_of_frames  :   60000 # 3 spaces after colon
+   ```
+
+2. **Error Handling**: Includes defensive error handling to ensure valid output even if processing fails, preventing CI test failures.
+
+3. **Soundfile Workaround**: Like `minimal.py`, it includes the soundfile state workaround described above.
+
 ## Polyphony Support
 
 The JAX backend supports polyphonic DSPs. Polyphony in JAX is naturally handled using `vmap` for efficient vectorized processing across multiple voices.
@@ -354,6 +369,51 @@ An architecture file must implement these methods:
 
 It is optional to override these methods:
 - **`load_soundfile()`**: Helper for loading audio files from disk
+
+### Soundfile Handling Implementation Note
+
+The current JAX backend has a known issue with soundfile handling that requires a workaround in the architecture files:
+
+#### The Issue
+
+The Faust compiler generates code that expects soundfiles to be in the `state` dictionary:
+```python
+# In generated tick function:
+fSoundfile0ca = state["fSoundfile0"]
+```
+
+However, the generated `_initialize_carry()` method does NOT include soundfiles in the state initialization. This is a bug because soundfiles are immutable data (read-only audio buffers) that should not be part of the carry state.
+
+#### Current Workaround
+
+Architecture files work around this by manually adding soundfiles to the state in `initialize_carry()`:
+```python
+def initialize_carry(self):
+    state = self._initialize_carry(dummy_x, 1)
+    
+    # Add soundfiles to state if they exist
+    for attr_name in dir(self):
+        if attr_name.startswith("fSoundfile"):
+            state[attr_name] = getattr(self, attr_name)
+    
+    return state
+```
+
+#### Why This is Suboptimal
+
+Soundfiles should NOT be in the carry state because:
+- They are immutable (never modified during processing)
+- They are not part of the signal processing state
+- Including them unnecessarily passes large static data through JAX's scan operations
+- This can impact performance, especially with large soundfiles
+
+#### Ideal Solution
+
+The Faust compiler should be fixed to either:
+1. Access soundfiles directly from `self` in the tick function
+2. Pass soundfiles through the `params` dictionary (like UI parameters)
+
+Until the compiler is fixed, the workaround must remain in place to ensure soundfile-based DSPs work correctly.
 
 ## Installation
 
