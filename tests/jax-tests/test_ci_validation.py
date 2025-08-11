@@ -33,10 +33,13 @@ process = random_uniform;
         with tempfile.NamedTemporaryFile(suffix='.py', delete=False) as f:
             py_path = f.name
         
+        libraries_path = Path(__file__).parent.parent.parent / "libraries"
+        
         cmd = [
             str(faust_bin),
             "-lang", "jax",
             "-a", str(arch_file),
+            "-I", str(libraries_path),
             dsp_path,
             "-o", py_path
         ]
@@ -115,10 +118,13 @@ process = _ : @(100);
             with tempfile.NamedTemporaryFile(suffix='.py', delete=False) as f:
                 py_path = f.name
             
+            libraries_path = Path(__file__).parent.parent.parent / "libraries"
+            
             cmd = [
                 str(faust_bin),
                 "-lang", "jax",
                 "-mcd", str(mcd),
+                "-I", str(libraries_path),
                 dsp_path,
                 "-o", py_path
             ]
