@@ -396,9 +396,9 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 	
 	# print the header
 	if print_header:
-		print(f"number_of_inputs  :   {model.num_inputs}")
-		print(f"number_of_outputs :   {model.num_outputs}")
-		print(f"number_of_frames  :   {N_SAMPLES*4}")
+		print(f"number_of_inputs  : {model.num_inputs}")
+		print(f"number_of_outputs : {model.num_outputs}")
+		print(f"number_of_frames  : {N_SAMPLES*4}")
 
 	# print the samples
 	for i, frame in enumerate(output_audio):
@@ -421,13 +421,5 @@ if __name__ == '__main__':
 
 	duration = args.duration
 
-	try:
-		main(args, duration, 0)
-		main(args, duration, duration, print_header=False)
-	except Exception as e:
-		# If there's an error, at least output valid header for impulse tests
-		print("number_of_inputs  :   1")
-		print("number_of_outputs :   1")
-		print("number_of_frames  :   60000")
-		print(f"# Error occurred: {e}", file=sys.stderr)
-		sys.exit(1)
+	main(args, duration, 0)
+	main(args, duration, duration, print_header=False)
