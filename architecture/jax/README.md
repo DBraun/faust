@@ -82,20 +82,20 @@ input_audio = input_audio.at[:, 0].set(1.0)  # impulse on all channels
 output_audio = model(input_audio)
 assert output_audio.shape == (model.num_outputs, n_samples)
 
-# For generators, pass None as input and specify `length`
-output_audio = model(None, length=n_samples)
+# For generators, pass zero channels but with a valid length
+assert input_audio.shape[0] == 0
+output_audio = model(input_audio)
 
 # If bargraphs are in the DSP code:
 # todo: this feature is currently disabled in jax_code_container.cpp
-output_audio, mod_vars = model.apply(variables, input_audio, mutable="intermediates")
+output_audio, mod_vars = model(input_audio, mutable="intermediates")
 bargraphs = mod_vars["intermediates"]
 ```
 
 **How it works:**
 
-**`__call__(x: jnp.ndarray, length: int, unroll: int)`**: Basic offline audio processing without receiving and returning a carry state
+**`__call__(x: jnp.ndarray, unroll: int)`**: Basic offline audio processing without receiving and returning a carry state
 - `x`: Input audio tensor of shape `(num_inputs, num_samples)` or `None` for generators
-- `length`: Number of samples to process (necessary when `x is None`)
 - `unroll`: Unroll size for `jax.lax.scan`
 
 **Available properties:**
@@ -132,7 +132,6 @@ def process_block_jit(carry, inputs: jnp.ndarray):
    outputs, new_carry = model.process_block(
       carry,
       inputs,
-      length=block_size,
       unroll=unroll,
    )
    return outputs, new_carry
@@ -155,10 +154,9 @@ for block_idx in range(num_blocks):
 1. **`initialize_carry(self)`**: Creates initial state for real-time processing
    - Returns: Dictionary containing all stateful components (delays, filter states, etc.)
 
-1. **`process_block(carry, inputs: jnp.ndarray, length: int = None, unroll: int = 1)`**: Processes one block of audio
+1. **`process_block(carry, inputs: jnp.ndarray, unroll: int = 1)`**: Processes one block of audio
    - `carry`: State dictionary from previous block
    - `inputs`: Input block of shape `(num_inputs, block_size)`
-   - `length`: output length if `inputs` is None. This is like the block size.
    - `unroll`: Unroll size for `jax.lax.scan`
    - Returns: Tuple `(outputs, new_carry)` where outputs has shape `(num_outputs, block_size)`
 

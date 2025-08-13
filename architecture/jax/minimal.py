@@ -155,20 +155,18 @@ except ImportError:
 		setattr(self, logits_zone, nnx.Param(logits))
 
 		# temperature (optional learnable scalar)
-		# tau = nnx.Param(jnp.ones((), dtype=faust_float))
-		tau = 1.0  # TODO: user should be able to configure via UI Label metadata:
+		# TODO: user should be able to configure tau via UI Label metadata:
 		# https://faustdoc.grame.fr/manual/syntax/#ui-label-metadata
-
-		# Store nentry metadata as attributes. TODO: necessary?
-		setattr(self, f"_{zone}_step_values", step_values)
-		setattr(self, f"_{zone}_tau", tau)
+		# and optionally use nnx.Param instead of Variable
+		tau_zone = zone + "_tau"
+		setattr(self, tau_zone, nnx.Variable(1.0))
 		
 		# Add unnormalization lambda for nentry
-		def make_nentry_unnorm(zone, tau, step_values):
-			def unnorm_nentry(logits):
-				# todo: finish Gumbel-softmax for NNX
+		def make_nentry_unnorm(zone, step_values):
+			def unnorm_nentry(logits, tau):
+				# TODO: Finish Gumbel-softmax implementation
 				# # Gumbel-softmax computation
-				# if hasattr(self.rngs, 'gumbel'):  # training
+				# if hasattr(self.rngs, "gumbel"):  # training
 				# 	gumbel_noise = random.gumbel(
 				# 		self.rngs.gumbel(), logits.shape, dtype=faust_float
 				# 	)
@@ -181,7 +179,7 @@ except ImportError:
 
 			return unnorm_nentry
 
-		unnorm_funcs[full_label] = (zone, make_nentry_unnorm(zone, tau, step_values))
+		unnorm_funcs[full_label] = (zone, make_nentry_unnorm(zone, step_values))
 		
 		# Store parameter metadata
 		self._parameter_metadata[zone] = {
@@ -189,11 +187,11 @@ except ImportError:
 			"label": label,
 			"type": "nentry",
 			"internal_name": zone,
-			"min": a_min,
-			"max": a_max,
-			"default": init,
-			"step": step_size,
-			"num_options": num_steps,
+			"min": float(a_min),
+			"max": float(a_max),
+			"default": float(init),
+			"step": float(step_size),
+			"num_options": int(num_steps),
 			"scale_mode": scale_mode,
 		}
 	
@@ -252,18 +250,6 @@ except ImportError:
 		"""Add a slider UI element with the specified parameters."""
 		faust_float = self.faust_float
 		full_label = "/".join(ui_path + [label])
-		init, a_min, a_max = faust_float(init), faust_float(a_min), faust_float(a_max)
-		
-		# Normalize init value to [0, 1] based on scale mode
-		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
-		
-		# Create the normalized parameter with label as name
-		setattr(self, zone, nnx.Param(normalized_init))
-
-		# Create and store the unnormalization function
-		unnorm_func = self.create_unnormalize_func(a_min, a_max, scale_mode)
-		unnorm_funcs[full_label] = (zone, unnorm_func)
-		
 		# Store parameter metadata
 		self._parameter_metadata[zone] = {
 			"full_label": full_label,
@@ -275,6 +261,18 @@ except ImportError:
 			"default": init,
 			"scale_mode": scale_mode,
 		}
+
+		init, a_min, a_max = faust_float(init), faust_float(a_min), faust_float(a_max)
+		
+		# Normalize init value to [0, 1] based on scale mode
+		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
+		
+		# Create the normalized parameter with label as name
+		setattr(self, zone, nnx.Param(normalized_init))
+
+		# Create and store the unnormalization function
+		unnorm_func = self.create_unnormalize_func(a_min, a_max, scale_mode)
+		unnorm_funcs[full_label] = (zone, unnorm_func)
 	
 	def add_hslider(self, zone: str, ui_path: list[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: dict, scale_mode: str):
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
@@ -327,7 +325,8 @@ except ImportError:
 			# Check if it's a nentry (needs module as arg)
 			if hasattr(self, f"{zone}_logits"):
 				logits = getattr(self, f"{zone}_logits").value
-				params[zone] = unnorm_func(logits)
+				tau = getattr(self, f"{zone}_tau").value
+				params[zone] = unnorm_func(logits, tau)
 			elif hasattr(self, zone):
 				# Regular parameter
 				normalized_value = getattr(self, zone).value
@@ -371,7 +370,6 @@ except ImportError:
 		self,
 		carry: Dict[str, jnp.ndarray],
 		inputs: jnp.ndarray = None,
-		length: int = None,
 		unroll: int = 1,
 		rngs: rnglib.Rngs | rnglib.RngStream | jax.Array | None = None,
 	) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
@@ -381,7 +379,6 @@ except ImportError:
 		Args:
 			carry: State dictionary from previous block
 			inputs: Input audio block of shape (num_inputs, block_size)
-			length (int): block size of generated output
 			unroll (int): unroll argument for nnx.scan
 			rngs: rng key.
 
@@ -390,12 +387,15 @@ except ImportError:
 			- output_block has shape (num_outputs, block_size)
 			- new_carry is the updated state dictionary
 		"""
-		if length is None:
-			assert inputs is not None, "You must specify `inputs` when `length` is not specified."
-			length = inputs.shape[-1]
+		length = inputs.shape[-1]
+		assert inputs.shape[0] == self.num_inputs
 
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize()
+
+		if not params:
+			# https://github.com/google/flax/issues/4889
+			params = 0
 
 		rngs = first_from(rngs, self.rngs, error_msg="No `rngs` argument was provided as either a __call__ argument or class attribute")		
 		# Get a key from the rng_stream
@@ -413,13 +413,6 @@ except ImportError:
 			new_carry, y = self.tick(params, carry, x, _rng)
 			return new_carry, y
 
-		# Handle input shape for scan
-		if inputs is None:
-			# Generator case
-			inputs = jnp.zeros((self.num_inputs, length), dtype=self.faust_float)
-		else:
-			assert inputs.shape == (self.num_inputs, length)
-
 		new_carry, outputs = nnx.scan(
 			scan_body,
 			length=length,
@@ -433,14 +426,12 @@ except ImportError:
 	def __call__(
 		self,
 		inputs: jnp.ndarray,
-		length: int = None,
 		unroll: int = 1,
 		rngs: rnglib.Rngs | rnglib.RngStream | jax.Array | None = None,
 	) -> jnp.ndarray:
-
-		if length is None:
-			assert inputs is not None, "You must specify `inputs` when `length` is not specified."
-			length = inputs.shape[-1]
+		
+		length = inputs.shape[-1]
+		assert inputs.shape[0] == self.num_inputs
 
 		rngs = first_from(rngs, self.rngs, error_msg="No `rngs` argument was provided as either a __call__ argument or class attribute")
 		if isinstance(rngs, jax.Array):
@@ -450,19 +441,17 @@ except ImportError:
 		elif isinstance(rngs, rnglib.RngStream):
 			rng_key = rngs()
 		else:
-			raise TypeError(f"rngs must be JAX array, Rngs or RngStream, got {type(rngs)}")
+			raise TypeError(f"`rngs` must be JAX array, Rngs or RngStream, got {type(rngs)}")
 		scan_rngs = random.split(rng_key, length)
-
-		# Handle generators (no input case)
-		if inputs is None:
-			inputs = jnp.zeros((self.num_inputs, length), dtype=self.faust_float)
-		else:
-			assert inputs.shape == (self.num_inputs, length)
 
 		carry = self.initialize_carry()
 
 		# Unnormalize parameters once before the scan
 		params = self.unnormalize()
+
+		if not params:
+			# https://github.com/google/flax/issues/4889
+			params = 0
 
 		def scan_body(carry, inputs, _rng):
 			new_carry, y = self.tick(params, carry, inputs, _rng)
@@ -501,21 +490,12 @@ def test(args):
 		
 		# Create dummy inputs for tabulation
 		dummy_length = args.block_size if args.realtime else 1024
-		dummy_inputs = jnp.zeros((model.num_inputs if model.num_inputs > 0 else 0, dummy_length), dtype=faust_float)
-		
-		# Get a dummy RNG key for tabulation
-		if model.rngs is not None:
-			if isinstance(model.rngs, rnglib.Rngs):
-				dummy_rng = model.rngs[model.rng_collection]()
-			elif isinstance(model.rngs, rnglib.RngStream):
-				dummy_rng = model.rngs()
-			else:
-				dummy_rng = random.key(0)
-		else:
-			dummy_rng = random.key(0)
+		dummy_inputs = jnp.zeros((model.num_inputs, dummy_length), dtype=faust_float)
 		
 		# Tabulate the model structure
-		table_str = nnx.tabulate(model, dummy_inputs, length=dummy_length, unroll=args.unroll, rngs=dummy_rng, depth=args.tabulate)
+		# Note we don't use `unroll=args.unroll`` because `unroll`` needs to be static, and this doesn't work
+		# well with nnx.tabulate.
+		table_str = nnx.tabulate(model, dummy_inputs, depth=args.tabulate)
 		
 		logger.info(table_str)
 		logger.info("="*60 + "\n")
@@ -580,11 +560,11 @@ def test(args):
 		@jax.jit
 		def forward(x: jnp.ndarray):
 			# Pass the pre-extracted RNG key
-			y = model(x, length=N_SAMPLES, unroll=args.unroll, rngs=rng_key)
+			y = model(x, unroll=args.unroll, rngs=rng_key)
 			return y
 	else:
 		def forward(x: jnp.ndarray):
-			y = model(x, length=N_SAMPLES, unroll=args.unroll)
+			y = model(x, unroll=args.unroll)
 			return y
 
 	if args.benchmark:
@@ -682,7 +662,6 @@ def realtime_audio_example(
 		outputs, new_carry = model.process_block(
 			carry,
 			inputs,
-			length=block_size,
 			unroll=unroll,
 			rngs=rng_key,
 		)

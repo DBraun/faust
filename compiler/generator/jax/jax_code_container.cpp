@@ -184,7 +184,8 @@ void JAXCodeContainer::produceClass()
     *fOut << "quo = jnp.round(x/y)";
     tab(n + 1, *fOut);
     *fOut << "return x - quo * y";
-    tab(n + 1, *fOut);
+    tab(n, *fOut);
+    tab(n, *fOut);
 
     // Functions
     tab(n, *fOut);
@@ -206,7 +207,7 @@ void JAXCodeContainer::produceClass()
 
     // Generate __init__ method for NNX
     tab(n + 1, *fOut);
-    *fOut << "def __init__(self, sample_rate: int = 44100, faust_float = jnp.float32, soundfile_dirs: list[str] = [], rngs = None):";
+    *fOut << "def __init__(self, sample_rate: int = 44100, faust_float = jnp.float32, soundfile_dirs: list[str] = None, rngs: nnx.Rngs = None):";
     tab(n + 2, *fOut);
     *fOut << "self.sample_rate = sample_rate";
     tab(n + 2, *fOut);
@@ -237,9 +238,7 @@ void JAXCodeContainer::produceClass()
     tab(n + 2, *fOut);
     *fOut << "self._unnorm_funcs = unnorm_funcs";
     tab(n + 1, *fOut);
-
     tab(n + 1, *fOut);
-    produceInfoFunctions(n + 1, "", "self", false, FunTyped::kDefault, gGlobal->gJAXVisitor);
 
     *fOut << "def _initialize_carry(self):";
     {
@@ -319,7 +318,7 @@ void JAXCodeContainer::generateCompute(int n)
 {
     // Generates declaration
     tab(n, *fOut);
-    *fOut << "def tick(self, params: dict, state: dict, inputs: jnp.array, rng = None):";
+    *fOut << "def tick(self, params: dict, state: dict, inputs: jnp.array, rng: jax.Array = None):";
     tab(n + 1, *fOut);
     
     // Generate RNG helper function for random_uniform calls

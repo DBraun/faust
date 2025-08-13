@@ -18,8 +18,7 @@ import sys
 import os
 from os import environ
 environ["JAX_PLATFORM_NAME"] = "cpu"
-environ["CUDA_VISIBLE_DEVICES"] = ""  # Disable CUDA
-environ["JAX_PLATFORMS"] = "cpu"      # Force CPU only
+environ["JAX_PLATFORMS"] = "cpu"
 
 import contextlib
 
