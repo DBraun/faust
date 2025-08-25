@@ -673,15 +673,12 @@ def realtime_audio_example(
 	def audio_generator():
 		nonlocal carry
 		rng_key = random.key(0)
-		while True:
-			# For generators, create empty input
-			if model.num_inputs == 0:
-				inputs = jnp.zeros((0, block_size))
-			else:
-				# For processors, you would get input from sounddevice
-				# For this example, we'll use zeros
-				inputs = jnp.zeros((model.num_inputs, block_size))
 
+		# For processors, you would get input from sounddevice
+		# For this example, we'll use zeros
+		inputs = jnp.zeros((model.num_inputs, block_size))
+		
+		while True:
 			# Process block
 			subkey, rng_key = random.split(rng_key)
 			outputs, carry = process_block_jit(carry, inputs, subkey)

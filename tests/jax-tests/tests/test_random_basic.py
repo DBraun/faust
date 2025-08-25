@@ -48,6 +48,10 @@ def test_random_basic():
     
     # Generate samples to test randomness
     carry = dsp.initialize_carry()
+
+    block_size = 1024
+
+    inputs = jnp.zeros((dsp.num_inputs, block_size))
     
     # Collect samples
     values = []
@@ -56,7 +60,7 @@ def test_random_basic():
     num_samples = 100
     for i in range(num_samples):
         rng_key, next_key = random.split(rng_key)
-        outputs, carry = dsp.process_block(carry, None, 1, rngs=next_key)
+        outputs, carry = dsp.process_block(carry, inputs, 1, rngs=next_key)
         # Both channels will have the same value due to Faust optimization
         # This is expected behavior - we're testing that values change over time
         values.append(float(outputs[0, 0]))
@@ -86,7 +90,7 @@ def test_random_basic():
     
     # Test 5: Verify we're using JAX PRNG (not LCG)
     # Generate with no RNG to ensure it doesn't crash and returns None/0
-    outputs_no_rng, _ = dsp.process_block(carry, None, 1, rngs=None)
+    outputs_no_rng, _ = dsp.process_block(carry, inputs, 1, rngs=None)
     # With no RNG, random_uniform should return None which becomes 0 in computation
     # This test verifies we're not using LCG which would work without RNG
     

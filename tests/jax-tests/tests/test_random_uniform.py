@@ -36,6 +36,10 @@ def test_random_uniform():
     
     # Generate samples to test randomness
     carry = dsp.initialize_carry()
+
+    block_size = 1024
+
+    inputs = jnp.zeros((dsp.num_inputs, block_size))
     
     # Collect samples
     values_ch0 = []
@@ -45,7 +49,7 @@ def test_random_uniform():
     num_samples = 100
     for i in range(num_samples):
         rng_key, next_key = random.split(rng_key)
-        outputs, carry = dsp.process_block(carry, None, 1, rngs=next_key)
+        outputs, carry = dsp.process_block(carry, inputs, 1, rngs=next_key)
         values_ch0.append(float(outputs[0, 0]))
         values_ch1.append(float(outputs[1, 0]))
     
