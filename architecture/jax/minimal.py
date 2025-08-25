@@ -147,9 +147,9 @@ except ImportError:
 		step_values = jnp.arange(num_steps, dtype=faust_float) * faust_float(step_size) + faust_float(a_min)
 
 		# ---------- parameters ----------
-		# (1) logits, initialised to favour the initial step
+		# (1) logits, initialised to favor the initial step
 		logits = jnp.zeros((num_steps,), dtype=faust_float)
-		logits = logits.at[init_step].set(faust_float(5.0))  # bias ≈ exp(5) ≈ 148
+		logits = logits.at[init_step].set(faust_float(1.0))
 
 		logits_zone = zone + "_logits"
 		setattr(self, logits_zone, nnx.Param(logits))
@@ -221,27 +221,29 @@ except ImportError:
 	def create_unnormalize_func(self, a_min: float, a_max: float, scale_mode: str):
 		"""Create an unnormalization function for the given scale mode."""
 		faust_float = self.faust_float
+		pair = lambda x, y: jnp.array([faust_float(x), faust_float(y)], dtype=faust_float)
+		clip = lambda x: jnp.clip(x, faust_float(0), faust_float(1))
 		if scale_mode == "linear":
 			return lambda normalized: jnp.interp(
-				jnp.clip(normalized, faust_float(0), faust_float(1)),
-				jnp.array([faust_float(0), faust_float(1)], dtype=faust_float),
-				jnp.array([a_min, a_max], dtype=faust_float)
+				clip(normalized),
+				pair(0, 1),
+				pair(a_min, a_max)			
 			)
 		elif scale_mode == "exp":
 			return lambda normalized: jnp.interp(
-				jnp.exp(jnp.clip(normalized, faust_float(0), faust_float(1))), 
-				jnp.array([faust_float(1), jnp.e], dtype=faust_float), 
-				jnp.array([a_min, a_max], dtype=faust_float)
+				jnp.exp(clip(normalized)), 
+				pair(1, jnp.e),
+				pair(a_min, a_max)
 			)
 		elif scale_mode == "log":
 			return lambda normalized: jnp.interp(
 				jnp.log10(jnp.interp(
-					jnp.clip(normalized, faust_float(0), faust_float(1)),
-					jnp.array([faust_float(0), faust_float(1)], dtype=faust_float),
-					jnp.array([faust_float(10**-4), faust_float(1)], dtype=faust_float)
-				)), 
-				jnp.array([faust_float(-4), faust_float(0)], dtype=faust_float), 
-				jnp.array([a_min, a_max], dtype=faust_float)
+					clip(normalized),
+					pair(0, 1),
+					pair(10**-4, 1)
+				)),
+				pair(-4, 0),
+				pair(a_min, a_max)
 			)
 		else:
 			raise ValueError(f"Unknown scale mode: {scale_mode}")
