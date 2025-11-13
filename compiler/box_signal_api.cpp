@@ -53,6 +53,7 @@ LIBFAUST_API Tree DSPToBoxes(const string& name_app, const string& dsp_content, 
 // Global context, to be used in C and C++ API
 // Reference counting for safer context management
 static std::atomic<int> gContextRefCount{0};
+static std::atomic<bool> gShutdownLocked{false};  // Prevents destruction during shutdown
 static std::mutex gContextMutex;
 
 extern "C" LIBFAUST_API void createLibContext()
@@ -68,6 +69,10 @@ extern "C" LIBFAUST_API void createLibContext()
 extern "C" LIBFAUST_API void destroyLibContext()
 {
     std::lock_guard<std::mutex> lock(gContextMutex);
+    // If shutdown is locked, this becomes a permanent no-op
+    if (gShutdownLocked.load()) {
+        return;
+    }
     if (gContextRefCount > 0) {
         gContextRefCount--;
         if (gContextRefCount == 0) {
@@ -85,16 +90,19 @@ extern "C" LIBFAUST_API int getLibContextRefCount()
 /**
  * Prepare for shutdown.
  *
- * Note: This will cause a one-time memory leak of the global context, which is
- * acceptable for single-process applications that are exiting anyway.
+ * Permanently locks the context, making destroyLibContext() a no-op.
+ * This prevents gGlobal destruction during Py_Finalize() which would
+ * cause use-after-free when nanobind cleans up Box/Signal wrappers.
+ *
+ * Note: This will cause a one-time memory leak of the global context (~1-2MB),
+ * which is acceptable for single-process applications that are exiting anyway.
+ * The OS reclaims this memory when the process terminates.
  */
 extern "C" LIBFAUST_API void prepareForShutdown()
 {
     std::lock_guard<std::mutex> lock(gContextMutex);
-    // Set ref count to 1 to prevent destroy() from being called
-    if (gContextRefCount > 0) {
-        gContextRefCount = 1;
-    }
+    // Lock shutdown - destroyLibContext() becomes permanent no-op
+    gShutdownLocked.store(true);
 }
 
 // MUST match definition in libfaust-signal.h
