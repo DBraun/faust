@@ -962,7 +962,8 @@ bool global::hasForeignFunction(const string& name, const string& inc_file)
     static vector<string> inc_list = {"<math.h>", "<cmath>", "<stdlib.h>"};
     bool                  is_inc = find(begin(inc_list), end(inc_list), inc_file) != inc_list.end();
     // or custom added ones
-    bool is_ff       = llvm_dsp_factory_aux::gForeignFunctions.count(name) > 0;
+    bool is_ff       = (llvm_dsp_factory_aux::gForeignFunctions &&
+                        llvm_dsp_factory_aux::gForeignFunctions->count(name) > 0);
     bool is_linkable = (gOutputLang == "llvm") && (is_inc || is_ff);
 #else
     bool is_linkable = false;

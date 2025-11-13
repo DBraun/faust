@@ -56,7 +56,8 @@ class Symbol : public virtual Garbageable {
     static const int kHashTableSize =
         511;  ///< Size of the hash table (a prime number is recommended)
     static Symbol* gSymbolTable[kHashTableSize];  ///< Hash table used to store the symbols
-    static std::map<std::string, size_t> gPrefixCounters;
+    // CHANGED: Pointer to avoid static destruction order issues with nanobind
+    static std::map<std::string, size_t>* gPrefixCounters;
 
     // Fields
     std::string fName;  ///< Name of the symbol

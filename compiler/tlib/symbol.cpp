@@ -37,7 +37,10 @@ using namespace std;
 
 Sym Symbol::gSymbolTable[kHashTableSize];
 
-map<string, size_t> Symbol::gPrefixCounters;
+// CRITICAL FIX for nanobind: gPrefixCounters must NOT be a static global object
+// Static STL containers have undefined destruction order relative to nanobind cleanup.
+// Solution: Use heap-allocated pointer, never deallocate (small leak on exit, OS reclaims).
+map<string, size_t>* Symbol::gPrefixCounters = nullptr;
 
 /**
  * Search the hash table for the symbol of name \p str or returns a new one.
@@ -93,7 +96,7 @@ Sym Symbol::prefix(const string& str)
     string name;
 
     for (int n = 0; n < 10000; n++) {
-        name = str + std::to_string(gPrefixCounters[str]++);
+        name = str + std::to_string((*gPrefixCounters)[str]++);
         if (isnew(name)) {
             return get(name);
         }
@@ -160,6 +163,10 @@ ostream& Symbol::print(ostream& fout) const  ///< print a symbol on a stream
 
 void Symbol::init()
 {
-    gPrefixCounters.clear();
+    // Allocate gPrefixCounters on first use (never deallocate)
+    if (!gPrefixCounters) {
+        gPrefixCounters = new std::map<std::string, size_t>();
+    }
+    gPrefixCounters->clear();
     memset(gSymbolTable, 0, sizeof(Sym) * kHashTableSize);
 }

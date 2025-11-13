@@ -277,7 +277,8 @@ class llvm_dsp_factory_aux : public dsp_factory_imp {
     static dsp_factory_table<SDsp_factory> gLLVMFactoryTable;
 
     // Set of custom foreign functions
-    static std::set<std::string> gForeignFunctions;
+    // CHANGED: Pointer to avoid static destruction order issues with nanobind
+    static std::set<std::string>* gForeignFunctions;
 };
 
 // Public C++ interface

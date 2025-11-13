@@ -93,8 +93,10 @@ extern "C" LIBFAUST_API void printPtr(void* val)
 int                             llvm_dsp_factory_aux::gInstance = 0;
 dsp_factory_table<SDsp_factory> llvm_dsp_factory_aux::gLLVMFactoryTable;
 
-// Set of externally defined functions, to be linked with the LLVM module
-set<string> llvm_dsp_factory_aux::gForeignFunctions;
+// CRITICAL FIX for nanobind: gForeignFunctions must NOT be a static global object
+// Static STL containers have undefined destruction order relative to nanobind cleanup.
+// Solution: Use heap-allocated pointer, never deallocate (small leak on exit, OS reclaims).
+set<string>* llvm_dsp_factory_aux::gForeignFunctions = nullptr;
 
 uint64_t llvm_dsp_factory_aux::loadOptimize(const string& function, bool strict)
 {
@@ -659,7 +661,11 @@ LIBFAUST_API void llvm_dsp::operator delete(void* ptr)
 LIBFAUST_API void registerForeignFunction(const string& name)
 {
     LOCK_API
-    llvm_dsp_factory_aux::gForeignFunctions.insert(name);
+    // Allocate on first use (never deallocate)
+    if (!llvm_dsp_factory_aux::gForeignFunctions) {
+        llvm_dsp_factory_aux::gForeignFunctions = new set<string>();
+    }
+    llvm_dsp_factory_aux::gForeignFunctions->insert(name);
 }
 
 // Public C interface : lock management is done by called C++ API
