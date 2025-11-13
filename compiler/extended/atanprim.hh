@@ -38,7 +38,7 @@ class AtanPrim : public xtended {
         faustassert(args.size() == 1);
         Type     t = args[0];
         interval i = t->getInterval();
-        return castInterval(floatCast(t), gAlgebra.Atan(i));
+        return castInterval(floatCast(t), gAlgebra->Atan(i));
     }
 
     virtual int inferSigOrder(const std::vector<int>& args) override { return args[0]; }

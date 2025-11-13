@@ -40,7 +40,7 @@ class Atan2Prim : public xtended {
         Type     u = args[1];
         interval i = t->getInterval();
         interval j = u->getInterval();
-        return castInterval(floatCast(t | u), gAlgebra.Atan2(i, j));
+        return castInterval(floatCast(t | u), gAlgebra->Atan2(i, j));
     }
 
     virtual int inferSigOrder(const std::vector<int>& args) override

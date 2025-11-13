@@ -41,7 +41,7 @@ class TanPrim : public xtended {
     {
         faustassert(args.size() == 1);
         interval i = args[0]->getInterval();
-        interval r = gAlgebra.Tan(i);
+        interval r = gAlgebra->Tan(i);
         // The check can be improved to ensure that no infinity is in the range
         /*
          if (i.isValid()) {

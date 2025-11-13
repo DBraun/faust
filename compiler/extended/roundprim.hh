@@ -40,7 +40,7 @@ class RoundPrim : public xtended {
         interval i = args[0]->getInterval();
         if (i.isValid()) {
             // TODO: Round is missing in interval library
-            return castInterval(floatCast(args[0]), gAlgebra.Rint(i));
+            return castInterval(floatCast(args[0]), gAlgebra->Rint(i));
         } else {
             return floatCast(args[0]);
         }

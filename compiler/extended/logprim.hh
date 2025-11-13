@@ -44,7 +44,7 @@ class LogPrim : public xtended {
             error << "WARNING : potential out of domain in log(" << i << ")" << std::endl;
             gWarningMessages.push_back(error.str());
         }
-        return castInterval(floatCast(t), gAlgebra.Log(i));
+        return castInterval(floatCast(t), gAlgebra->Log(i));
     }
 
     virtual int inferSigOrder(const std::vector<int>& args) override

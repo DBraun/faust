@@ -45,7 +45,7 @@ class AbsPrim : public xtended {
         faustassert(args.size() == arity());
         Type     t = args[0];
         interval i = t->getInterval();
-        return castInterval(t, gAlgebra.Abs(i));
+        return castInterval(t, gAlgebra->Abs(i));
     }
 
     virtual int inferSigOrder(const std::vector<int>& args) override

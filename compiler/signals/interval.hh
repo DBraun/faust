@@ -30,7 +30,7 @@
 #include "interval/interval_algebra.hh"
 #include "interval/interval_def.hh"
 
-extern itv::interval_algebra gAlgebra;
+extern itv::interval_algebra* gAlgebra;
 
 #ifdef _WIN32
 
@@ -56,60 +56,60 @@ using interval = itv::interval;
 
 inline interval cast2int(const interval& x)
 {
-    return gAlgebra.IntCast(x);
+    return gAlgebra->IntCast(x);
 }
 
 inline interval operator+(const interval& x, const interval& y)
 {
-    return gAlgebra.Add(x, y);
+    return gAlgebra->Add(x, y);
 }
 
 inline interval operator-(const interval& x, const interval& y)
 {
-    return gAlgebra.Sub(x, y);
+    return gAlgebra->Sub(x, y);
 }
 
 inline interval operator*(const interval& x, const interval& y)
 {
-    return gAlgebra.Mul(x, y);
+    return gAlgebra->Mul(x, y);
 }
 
 inline interval operator/(const interval& x, const interval& y)
 {
-    return gAlgebra.Div(x, y);
+    return gAlgebra->Div(x, y);
 }
 
 // The result should be [0..y.hi[, approximated with 0, nexttoward(y.hi, -INFINITY)
 inline interval operator%(const interval& x, const interval& y)
 {
-    return gAlgebra.Mod(x, y);
+    return gAlgebra->Mod(x, y);
 }
 
 //----------------------booleans&bits--------------------------------------
 
 inline interval operator&(const interval& x, const interval& y)
 {
-    return gAlgebra.And(x, y);
+    return gAlgebra->And(x, y);
 }
 
 inline interval operator|(const interval& x, const interval& y)
 {
-    return gAlgebra.Or(x, y);
+    return gAlgebra->Or(x, y);
 }
 
 inline interval operator^(const interval& x, const interval& y)
 {
-    return gAlgebra.Xor(x, y);
+    return gAlgebra->Xor(x, y);
 }
 
 inline interval operator<<(const interval& x, const interval& y)
 {
-    return gAlgebra.Lsh(x, y);
+    return gAlgebra->Lsh(x, y);
 }
 
 inline interval operator>>(const interval& x, const interval& y)
 {
-    return gAlgebra.Rsh(x, y);
+    return gAlgebra->Rsh(x, y);
 }
 
 // ---------------------comparaisons------------------------------
@@ -118,17 +118,17 @@ inline interval operator>>(const interval& x, const interval& y)
 
 inline interval operator<(const interval& x, const interval& y)
 {
-    return gAlgebra.Lt(x, y);
+    return gAlgebra->Lt(x, y);
 }
 
 inline interval operator<=(const interval& x, const interval& y)
 {
-    return gAlgebra.Le(x, y);
+    return gAlgebra->Le(x, y);
 }
 
 inline interval operator>(const interval& x, const interval& y)
 {
-    return gAlgebra.Gt(x, y);
+    return gAlgebra->Gt(x, y);
 }
 
 inline interval operator>=(const interval& x, const interval& y)
@@ -138,12 +138,12 @@ inline interval operator>=(const interval& x, const interval& y)
 
 inline interval operator==(const interval& x, const interval& y)
 {
-    return gAlgebra.Eq(x, y);
+    return gAlgebra->Eq(x, y);
 }
 
 inline interval operator!=(const interval& x, const interval& y)
 {
-    return gAlgebra.Ne(x, y);
+    return gAlgebra->Ne(x, y);
 }
 
 /**

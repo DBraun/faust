@@ -48,7 +48,7 @@ class RemainderPrim : public xtended {
         }
 
         return castInterval(floatCast(args[0] | args[1]),
-                            gAlgebra.Remainder(i));  // temporary rule !!!
+                            gAlgebra->Remainder(i));  // temporary rule !!!
     }
 
     virtual int inferSigOrder(const std::vector<int>& args) override

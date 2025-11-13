@@ -45,7 +45,7 @@ class MinPrim : public xtended {
         interval i = args[0]->getInterval();
         interval j = args[1]->getInterval();
         // Use 'min' on intervals here...
-        return castInterval(args[0] | args[1], gAlgebra.Min(i, j));
+        return castInterval(args[0] | args[1], gAlgebra->Min(i, j));
     }
 
     virtual int inferSigOrder(const std::vector<int>& args) override

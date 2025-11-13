@@ -54,7 +54,7 @@ class PowPrim : public xtended {
 
         return castInterval(
             t | u,
-            gAlgebra.Pow(i, j));  // maybe we should distinguish between real and integer exponents
+            gAlgebra->Pow(i, j));  // maybe we should distinguish between real and integer exponents
     }
 
     virtual int inferSigOrder(const std::vector<int>& args) override

@@ -38,7 +38,7 @@ class ExpPrim : public xtended {
         faustassert(args.size() == arity());
         Type     t = args[0];
         interval i = t->getInterval();
-        return castInterval(floatCast(t), gAlgebra.Exp(i));
+        return castInterval(floatCast(t), gAlgebra->Exp(i));
     }
 
     virtual int inferSigOrder(const std::vector<int>& args) override

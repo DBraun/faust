@@ -43,7 +43,7 @@ class SqrtPrim : public xtended {
             error << "WARNING : potential out of domain in sqrt(" << i << ")" << std::endl;
             gWarningMessages.push_back(error.str());
         }
-        return castInterval(floatCast(t), gAlgebra.Sqrt(i));
+        return castInterval(floatCast(t), gAlgebra->Sqrt(i));
     }
 
     virtual int inferSigOrder(const std::vector<int>& args) override { return args[0]; }

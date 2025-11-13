@@ -127,14 +127,24 @@ extern FILE*       FAUSTin;
 extern const char* FAUSTfilename;
 
 
-// Just after previous gRawObjectTable/gArrayObjectTable initialisation for FaustAlgebra constructor to
-// correctly work
-itv::interval_algebra gAlgebra;
+// CRITICAL FIX for nanobind: gAlgebra must NOT be a static global object
+// Static objects have undefined destruction order relative to nanobind cleanup,
+// causing EXIT 134 (SIGABRT) during Py_Finalize().
+// Solution: Use heap-allocated pointer, allocate on first use, never deallocate
+// (small controlled leak ~1KB on exit, OS reclaims memory).
+itv::interval_algebra* gAlgebra = nullptr;
 
 global::global()
     : TABBER(1), gLoopDetector(1024, 400), gStackOverflowDetector(MAX_STACK_SIZE), gNextFreeColor(1),
       gHeapCleanup(false)  // Initialize instance member
 {
+    // Allocate gAlgebra on first use (if not already allocated)
+    // Never deallocate - this prevents static destruction order issues
+    if (!gAlgebra) {
+        gAlgebra = new itv::interval_algebra();
+    }
+
+    // Note: gRawObjectTable and gArrayObjectTable are default-initialized as empty lists
     CTree::init();
     Symbol::init();
 

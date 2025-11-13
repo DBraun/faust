@@ -132,17 +132,17 @@ static interval arithmetic(int opcode, const interval& x, const interval& y)
         case kARsh:
             return x >> y;
         case kGT:
-            return gAlgebra.Gt(x, y);
+            return gAlgebra->Gt(x, y);
         case kLT:
-            return gAlgebra.Lt(x, y);
+            return gAlgebra->Lt(x, y);
         case kGE:
-            return gAlgebra.Ge(x, y);
+            return gAlgebra->Ge(x, y);
         case kLE:
-            return gAlgebra.Le(x, y);
+            return gAlgebra->Le(x, y);
         case kEQ:
-            return gAlgebra.Eq(x, y);
+            return gAlgebra->Eq(x, y);
         case kNE:
-            return gAlgebra.Ne(x, y);
+            return gAlgebra->Ne(x, y);
         case kAND:
             return x & y;
         case kOR:
@@ -473,17 +473,17 @@ static Type inferSigType(Tree sig, Tree env)
     }
 
     else if (isSigInt(sig, &i)) {
-        Type t = makeSimpleType(kInt, kKonst, kComp, kVect, kNum, gAlgebra.IntNum(i));
+        Type t = makeSimpleType(kInt, kKonst, kComp, kVect, kNum, gAlgebra->IntNum(i));
         return t;
     }
 
     else if (isSigInt64(sig, &i64)) {
-        Type t = makeSimpleType(kInt, kKonst, kComp, kVect, kNum, gAlgebra.Int64Num(i));
+        Type t = makeSimpleType(kInt, kKonst, kComp, kVect, kNum, gAlgebra->Int64Num(i));
         return t;
     }
 
     else if (isSigReal(sig, &r)) {
-        Type t = makeSimpleType(kReal, kKonst, kComp, kVect, kNum, gAlgebra.FloatNum(r));
+        Type t = makeSimpleType(kReal, kKonst, kComp, kVect, kNum, gAlgebra->FloatNum(r));
         return t;
     }
 
@@ -586,12 +586,12 @@ static Type inferSigType(Tree sig, Tree env)
 
     else if (isSigButton(sig)) {
         return castInterval(gGlobal->TGUI,
-                            gAlgebra.Button(interval(0, 0)));  // TODO: replace the name
+                            gAlgebra->Button(interval(0, 0)));  // TODO: replace the name
     }
 
     else if (isSigCheckbox(sig)) {
         return castInterval(gGlobal->TGUI,
-                            gAlgebra.Checkbox(interval(0, 0)));  // TODO: replace the name
+                            gAlgebra->Checkbox(interval(0, 0)));  // TODO: replace the name
     }
 
     else if (isSigVSlider(sig, label, cur, min, max, step)) {
@@ -600,7 +600,7 @@ static Type inferSigType(Tree sig, Tree env)
         Type t3 = T(max, env);
         Type t4 = T(step, env);
         return castInterval(
-            gGlobal->TGUI, gAlgebra.VSlider(interval(0, 0),  // TODO: replace the name
+            gGlobal->TGUI, gAlgebra->VSlider(interval(0, 0),  // TODO: replace the name
                                             t1->getInterval(), t2->getInterval(), t3->getInterval(),
                                             t4->getInterval()));
     }
@@ -611,7 +611,7 @@ static Type inferSigType(Tree sig, Tree env)
         Type t3 = T(max, env);
         Type t4 = T(step, env);
         return castInterval(
-            gGlobal->TGUI, gAlgebra.HSlider(interval(0, 0),  // TODO: replace the name
+            gGlobal->TGUI, gAlgebra->HSlider(interval(0, 0),  // TODO: replace the name
                                             t1->getInterval(), t2->getInterval(), t3->getInterval(),
                                             t4->getInterval()));
     }
@@ -622,7 +622,7 @@ static Type inferSigType(Tree sig, Tree env)
         Type t3 = T(max, env);
         Type t4 = T(step, env);
         return castInterval(gGlobal->TGUI,
-                            gAlgebra.NumEntry(interval(0, 0),  // TODO: replace the name
+                            gAlgebra->NumEntry(interval(0, 0),  // TODO: replace the name
                                               t1->getInterval(), t2->getInterval(),
                                               t3->getInterval(), t4->getInterval()));
     }
@@ -1000,7 +1000,7 @@ static Type inferWaveformType(Tree wfsig, Tree env)
     Tree     v      = wfsig->branch(0);
     bool     iflag1 = isInt(v->node());
     int      n      = wfsig->arity();
-    interval res    = (iflag1) ? gAlgebra.IntNum(tree2int(v)) : gAlgebra.FloatNum(tree2double(v));
+    interval res    = (iflag1) ? gAlgebra->IntNum(tree2int(v)) : gAlgebra->FloatNum(tree2double(v));
     T(v, env);
 
     // loop for remaining items
@@ -1010,7 +1010,7 @@ static Type inferWaveformType(Tree wfsig, Tree env)
         // compute interval
         bool iflag2 = isInt(v->node());
         res         = itv::reunion(
-            res, iflag2 ? gAlgebra.IntNum(tree2int(v)) : gAlgebra.FloatNum(tree2double(v)));
+            res, iflag2 ? gAlgebra->IntNum(tree2int(v)) : gAlgebra->FloatNum(tree2double(v)));
         iflag1 &= iflag2;
     }
 

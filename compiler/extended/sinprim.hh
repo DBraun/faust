@@ -41,7 +41,7 @@ class SinPrim : public xtended {
         interval i = t->getInterval();
 
         return castInterval(floatCast(t),
-                            gAlgebra.Sin(i));  // to replace by sin(pi*i) once the new version of
+                            gAlgebra->Sin(i));  // to replace by sin(pi*i) once the new version of
                                                // the interval library is plugged in
     }
 
