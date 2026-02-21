@@ -114,28 +114,6 @@ CodeContainer* JAXCodeContainer::createContainer(const string& name, int numInpu
     return container;
 }
 
-inline string flattenJSONforPython(const string& src)
-{
-    string dst;
-    for (size_t i = 0; i < src.size(); i++) {
-        switch (src[i]) {
-            case '"':
-                dst += "\\\"";
-                break;
-            case '\\':
-                dst += "/";
-                break;
-            case '\'':
-                dst += "'";
-                break;
-            default:
-                dst += src[i];
-                break;
-        }
-    }
-    return dst;
-}
-
 void JAXCodeContainer::produceClass()
 {
     int n = 0;
