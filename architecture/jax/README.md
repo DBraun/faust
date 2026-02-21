@@ -430,7 +430,7 @@ Each `"name": replace` entry drops the widget's default value and substitutes a 
 Compile with:
 
 ```bash
-faust -lang jax poly_synth.dsp -double -o poly_synth.py
+faust -lang jax poly_synth.dsp -cn SynthVoice -o poly_synth.py
 ```
 
 ### Single Voice
@@ -441,12 +441,12 @@ Instantiate the module and run a single voice:
 import jax
 import jax.numpy as jnp
 from jax import random
-from poly_synth import mydsp
+from poly_synth import SynthVoice
 
 sample_rate = 44100
 num_frames = 1024
 
-model = mydsp(sample_rate=sample_rate)
+model = SynthVoice(sample_rate=sample_rate)
 state = model._initialize_carry()
 
 # inputs: (num_inputs, num_frames) — [freq, gain, gate]
@@ -469,7 +469,7 @@ Use `jax.vmap` to vectorize `process_block` across N voices in parallel, then su
 num_voices = 4
 
 # Create one model, replicate state for each voice
-model = mydsp(sample_rate=sample_rate)
+model = SynthVoice(sample_rate=sample_rate)
 states = jax.tree.map(lambda x: jnp.stack([x] * num_voices), model._initialize_carry())
 
 # Per-voice inputs: (num_voices, num_inputs, num_frames)
