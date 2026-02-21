@@ -1,5 +1,35 @@
 # Faust JAX Backend Documentation
 
+## Table of Contents
+
+- [Installing JAX Dependencies](#installing-jax-dependencies)
+- [Usage](#usage)
+  - [Basic Example](#basic-example)
+  - [Real-time Processing](#real-time-processing)
+- [NNX vs Linen](#nnx-vs-linen)
+- [Features](#features)
+  - [Random Number Generation](#random-number-generation)
+- [Performance Optimizations](#performance-optimizations)
+  - [Delay Line Optimization](#delay-line-optimization)
+  - [Benchmarking Tools](#benchmarking-tools)
+- [Testing](#testing)
+- [Polyphony Support](#polyphony-support)
+- [Troubleshooting](#troubleshooting)
+- [Available Architecture Files](#available-architecture-files)
+  - [UI Element Handlers](#ui-element-handlers)
+  - [Soundfile Handling Note](#soundfile-handling-note)
+- [Installation](#installation)
+- [Differentiable DSP (DDSP) and Gradient-Based Optimization](#differentiable-dsp-ddsp-and-gradient-based-optimization)
+  - [Parameter Types and Differentiability](#parameter-types-and-differentiability)
+  - [Basic Gradient Example](#basic-gradient-example)
+  - [Gradient Flow Through Parameter Constraints](#gradient-flow-through-parameter-constraints)
+  - [Discrete Parameters and Gumbel-Softmax](#discrete-parameters-and-gumbel-softmax)
+  - [Best Practices for DDSP](#best-practices-for-ddsp)
+- [Parameter Naming: Zones vs Labels](#parameter-naming-zones-vs-labels)
+  - [Parameter Representations: Normalized vs Physical](#parameter-representations-normalized-vs-physical)
+- [Batch Processing and RL Integration](#batch-processing-and-rl-integration)
+- [Limitations and Todos](#limitations-and-todos)
+
 The JAX backend allows Faust to generate Python code that uses JAX and Flax for efficient numerical computation with automatic differentiation support. Two framework variants are available:
 
 - **`-lang jax`** (NNX) — Uses Flax NNX (`nnx.Module`). Modern, recommended for new projects.
@@ -376,7 +406,96 @@ The `tests/impulse-tests/archs/impulsejax.py` (NNX) and `tests/impulse-tests/arc
 
 ## Polyphony Support
 
-The JAX backend supports polyphonic DSPs. Polyphony in JAX is naturally handled using `vmap` for efficient vectorized processing across multiple voices.
+The JAX backend supports polyphonic DSPs. Polyphony in JAX is naturally handled using `jax.vmap` for efficient vectorized processing across multiple voices.
+
+### Widget Modulation
+
+Faust's **widget modulation** lets you turn UI parameters into signal inputs. The named-route syntax replaces each widget with a signal input using a `replace = !,_;` identity:
+
+```faust
+import("stdfaust.lib");
+
+freq = hslider("freq", 440, 20, 20000, 1);
+gain = hslider("gain", 0.5, 0, 1, 0.01);
+gate = hslider("gate", 0, 0, 1, 1);
+
+synth = os.osc(freq) * en.ar(0.05, 2.0, gate) * gain;
+
+replace = !,_;
+process = ["freq": replace, "gain": replace, "gate": replace -> synth];
+```
+
+Each `"name": replace` entry drops the widget's default value and substitutes a signal input. The compiled module has `num_inputs=3` (freq, gain, gate) and no UI parameters.
+
+Compile with:
+
+```bash
+faust -lang jax poly_synth.dsp -double -o poly_synth.py
+```
+
+### Single Voice
+
+Instantiate the module and run a single voice:
+
+```python
+import jax
+import jax.numpy as jnp
+from jax import random
+from poly_synth import mydsp
+
+sample_rate = 44100
+num_frames = 1024
+
+model = mydsp(sample_rate=sample_rate)
+state = model._initialize_carry()
+
+# inputs: (num_inputs, num_frames) — [freq, gain, gate]
+inputs = jnp.stack([
+    jnp.full(num_frames, 440.0),   # freq
+    jnp.full(num_frames, 0.8),     # gain
+    jnp.full(num_frames, 1.0),     # gate
+])
+
+audio, state = model.process_block(state, inputs)  # audio shape: (1, num_frames)
+```
+
+### Polyphony with `jax.vmap`
+
+Use `jax.vmap` to vectorize `process_block` across N voices in parallel, then sum the outputs.
+
+> **Note:** `process_block` uses Flax NNX's `Rngs` internally, which has mutable state that cannot live inside `jax.vmap`. Pass explicit JAX random keys instead — `process_block` accepts a raw `jax.Array` key and passes it through without mutation.
+
+```python
+num_voices = 4
+
+# Create one model, replicate state for each voice
+model = mydsp(sample_rate=sample_rate)
+states = jax.tree.map(lambda x: jnp.stack([x] * num_voices), model._initialize_carry())
+
+# Per-voice inputs: (num_voices, num_inputs, num_frames)
+freqs = jnp.array([261.63, 329.63, 392.00, 523.25])  # C major chord
+voice_inputs = jnp.stack([
+    jnp.stack([jnp.full(num_frames, f),
+               jnp.full(num_frames, 0.5),
+               jnp.full(num_frames, 1.0)])
+    for f in freqs
+])  # shape: (4, 3, num_frames)
+
+# Per-voice RNG keys (explicit JAX keys avoid Flax Rngs mutation inside vmap)
+rng_keys = random.split(random.key(0), num_voices)
+
+# Wrap process_block to pass the RNG key explicitly
+def poly_step(carry, inputs, rng_key):
+    return model.process_block(carry, inputs, rngs=rng_key)
+
+voices, states = jax.vmap(poly_step)(states, voice_inputs, rng_keys)
+# voices: (num_voices, 1, num_frames)
+
+# Sum voices for polyphonic output
+output = jnp.sum(voices, axis=0)  # shape: (1, num_frames)
+```
+
+Because `vmap` compiles into a single fused kernel, this runs at near-constant cost regardless of voice count on GPU/TPU.
 
 ## Troubleshooting
 
@@ -386,7 +505,7 @@ For optimal performance:
 - Use `jax.jit` or `nnx.jit`
 - Consider using GPU acceleration with large batch sizes.
 
-## Available Architecture File(s)
+## Available Architecture Files
 
 ### `minimal.py` (NNX)
 Architecture for `-lang jax`. Uses Flax NNX (`nnx.Module`). Includes:
@@ -907,14 +1026,11 @@ See `tests/jax-tests/rl_demo/` for complete demonstrations:
 - `categorical_demo.py` - Handling discrete parameters with `ba.selectn`
 - `synth.dsp` - Example synthesizer with both parameter types
 
-# Limitations and todos:
+## Limitations and Todos
 
-* The JAX backend generates some unused variables in the output python code. These should be eliminated.
 * `nnx.tabulate` currently has compatibility issues with scan-based models (see [Flax issue #5067](https://github.com/google/flax/issues/5067)). The `--tabulate` flag may not work until this is resolved.
 * The `waveform` primitive in Faust doesn't become a Flax parameter in the generated Module. It would be useful to have a way to turn it into a learnable parameter instead of just a constant array.
-* It would be useful to use metadata to enable or disable a parameter. For example, currently by default, all `hslider` are learnable, but we could have `hslider("foo[param:0]", 0.5, 0, 1, .01)` be frozen.
+* The `[param:0]`/`[param:1]` metadata is implemented for soundfiles but not yet for sliders, buttons, or nentry. It would be useful to support `hslider("foo[param:0]", 0.5, 0, 1, .01)` to freeze individual parameters.
 * We could try to generate more efficient code in the `tick` function, but it's possible that XLA is already equivalently optimizing the code for us when we use JIT. We could look at the HLO or other to investigate.
-* * Try to minimize the amount of `jnp.roll` operations (see `DELAY_LINES.md`)
 * * Avoid unnecessary casts from `bool` to `jnp.int32`
 * Bargraph support is incomplete. Ideally we would use `nnx.Module.sow` within a scan (see https://github.com/google/flax/discussions/4799)
-* The DDSP/gradient examples in this README use the NNX API (`nnx.Optimizer`, `nnx.value_and_grad`, etc.). Equivalent Linen workflows use `optax` directly with `jax.value_and_grad` and `train_state.TrainState`.
