@@ -1090,6 +1090,13 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 
 		return state
 	
+	def _get_bargraph_zones(self) -> list:
+		"""Return list of bargraph zone names (output-only parameters)."""
+		return [
+			zone for zone, meta in self._parameter_metadata.items()
+			if meta.get("output_only")
+		]
+
 	def process_block(
 		self,
 		carry: Dict[str, jnp.ndarray],
@@ -1121,6 +1128,13 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			Provide either params OR normalized_params, not both.
 			- params: Use when you have physical values (e.g., freq=440.0)
 			- normalized_params: Use for RL (continuous [0,1] + categorical logits/tau)
+
+		Bargraph outputs:
+			If the DSP contains bargraphs (hbargraph/vbargraph), their per-sample
+			values are returned as a third element:
+			``outputs, carry, bargraphs = model.process_block(carry, inputs)``
+			where bargraphs is a dict mapping zone names to arrays of shape (block_size,).
+			When no bargraphs are present, only (outputs, carry) is returned.
 		"""
 		if params is not None and normalized_params is not None:
 			raise ValueError("Cannot provide both params and normalized_params")
@@ -1146,18 +1160,34 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			# Use self attributes (default)
 			params = self.unnormalize(gumbel_key=gumbel_key)
 
-		def scan_body(carry, x, _rng):
-			new_carry, y = self.tick(params, carry, x, _rng)
-			return new_carry, y
+		bargraph_zones = self._get_bargraph_zones()
 
-		new_carry, outputs = nnx.scan(
+		# Pre-populate bargraph keys so the params pytree is stable across scan steps
+		for zone in bargraph_zones:
+			if zone not in params:
+				params[zone] = self.faust_float(0.0)
+
+		faust_float = self.faust_float
+
+		def scan_body(carry_and_params, x, _rng):
+			carry, params = carry_and_params
+			new_carry, y = self.tick(params, carry, x, _rng)
+			bg = {zone: params[zone] for zone in bargraph_zones}
+			# Cast bargraph values to faust_float so carry dtype stays consistent
+			for zone in bargraph_zones:
+				params[zone] = faust_float(params[zone])
+			return (new_carry, params), (y, bg)
+
+		(new_carry, _), (outputs, bargraph_data) = nnx.scan(
 			scan_body,
 			length=length,
 			unroll=unroll,
 			in_axes=(nnx.Carry, 1, 0),
-			out_axes=(nnx.Carry, 1),
-		)(carry, inputs, scan_rngs)
+			out_axes=(nnx.Carry, (1, 0)),
+		)((carry, params), inputs, scan_rngs)
 
+		if bargraph_zones:
+			return outputs, new_carry, bargraph_data
 		return outputs, new_carry
 
 	def __call__(
@@ -1214,18 +1244,34 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			# Use self attributes (default)
 			params = self.unnormalize(gumbel_key=gumbel_key)
 
-		def scan_body(carry, inputs, _rng):
-			new_carry, y = self.tick(params, carry, inputs, _rng)
-			return new_carry, y
+		bargraph_zones = self._get_bargraph_zones()
 
-		new_carry, outputs = nnx.scan(
+		# Pre-populate bargraph keys so the params pytree is stable across scan steps
+		for zone in bargraph_zones:
+			if zone not in params:
+				params[zone] = self.faust_float(0.0)
+
+		faust_float = self.faust_float
+
+		def scan_body(carry_and_params, x, _rng):
+			carry, params = carry_and_params
+			new_carry, y = self.tick(params, carry, x, _rng)
+			bg = {zone: params[zone] for zone in bargraph_zones}
+			# Cast bargraph values to faust_float so carry dtype stays consistent
+			for zone in bargraph_zones:
+				params[zone] = faust_float(params[zone])
+			return (new_carry, params), (y, bg)
+
+		(new_carry, _), (outputs, bargraph_data) = nnx.scan(
 			scan_body,
 			length=length,
 			unroll=unroll,
 			in_axes=(nnx.Carry, 1, 0),
-			out_axes=(nnx.Carry, 1),
-		)(carry, inputs, scan_rngs)
+			out_axes=(nnx.Carry, (1, 0)),
+		)((carry, params), inputs, scan_rngs)
 
+		if bargraph_zones:
+			return outputs, bargraph_data
 		return outputs
 
 
@@ -1358,13 +1404,15 @@ def test(args: argparse.Namespace) -> None:
 		# Warmup runs
 		logger.info("Warming up JIT compilation...")
 		for _ in range(3):
-			y = forward(input_audio).block_until_ready()
-		
+			result = forward(input_audio)
+			jax.block_until_ready(result)
+
 		# Benchmark runs with timing
 		times = []
 		for _ in tqdm.trange(args.benchmark, desc="Benchmarking"):
 			start_time = time.perf_counter()
-			y = forward(input_audio).block_until_ready()
+			result = forward(input_audio)
+			jax.block_until_ready(result)
 			end_time = time.perf_counter()
 			times.append(end_time - start_time)
 		
@@ -1394,9 +1442,16 @@ def test(args: argparse.Namespace) -> None:
 
 	y = forward(input_audio)
 
+	# If bargraphs are present, __call__ returns (outputs, bargraph_data)
+	bargraph_data = None
+	if isinstance(y, tuple):
+		y, bargraph_data = y
+
 	params = model.unnormalize()
 	if args.verbose:
 		print("params", params)
+		if bargraph_data:
+			print("bargraph_data", {k: v.shape for k, v in bargraph_data.items()})
 
 	assert y.ndim == 2
 	assert y.shape[0] == model.num_outputs

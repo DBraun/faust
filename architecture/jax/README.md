@@ -128,10 +128,18 @@ assert output_audio.shape == (model.num_outputs, n_samples)
 assert input_audio.shape[0] == 0
 output_audio = model(input_audio)
 
-# If bargraphs are in the DSP code:
-# todo: this feature is currently disabled in jax_code_container.cpp
-output_audio, mod_vars = model(input_audio, mutable="intermediates")
-bargraphs = mod_vars["intermediates"]
+# If the DSP contains bargraphs (hbargraph/vbargraph):
+
+# NNX: per-sample bargraph values are returned as extra outputs
+output_audio, bargraph_data = model(input_audio)
+# bargraph_data is a dict mapping zone names to arrays of shape (num_samples,)
+# With process_block:
+outputs, new_carry, bargraph_data = model.process_block(carry, input_audio)
+# When no bargraphs are present, only (outputs, carry) / outputs is returned.
+
+# Linen: bargraph values live in the carry dict (last sample's value only)
+outputs, new_carry = model.process_block(carry, input_audio)
+level = new_carry["fHbargraph0"]  # scalar: value from the last sample
 ```
 
 **How it works:**
@@ -216,6 +224,7 @@ Both backends produce the same numerical output and share the same architecture 
 | Scan function | `nnx.scan` | `jax.lax.scan` |
 | Parameter wrappers | `nnx.Param`, `nnx.Variable` | Plain attributes |
 | RNG management | `nnx.Rngs` (built-in) | `nnx.Rngs` (standalone utility) |
+| Bargraph output | Per-sample dict returned as extra output | Last value in carry (`new_carry["fHbargraph0"]`) |
 
 **Key difference**: NNX separates UI parameters into a `params` dict and state variables into a `state` dict. Linen puts everything in a single `state` dict (params are merged into the carry before the scan loop).
 
@@ -1033,4 +1042,4 @@ See `tests/jax-tests/rl_demo/` for complete demonstrations:
 * The `[param:0]`/`[param:1]` metadata is implemented for soundfiles but not yet for sliders, buttons, or nentry. It would be useful to support `hslider("foo[param:0]", 0.5, 0, 1, .01)` to freeze individual parameters.
 * We could try to generate more efficient code in the `tick` function, but it's possible that XLA is already equivalently optimizing the code for us when we use JIT. We could look at the HLO or other to investigate.
 * * Avoid unnecessary casts from `bool` to `jnp.int32`
-* Bargraph support is incomplete. Ideally we would use `nnx.Module.sow` within a scan (see https://github.com/google/flax/discussions/4799)
+* NNX bargraph support uses a closure-based scan pattern that returns per-sample values as extra outputs, compatible with `jax.vmap`. An alternative `sow`-based approach would be cleaner but is blocked by Flax NNX `Rngs` trace-level conflicts inside `vmap` (see https://github.com/google/flax/discussions/4799). Linen bargraphs only expose the last sample's value via the carry dict; per-sample history could be added with `sow` + `variable_axes={'intermediates': 0}` (see https://github.com/google/flax/discussions/3727).
