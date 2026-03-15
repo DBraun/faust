@@ -1130,11 +1130,12 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			- normalized_params: Use for RL (continuous [0,1] + categorical logits/tau)
 
 		Bargraph outputs:
-			If the DSP contains bargraphs (hbargraph/vbargraph), their per-sample
-			values are returned as a third element:
+			Controlled by ``return_bargraphs`` (constructor parameter, default False).
+			When True, a third element is always returned:
 			``outputs, carry, bargraphs = model.process_block(carry, inputs)``
 			where bargraphs is a dict mapping zone names to arrays of shape (block_size,).
-			When no bargraphs are present, only (outputs, carry) is returned.
+			If the DSP has no bargraphs, the dict is empty.
+			When False (default), only (outputs, carry) is returned.
 		"""
 		if params is not None and normalized_params is not None:
 			raise ValueError("Cannot provide both params and normalized_params")
@@ -1186,7 +1187,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			out_axes=(nnx.Carry, (1, 0)),
 		)((carry, params), inputs, scan_rngs)
 
-		if bargraph_zones:
+		if self.return_bargraphs:
 			return outputs, new_carry, bargraph_data
 		return outputs, new_carry
 
@@ -1270,7 +1271,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			out_axes=(nnx.Carry, (1, 0)),
 		)((carry, params), inputs, scan_rngs)
 
-		if bargraph_zones:
+		if self.return_bargraphs:
 			return outputs, bargraph_data
 		return outputs
 

@@ -42,7 +42,7 @@ class TestBargraphProcessBlock:
 
     def test_returns_three_tuple(self, compile_and_load_dsp, default_rngs):
         mydsp = compile_and_load_dsp("bargraph_meter.dsp")
-        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs)
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs, return_bargraphs=True)
         carry = model.initialize_carry()
         inputs = jnp.ones((1, NUM_FRAMES)) * 0.5
 
@@ -54,7 +54,7 @@ class TestBargraphProcessBlock:
     def test_bargraph_values_match_abs_input(self, compile_and_load_dsp, default_rngs):
         """bargraph_meter.dsp: level = abs(input). Check per-sample values."""
         mydsp = compile_and_load_dsp("bargraph_meter.dsp")
-        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs)
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs, return_bargraphs=True)
         carry = model.initialize_carry()
 
         signal = jnp.array([-0.3, 0.7, -1.0, 0.0, 0.5], dtype=jnp.float32)
@@ -71,7 +71,7 @@ class TestBargraphProcessBlock:
     def test_audio_passthrough(self, compile_and_load_dsp, default_rngs):
         """The audio output should be the original signal (passthrough)."""
         mydsp = compile_and_load_dsp("bargraph_meter.dsp")
-        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs)
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs, return_bargraphs=True)
         carry = model.initialize_carry()
         signal = jnp.linspace(-1, 1, NUM_FRAMES, dtype=jnp.float32)
         inputs = signal.reshape(1, -1)
@@ -82,12 +82,22 @@ class TestBargraphProcessBlock:
     def test_bargraph_shape(self, compile_and_load_dsp, default_rngs):
         """Bargraph data should have shape (block_size,)."""
         mydsp = compile_and_load_dsp("bargraph_meter.dsp")
-        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs)
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs, return_bargraphs=True)
         carry = model.initialize_carry()
         inputs = jnp.ones((1, NUM_FRAMES), dtype=jnp.float32)
 
         _, _, bargraph_data = model.process_block(carry, inputs)
         assert bargraph_data["fHbargraph0"].shape == (NUM_FRAMES,)
+
+    def test_default_returns_two_tuple(self, compile_and_load_dsp, default_rngs):
+        """With return_bargraphs=False (default), process_block returns (outputs, carry)."""
+        mydsp = compile_and_load_dsp("bargraph_meter.dsp")
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs)
+        carry = model.initialize_carry()
+        inputs = jnp.ones((1, NUM_FRAMES)) * 0.5
+
+        result = model.process_block(carry, inputs)
+        assert len(result) == 2, "Default should return (outputs, carry) without bargraph data"
 
 
 @pytest.mark.integration
@@ -97,7 +107,7 @@ class TestBargraphCall:
 
     def test_call_returns_two_tuple_with_bargraphs(self, compile_and_load_dsp, default_rngs):
         mydsp = compile_and_load_dsp("bargraph_meter.dsp")
-        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs)
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs, return_bargraphs=True)
         inputs = jnp.ones((1, NUM_FRAMES), dtype=jnp.float32) * 0.5
 
         result = model(inputs)
@@ -107,7 +117,7 @@ class TestBargraphCall:
 
     def test_call_bargraph_values(self, compile_and_load_dsp, default_rngs):
         mydsp = compile_and_load_dsp("bargraph_meter.dsp")
-        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs)
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs, return_bargraphs=True)
         signal = jnp.array([-0.3, 0.7, -1.0, 0.0, 0.5], dtype=jnp.float32)
         inputs = signal.reshape(1, -1)
 
@@ -115,6 +125,44 @@ class TestBargraphCall:
         level = bargraph_data["fHbargraph0"]
         expected = jnp.abs(signal)
         assert jnp.allclose(level, expected, atol=1e-6)
+
+    def test_call_default_returns_array(self, compile_and_load_dsp, default_rngs):
+        """With return_bargraphs=False (default), __call__ returns just outputs."""
+        mydsp = compile_and_load_dsp("bargraph_meter.dsp")
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs)
+        inputs = jnp.ones((1, NUM_FRAMES), dtype=jnp.float32) * 0.5
+
+        result = model(inputs)
+        assert isinstance(result, jnp.ndarray), "Default should return outputs array, not tuple"
+
+
+@pytest.mark.integration
+@pytest.mark.ci
+class TestReturnBargraphsFlag:
+    """Test the return_bargraphs flag behavior."""
+
+    def test_return_bargraphs_true_no_bargraph_dsp_call(self, compile_and_load_dsp, default_rngs):
+        """With return_bargraphs=True on a DSP without bargraphs, __call__ returns (outputs, {})."""
+        mydsp = compile_and_load_dsp("simple_gain.dsp")
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs, return_bargraphs=True)
+        inputs = jnp.ones((1, NUM_FRAMES), dtype=jnp.float32)
+
+        result = model(inputs)
+        assert len(result) == 2, "Should return (outputs, bargraph_data) even with no bargraphs"
+        outputs, bargraph_data = result
+        assert bargraph_data == {} or len(bargraph_data) == 0
+
+    def test_return_bargraphs_true_no_bargraph_dsp_process_block(self, compile_and_load_dsp, default_rngs):
+        """With return_bargraphs=True on a DSP without bargraphs, process_block returns (outputs, carry, {})."""
+        mydsp = compile_and_load_dsp("simple_gain.dsp")
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs, return_bargraphs=True)
+        carry = model.initialize_carry()
+        inputs = jnp.ones((1, NUM_FRAMES), dtype=jnp.float32)
+
+        result = model.process_block(carry, inputs)
+        assert len(result) == 3, "Should return (outputs, carry, bargraph_data) even with no bargraphs"
+        outputs, new_carry, bargraph_data = result
+        assert bargraph_data == {} or len(bargraph_data) == 0
 
 
 @pytest.mark.integration
@@ -124,7 +172,7 @@ class TestBargraphVmap:
 
     def test_vmap_bargraph(self, compile_and_load_dsp, default_rngs):
         mydsp = compile_and_load_dsp("bargraph_meter.dsp")
-        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs)
+        model = mydsp(sample_rate=SAMPLE_RATE, rngs=default_rngs, return_bargraphs=True)
         num_voices = 3
 
         carry = model.initialize_carry()

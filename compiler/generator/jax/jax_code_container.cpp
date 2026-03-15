@@ -175,7 +175,7 @@ void JAXCodeContainer::produceClass()
 
     // Generate __init__ method for NNX
     tab(n + 1, *fOut);
-    *fOut << "def __init__(self, sample_rate: int, faust_float = jnp.float32, soundfile_dirs: List[str] = None, rngs: rnglib.Rngs | rnglib.RngStream | None = None, use_magic_clamp: bool = True):";
+    *fOut << "def __init__(self, sample_rate: int, faust_float = jnp.float32, soundfile_dirs: List[str] = None, use_magic_clamp: bool = True, return_bargraphs: bool = False, rngs: rnglib.Rngs | rnglib.RngStream | None = None):";
     tab(n + 2, *fOut);
     *fOut << "self.sample_rate = sample_rate";
     tab(n + 2, *fOut);
@@ -210,6 +210,8 @@ void JAXCodeContainer::produceClass()
     *fOut << "self.deterministic = False";
     tab(n + 2, *fOut);
     *fOut << "self.use_magic_clamp = use_magic_clamp";
+    tab(n + 2, *fOut);
+    *fOut << "self.return_bargraphs = return_bargraphs";
     tab(n + 2, *fOut);
     *fOut << "self._parameter_metadata = {}";
     tab(n + 2, *fOut);
