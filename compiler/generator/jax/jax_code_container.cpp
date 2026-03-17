@@ -189,7 +189,7 @@ void JAXCodeContainer::produceClass()
     tab(n + 2, *fOut);
     *fOut << "# Note: We store Rngs directly (not forked) because Faust modules may need";
     tab(n + 2, *fOut);
-    *fOut << "# multiple RNG collections (e.g., 'default' for random_*, 'gumbel' for nentry)";
+    *fOut << "# multiple RNG collections (e.g., 'default' for random_*, 'nentry' for nentry)";
     tab(n + 2, *fOut);
     *fOut << "if isinstance(rngs, rnglib.Rngs):";
     tab(n + 3, *fOut);

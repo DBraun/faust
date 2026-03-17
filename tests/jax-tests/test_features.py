@@ -105,8 +105,8 @@ class TestNentryGumbelSoftmax:
 		impulse_input
 	):
 		"""Test that nentry produces valid discrete outputs."""
-		# Create RNGs with gumbel stream for soft sampling
-		rngs = nnx.Rngs(42, params=42, rng_stream=42, gumbel=123)
+		# Create RNGs with nentry for soft sampling
+		rngs = nnx.Rngs(42, params=42, rng_stream=42, nentry=123)
 		mydsp = compile_and_load_dsp("nentry_test.dsp")
 		model = mydsp(sample_rate=44100, faust_float=jnp.float32, rngs=rngs)
 

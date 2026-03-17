@@ -690,16 +690,16 @@ The implementation uses `jax.custom_vjp` to define a conditional straight-throug
 
 The `nentry` primitive generates discrete parameters using Gumbel-softmax:
 
-- **Training**: Uses soft sampling for gradient flow (requires `gumbel` RNG stream)
+- **Training**: Uses soft sampling for gradient flow (requires `nentry` RNG stream)
 - **Inference**: Uses hard argmax for deterministic selection
 
 To enable Gumbel-softmax during training:
 
 ```python
-# Create RNGs with gumbel stream
-rngs = nnx.Rngs(0, params=42, rng_stream=0, gumbel=123)
+# Create RNGs with nentry (named to avoid collision with jax.random.gumbel)
+rngs = nnx.Rngs(0, params=42, rng_stream=0, nentry=123)
 
-# The model will automatically use Gumbel-softmax when in training mode and if gumbel RNG is available
+# The model will automatically use Gumbel-softmax when in training mode and if nentry RNG is available
 model = MyDSP(sample_rate=48000, rngs=rngs)
 model.train()
 ```
@@ -914,7 +914,7 @@ tau = model.fEntry0_tau[...]        # e.g., 1.0
 phys_params = model.unnormalize()
 phys_value = phys_params['fEntry0']  # e.g., 0.0 (the actual discrete value)
 
-# In training mode with gumbel RNG: soft value (e.g., 0.3)
+# In training mode with nentry RNG: soft value (e.g., 0.3)
 # In eval mode: hard argmax (e.g., 0.0, 1.0, 2.0, or 3.0)
 ```
 

@@ -131,8 +131,8 @@ def test_nentry_gumbel_with_params():
         print("❌ Compilation failed")
         return False
 
-    # Test without gumbel RNG (inference mode - hard argmax)
-    print("\n--- Inference Mode (no gumbel RNG) ---")
+    # Test without nentry RNG (inference mode - hard argmax)
+    print("\n--- Inference Mode (no nentry RNG) ---")
     rngs = nnx.Rngs(0, params=0, rng_stream=0)
     model = mydsp(sample_rate=44100, faust_float=jnp.float32, rngs=rngs)
 
@@ -144,9 +144,9 @@ def test_nentry_gumbel_with_params():
     outputs = model(inputs, params=params)
     print(f"Output mean: {float(jnp.mean(outputs)):.4f}")
 
-    # Test with training mode (gumbel RNG)
-    print("\n--- Training Mode (with gumbel RNG) ---")
-    rngs = nnx.Rngs(0, params=0, rng_stream=0, gumbel=42)
+    # Test with training mode (nentry RNG)
+    print("\n--- Training Mode (with nentry RNG) ---")
+    rngs = nnx.Rngs(0, params=0, rng_stream=0, nentry=42)
     model_train = mydsp(sample_rate=44100, faust_float=jnp.float32, rngs=rngs)
 
     params_train = model_train.unnormalize()

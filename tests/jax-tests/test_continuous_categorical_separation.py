@@ -68,7 +68,7 @@ def test_with_nentry():
     print("="*60)
 
     mydsp = compile_dsp("nentry_test")
-    rngs = nnx.Rngs(0, params=0, rng_stream=0, gumbel=42)
+    rngs = nnx.Rngs(0, params=0, rng_stream=0, nentry=42)
     model = mydsp(sample_rate=44100, faust_float=jnp.float32, rngs=rngs)
 
     # Get continuous params

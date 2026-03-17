@@ -133,7 +133,7 @@ def online_demo():
     num_blocks = 100  # Total blocks to process
 
     # Initialize synthesizer
-    rngs = nnx.Rngs(0, params=0, rng_stream=0, gumbel=42)
+    rngs = nnx.Rngs(0, params=0, rng_stream=0, nentry=42)
     synth = synth_class(sample_rate=sample_rate, faust_float=jnp.float32, rngs=rngs)
     # Use eval mode (deterministic) since online policy provides discrete values
     synth.eval()
