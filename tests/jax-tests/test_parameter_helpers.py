@@ -281,11 +281,11 @@ class TestIntegration:
 
 	def test_with_nentry(self, compile_and_load_dsp):
 		"""Test helpers work with nentry parameters."""
-		# nentry needs gumbel RNG for training mode, or use eval mode
-		rngs = nnx.Rngs(0, params=0, rng_stream=0, gumbel=42)
+		# nentry needs nentry RNG for training mode, or use eval mode
+		rngs = nnx.Rngs(0, params=0, rng_stream=0, nentry=42)
 		mydsp = compile_and_load_dsp("nentry_test.dsp")
 		model = mydsp(sample_rate=44100, rngs=rngs)
-		model.eval()  # Use eval mode to avoid gumbel sampling in unnormalize
+		model.eval()  # Use eval mode to avoid nentry sampling in unnormalize
 
 		# Get metadata
 		metadata = model.get_parameter_metadata()

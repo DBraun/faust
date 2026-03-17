@@ -92,8 +92,8 @@ class TestParameterOptimization:
 		"""Test optimizing nentry parameters using Gumbel-softmax."""
 		# This test requires a DSP with nentry parameters
 		# It should verify that:
-		# 1. With gumbel RNG, gradients flow through the soft sampling
-		# 2. Without gumbel RNG, uses hard argmax (no gradients)
+		# 1. With nentry RNG, gradients flow through the soft sampling
+		# 2. Without nentry RNG, uses hard argmax (no gradients)
 		pytest.skip("Requires DSP with nentry parameters")
 
 	def test_parameter_learning_convergence(

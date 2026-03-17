@@ -728,8 +728,11 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		Must be called outside JAX transforms to avoid TraceContextError
 		from RngCount mutation.
 
+		Uses the ``nentry`` RNG name to avoid collision with
+		``jax.random.gumbel`` which Flax NNX binds onto ``Rngs``.
+
 		Returns:
-			JAX PRNG key if gumbel stream is available and model is in
+			JAX PRNG key if nentry is available and model is in
 			training mode, None otherwise.
 		"""
 		if self.deterministic:
@@ -737,11 +740,8 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		rngs = first_from(rngs, self.rngs, error_msg=None)
 		if rngs is None:
 			return None
-		if isinstance(rngs, rnglib.Rngs):
-			try:
-				return rngs.gumbel()
-			except (AttributeError, KeyError):
-				return None
+		if isinstance(rngs, rnglib.Rngs) and "nentry" in rngs:
+			return rngs.nentry()
 		return None
 
 	def unnormalize(self, gumbel_key: Optional[jax.Array] = None) -> Dict[str, jnp.ndarray]:

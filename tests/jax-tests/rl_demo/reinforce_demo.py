@@ -329,7 +329,7 @@ def reinforce_demo(args):
     batch_size = args.batch_size
 
     # Initialize synthesizer
-    rngs = nnx.Rngs(0, params=0, rng_stream=0, gumbel=42)
+    rngs = nnx.Rngs(0, params=0, rng_stream=0, nentry=42)
     synth = synth_class(sample_rate=sample_rate, faust_float=jnp.float32, rngs=rngs)
     synth.eval()
 
