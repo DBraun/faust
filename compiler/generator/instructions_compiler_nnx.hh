@@ -19,16 +19,16 @@
  ************************************************************************
  ************************************************************************/
 
-#ifndef _INSTRUCTION_COMPILER_JAX_H
-#define _INSTRUCTION_COMPILER_JAX_H
+#ifndef _INSTRUCTION_COMPILER_NNX_H
+#define _INSTRUCTION_COMPILER_NNX_H
 
 #include "instructions_compiler.hh"
 
-// To be used with JAX backend
+// To be used with the NNX and Linen backends
 
-class InstructionsCompilerJAX : public InstructionsCompiler {
+class InstructionsCompilerNNX : public InstructionsCompiler {
    public:
-    InstructionsCompilerJAX(CodeContainer* container) : InstructionsCompiler(container) {}
+    InstructionsCompilerNNX(CodeContainer* container) : InstructionsCompiler(container) {}
 
     StatementInst* generateShiftArray(const std::string& vname, int delay) override;
 

@@ -19,12 +19,12 @@
  ************************************************************************
  ************************************************************************/
 
-#ifndef _JAX_CODE_CONTAINER_H
-#define _JAX_CODE_CONTAINER_H
+#ifndef _LINEN_CODE_CONTAINER_H
+#define _LINEN_CODE_CONTAINER_H
 
 #include "code_container.hh"
 #include "dsp_factory.hh"
-#include "jax_instructions.hh"
+#include "linen_instructions.hh"
 #include "omp_code_container.hh"
 #include "vec_code_container.hh"
 #include "wss_code_container.hh"
@@ -33,10 +33,10 @@
 #pragma warning(disable : 4250)
 #endif
 
-class JAXCodeContainer : public virtual CodeContainer {
+class LinenCodeContainer : public virtual CodeContainer {
    protected:
-    static JAXInstVisitor* gJAXVisitor;
-    std::ostream*          fOut;
+    static LinenInstVisitor* gLinenVisitor;
+    std::ostream*            fOut;
 
     virtual void produceClass();
 
@@ -48,10 +48,10 @@ class JAXCodeContainer : public virtual CodeContainer {
     virtual void generateSR();
 
    public:
-    JAXCodeContainer() {}
-    JAXCodeContainer(const std::string& name, int numInputs, int numOutputs, std::ostream* out);
+    LinenCodeContainer() {}
+    LinenCodeContainer(const std::string& name, int numInputs, int numOutputs, std::ostream* out);
 
-    virtual ~JAXCodeContainer()
+    virtual ~LinenCodeContainer()
     {
         // fCodeProducer is a 'Garbageable'
     }
@@ -64,13 +64,13 @@ class JAXCodeContainer : public virtual CodeContainer {
                                           std::ostream* dst = new std::stringstream());
 };
 
-class JAXScalarCodeContainer : public JAXCodeContainer {
+class LinenScalarCodeContainer : public LinenCodeContainer {
    protected:
    public:
-    JAXScalarCodeContainer() {}
-    JAXScalarCodeContainer(const std::string& name, int numInputs, int numOutputs,
-                           std::ostream* out, int sub_container_type);
-    virtual ~JAXScalarCodeContainer() {}
+    LinenScalarCodeContainer() {}
+    LinenScalarCodeContainer(const std::string& name, int numInputs, int numOutputs,
+                             std::ostream* out, int sub_container_type);
+    virtual ~LinenScalarCodeContainer() {}
 };
 
 #endif

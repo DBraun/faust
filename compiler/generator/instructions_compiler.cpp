@@ -27,7 +27,7 @@
 #include "instructions.hh"
 #include "instructions_compiler.hh"
 #include "instructions_compiler1.hh"
-#include "instructions_compiler_jax.hh"
+#include "instructions_compiler_nnx.hh"
 #include "interpreter_code_container.hh"
 #include "normalform.hh"
 #include "prim2.hh"
@@ -450,8 +450,8 @@ CodeContainer* InstructionsCompiler::signal2Container(const string& name, Tree s
         gGlobal->gOutputLang == "asc") {
         InstructionsCompiler1 C(container);
         C.compileSingleSignal(sig);
-    } else if (gGlobal->gOutputLang == "jax") {
-        InstructionsCompilerJAX C(container);
+    } else if (gGlobal->gOutputLang == "nnx" || gGlobal->gOutputLang == "linen") {
+        InstructionsCompilerNNX C(container);
         C.compileSingleSignal(sig);
     } else if (gGlobal->gOutputLang == "interp") {
         InterpreterInstructionsCompiler C(container);
@@ -545,7 +545,7 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
             // special handling Julia backend
             pushComputeBlockMethod(IB::genDeclareBufferIterators(
                 "input", "inputs", fContainer->inputs(), ptr_type, false));
-        } else if (gGlobal->gOutputLang != "jax") {
+        } else if (gGlobal->gOutputLang != "nnx" && gGlobal->gOutputLang != "linen") {
             // "input" and "inputs" used as a name convention
             if (gGlobal->gOneSampleIO) {
                 for (int index = 0; index < fContainer->inputs(); index++) {
@@ -577,7 +577,7 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
             // special handling for Julia backend
             pushComputeBlockMethod(IB::genDeclareBufferIterators(
                 "output", "outputs", fContainer->outputs(), ptr_type, true));
-        } else if (gGlobal->gOutputLang != "jax") {
+        } else if (gGlobal->gOutputLang != "nnx" && gGlobal->gOutputLang != "linen") {
             // "output" and "outputs" used as a name convention
             if (gGlobal->gOneSampleIO) {
                 for (int index = 0; index < fContainer->outputs(); index++) {
@@ -597,7 +597,7 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
         }
     }
 
-    // These two vars are only used for JAX
+    // These two vars are only used for NNX/Linen
     string return_string = "state, jnp.stack([";
     string sep           = "";
 
@@ -623,8 +623,7 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
                 pushComputeDSPMethod(IB::genStoreStackVar(name, res));
             }
 
-        } else if (gGlobal->gOutputLang == "jax") {
-            res               = CS(sig);
+        } else if (gGlobal->gOutputLang == "nnx" || gGlobal->gOutputLang == "linen") {
             string result_var = "_result" + to_string(index);
             return_string     = return_string + sep + result_var;
             sep               = ",";
@@ -660,7 +659,7 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
         }
     }
 
-    if (gGlobal->gOutputLang == "jax") {
+    if (gGlobal->gOutputLang == "nnx" || gGlobal->gOutputLang == "linen") {
         return_string = return_string + "])";
         pushPostComputeDSPMethod(IB::genRetInst(IB::genLoadStackVar(return_string)));
     }
@@ -963,7 +962,7 @@ ValueInst* InstructionsCompiler::generateInput(Tree sig, int idx)
         res = IB::genLoadStackVar(subst("*input$0", T(idx)));
     } else if (gGlobal->gOutputLang == "rust" && gGlobal->gInPlace) {
         res = IB::genLoadStackVar(subst("*io$0", T(idx)));
-    } else if (gGlobal->gOutputLang == "jax") {
+    } else if (gGlobal->gOutputLang == "nnx" || gGlobal->gOutputLang == "linen") {
         res = IB::genLoadArrayStackVar("inputs", IB::genInt32NumInst(idx));
     } else if (gGlobal->gOneSampleIO) {
         res = IB::genLoadStructVar(subst("input$0", T(idx)));
@@ -1024,7 +1023,19 @@ ValueInst* InstructionsCompiler::generateFFun(Tree sig, Tree ff, Tree largs)
         // Add function declaration
         FunTyped* fun_type = IB::genFunTyped(args_types, genBasicFIRTyped(ffrestype(ff)));
         pushExtGlobalDeclare(IB::genDeclareFunInst(funname, fun_type));
-        return generateCacheCode(sig, IB::genFunCallInst(funname, args_value));
+
+        // For the NNX/Linen backends, skip caching for random_* functions to ensure independent streams
+        // Each call should generate fresh random values, not reuse cached results
+        bool is_random_ffun = (gGlobal->gOutputLang == "nnx" || gGlobal->gOutputLang == "linen") &&
+                            (funname.find("random_") == 0);
+
+        if (is_random_ffun) {
+            // Don't cache - each call should be independent
+            return IB::genFunCallInst(funname, args_value);
+        } else {
+            // Normal caching behavior for other functions
+            return generateCacheCode(sig, IB::genFunCallInst(funname, args_value));
+        }
     } else {
         stringstream error;
         error << "ERROR : calling foreign function '" << funname << "'"
@@ -2567,6 +2578,8 @@ void InstructionsCompiler::generateWidgetCode(Tree fulllabel, Tree varname, Tree
         }
     }
 
+    bool is_python_backend = gGlobal->gOutputLang == "nnx" || gGlobal->gOutputLang == "linen";
+
     if (isSigButton(sig, path)) {
         fContainer->incUIActiveCount();
         pushUserInterfaceMethod(
@@ -2591,8 +2604,10 @@ void InstructionsCompiler::generateWidgetCode(Tree fulllabel, Tree varname, Tree
 
     } else if (isSigNumEntry(sig, path, c, x, y, z)) {
         fContainer->incUIActiveCount();
+        // Pass full label with metadata intact, let Python architecture file parse it
+        // This allows Python to handle [tau:learnable], [tau_init:0.5], etc.
         pushUserInterfaceMethod(
-            IB::genAddNumEntryInst(checkNullLabel(varname, label), tree2str(varname),
+            IB::genAddNumEntryInst(checkNullLabel(varname, (is_python_backend ? tree2str(fulllabel) : label)), tree2str(varname),
                                    tree2double(c), tree2double(x), tree2double(y), tree2double(z)));
 
     } else if (isSigVBargraph(sig, path, x, y, z)) {
@@ -2609,7 +2624,9 @@ void InstructionsCompiler::generateWidgetCode(Tree fulllabel, Tree varname, Tree
 
     } else if (isSigSoundfile(sig, path)) {
         fContainer->incUIActiveCount();
-        pushUserInterfaceMethod(IB::genAddSoundfileInst(checkNullLabel(varname, label),
+        // Pass full label with metadata intact, let Python architecture file parse it
+        // This allows Python to handle [param:1], [url:...], and other metadata flexibly
+        pushUserInterfaceMethod(IB::genAddSoundfileInst(checkNullLabel(varname, (is_python_backend ? tree2str(fulllabel) : label)),
                                                         ((url == "") ? prepareURL(label) : url),
                                                         tree2str(varname)));
 

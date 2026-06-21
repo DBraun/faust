@@ -19,20 +19,23 @@
  ************************************************************************
  ************************************************************************/
 
-#ifndef _JAX_INSTRUCTIONS_H
-#define _JAX_INSTRUCTIONS_H
+#ifndef _NNX_BASE_INSTRUCTIONS_H
+#define _NNX_BASE_INSTRUCTIONS_H
 
 #include <string>
 
 #include "struct_manager.hh"
 #include "text_instructions.hh"
 
-// Visitor used to initialize array fields into the DSP structure
-struct JAXInitFieldsVisitor : public DispatchVisitor {
+/**
+ * Base visitor for initializing array fields into the DSP structure during _initialize_carry().
+ * Subclasses (NNX and Linen) override visit(NamedAddress*) for params/state routing.
+ */
+struct NNXBaseInitFieldsVisitor : public DispatchVisitor {
     std::ostream* fOut;
     int           fTab;
 
-    JAXInitFieldsVisitor(std::ostream* out, int tab = 0) : fOut(out), fTab(tab) {}
+    NNXBaseInitFieldsVisitor(std::ostream* out, int tab = 0) : fOut(out), fTab(tab) {}
 
     virtual void visit(DeclareVarInst* inst)
     {
@@ -49,17 +52,8 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
         }
     }
 
-    virtual void visit(NamedAddress* named)
-    {
-        // kStaticStruct are actually merged in the main DSP
-        if (named->isStruct() || named->isStaticStruct()) {
-            *fOut << "state[\"";
-        }
-        *fOut << named->fName;
-        if (named->isStruct() || named->isStaticStruct()) {
-            *fOut << "\"]";
-        }
-    }
+    // Pure virtual: subclasses route to params/state differently
+    virtual void visit(NamedAddress* named) = 0;
 
     static void ZeroInitializer(std::ostream* fOut, Typed* typed)
     {
@@ -109,47 +103,65 @@ struct JAXInitFieldsVisitor : public DispatchVisitor {
     }
 };
 
-class JAXInstVisitor : public TextInstVisitor {
-   private:
+/**
+ * Base instruction visitor for NNX/Linen code generation.
+ *
+ * Contains all shared visit methods for both NNX and Linen backends.
+ * Subclasses override only visit(NamedAddress*) for different routing.
+ */
+class NNXBaseInstVisitor : public TextInstVisitor {
+   protected:
     /*
      Global functions names table as a static variable in the visitor
      so that each function prototype is generated as most once in the module.
      */
-    static std::map<std::string, bool> gFunctionSymbolTable;
+    inline static std::map<std::string, bool> gFunctionSymbolTable;
 
     // Polymorphic math functions
     std::map<std::string, std::string> gPolyMathLibTable;
 
     // bool for "is storing left-hand-side".
-    // Suppose the output code will be `state['foo'] = bar`.
-    // This boolean indicates that we are starting this line but haven't yet reached the equals
-    // sign.
     bool fIsStoringLhs = false;
 
-    // bool for "will set array".
-    // jax has a special syntax for setting items of arrays:
-    // https://jax.readthedocs.io/en/latest/_autosummary/jax.numpy.ndarray.at.html
-    // This bool helps us know that we're going to use the .at[X] operator followed by the set(Y)
-    // operator. This bool is used in tandem with fIsStoringLhs.
+    // bool for "will set array" (JAX .at[X].set(Y) pattern).
     bool fWillSetArray = false;
 
-    // This bool is not related to fIsStoringLhs or fWillSetArray.
-    // It is used so that we don't cast to integers in the condition of a while (cond) loop.
+    // Used so that we don't cast to integers in the condition of a while (cond) loop.
     bool fIsDoingWhile = false;
 
     std::set<std::string> fLogSet;  // set of widget zone having a log UI scale
     std::set<std::string> fExpSet;  // set of widget zone having an exp UI scale
 
+   protected:
+    // Emit a Python double-quoted string literal with proper escaping. Faust UI
+    // labels/URLs (and their embedded metadata, e.g. "[style:menu{...}]") may
+    // contain characters that are special inside a Python string ("\\", '"', ...);
+    // plain quote() would produce broken source, so escape them here.
+    static std::string pyStr(const std::string& s)
+    {
+        std::string out = "\"";
+        for (char c : s) {
+            switch (c) {
+                case '\\': out += "\\\\"; break;
+                case '"':  out += "\\\""; break;
+                case '\n': out += "\\n"; break;
+                case '\r': out += "\\r"; break;
+                case '\t': out += "\\t"; break;
+                default:   out += c; break;
+            }
+        }
+        out += "\"";
+        return out;
+    }
+
    public:
     using TextInstVisitor::visit;
 
-    // This bool indicates that we should use the numpy functions, so the prefix "np."
-    // If false, use jax.numpy "jnp."
-    // We want to use numpy when initializing arrays and sound files because it's faster than JAX.
+    // Use numpy functions (prefix "np.") when true, jax.numpy "jnp." when false.
     bool fUseNumpy = true;
 
-    JAXInstVisitor(std::ostream* out, const std::string& struct_name, int tab = 0)
-        : TextInstVisitor(out, ".", new JAXStringTypeManager(xfloat(), "*", struct_name), tab)
+    NNXBaseInstVisitor(std::ostream* out, const std::string& struct_name, int tab = 0)
+        : TextInstVisitor(out, ".", new NNXStringTypeManager(xfloat(), "*", struct_name), tab)
     {
         // Mark all math.h functions as generated...
         gFunctionSymbolTable["abs"] = true;
@@ -344,7 +356,7 @@ class JAXInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["copysign"] = "jnp.copysign";
     }
 
-    virtual ~JAXInstVisitor() {}
+    virtual ~NNXBaseInstVisitor() {}
 
     virtual void visit(AddMetaDeclareInst* inst)
     {
@@ -361,7 +373,7 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(OpenboxInst* inst)
     {
-        *fOut << "ui_path.append(" << quote(inst->fName) << ")";
+        *fOut << "ui_path.append(" << pyStr(inst->fName) << ")";
         EndLine(' ');
     }
 
@@ -373,8 +385,8 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddButtonInst* inst)
     {
-        *fOut << "self.add_button(state, " << quote(inst->fZone) << ", ui_path,"
-              << quote(inst->fLabel) << ")";
+        *fOut << "self.add_button(" << quote(inst->fZone) << ", ui_path, "
+              << pyStr(inst->fLabel) << ", unnorm_funcs)";
         EndLine(' ');
     }
 
@@ -391,26 +403,36 @@ class JAXInstVisitor : public TextInstVisitor {
 
         switch (inst->fType) {
             case AddSliderInst::kHorizontal:
-            case AddSliderInst::kVertical:
                 // clang-format off
-                *fOut << "self.add_slider(state, " 
+                *fOut << "self.add_hslider("
                     << quote(inst->fZone) << ", ui_path, "
-                    << quote(inst->fLabel) << ", "
+                    << pyStr(inst->fLabel) << ", "
                     << checkReal(inst->fInit) << ", "
                     << checkReal(inst->fMin) << ", "
-                    << checkReal(inst->fMax) << ", "
+                    << checkReal(inst->fMax) << ", unnorm_funcs, "
+                    << scaleMode << ")";
+                break;
+                // clang-format on
+            case AddSliderInst::kVertical:
+                // clang-format off
+                *fOut << "self.add_vslider("
+                    << quote(inst->fZone) << ", ui_path, "
+                    << pyStr(inst->fLabel) << ", "
+                    << checkReal(inst->fInit) << ", "
+                    << checkReal(inst->fMin) << ", "
+                    << checkReal(inst->fMax) << ", unnorm_funcs, "
                     << scaleMode << ")";
                 break;
                 // clang-format on
             case AddSliderInst::kNumEntry:
                 // clang-format off
-                *fOut << "self.add_nentry(state, " 
+                *fOut << "self.add_nentry("
                     << quote(inst->fZone) << ", ui_path, "
-                    << quote(inst->fLabel) << ", "
+                    << pyStr(inst->fLabel) << ", "
                     << checkReal(inst->fInit) << ", "
                     << checkReal(inst->fMin) << ", "
                     << checkReal(inst->fMax) << ", "
-                    << checkReal(inst->fStep) << ")";
+                    << checkReal(inst->fStep) << ", unnorm_funcs)";
                 break;
                 // clang-format on
         }
@@ -419,14 +441,17 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(AddBargraphInst* inst)
     {
-        *fOut << "state[" + quote(inst->fZone) + "] = 0.";
+        *fOut << "self.add_hbargraph(" << quote(inst->fZone) << ", ui_path, "
+              << pyStr(inst->fLabel) << ", "
+              << checkReal(inst->fMin) << ", "
+              << checkReal(inst->fMax) << ", unnorm_funcs)";
         EndLine(' ');
     }
 
     virtual void visit(AddSoundfileInst* inst)
     {
-        *fOut << "self.add_soundfile(state, " << quote(inst->fSFZone) << ", ui_path, "
-              << quote(inst->fLabel) << ", " << quote(inst->fURL) << ", x)";
+        *fOut << "self.add_soundfile(" << quote(inst->fSFZone) << ", ui_path, "
+              << pyStr(inst->fLabel) << ", " << pyStr(inst->fURL) << ", unnorm_funcs)";
         EndLine(' ');
     }
 
@@ -476,8 +501,6 @@ class JAXInstVisitor : public TextInstVisitor {
             inst->fInst2->accept(this);
             *fOut << ")";
         } else {
-            // Operator prededence is not like C/C++, so for simplicity, we keep the fully
-            // parenthezid version
             *fOut << "(";
             inst->fInst1->accept(this);
             *fOut << " ";
@@ -488,8 +511,6 @@ class JAXInstVisitor : public TextInstVisitor {
 
             bool opCodeIsBoolean = inst->fOpcode >= kGT && inst->fOpcode <= kXOR;
             if (opCodeIsBoolean && !fIsDoingWhile) {
-                // these opcodes (>,>=,<,<= etc.) result in bools which should be re-cast to
-                // integers
                 *fOut << ".astype(jnp.int32)";
             }
         }
@@ -499,7 +520,7 @@ class JAXInstVisitor : public TextInstVisitor {
     {
         if (inst->fAddress->isStaticStruct()) {
             *fOut << fTypeManager->generateType(inst->fType, inst->getName());
-            // Allocation is actually done in JAXInitFieldsVisitor
+            // Allocation is actually done in NNXBaseInitFieldsVisitor
         } else {
             *fOut << fTypeManager->generateType(inst->fType, inst->getName());
             if (inst->fValue) {
@@ -580,17 +601,8 @@ class JAXInstVisitor : public TextInstVisitor {
         }
     }
 
-    virtual void visit(NamedAddress* named)
-    {
-        // kStaticStruct are actually merged in the main DSP
-        if (named->isStruct() || named->isStaticStruct()) {
-            *fOut << "state[\"";
-        }
-        *fOut << named->fName;
-        if (named->isStruct() || named->isStaticStruct()) {
-            *fOut << "\"]";
-        }
-    }
+    // Pure virtual: subclasses route to params/state differently
+    virtual void visit(NamedAddress* named) = 0;
 
     /*
     Indexed address can actually be values in an array or fields in a struct type
@@ -647,18 +659,32 @@ class JAXInstVisitor : public TextInstVisitor {
 
     virtual void visit(StoreVarInst* inst)
     {
-        fIsStoringLhs = true;
-        inst->fAddress->accept(this);
-        fIsStoringLhs = false;
-        *fOut << " = ";
+        // Check if this is a cache variable assignment (ends with "ca")
+        NamedAddress* named = dynamic_cast<NamedAddress*>(inst->fAddress);
+        bool isCacheVar = false;
+        if (named) {
+            std::string name = named->fName;
+            isCacheVar = (name.length() > 2 && name.substr(name.length() - 2) == "ca");
+        }
 
-        if (fWillSetArray) {
-            inst->fAddress->accept(this);
-            *fOut << ".set(";
+        if (isCacheVar) {
+            // For cache variables, create a local variable instead of storing to state
+            *fOut << named->fName << " = ";
             inst->fValue->accept(this);
-            *fOut << ")";
         } else {
-            inst->fValue->accept(this);
+            fIsStoringLhs = true;
+            inst->fAddress->accept(this);
+            fIsStoringLhs = false;
+            *fOut << " = ";
+
+            if (fWillSetArray) {
+                inst->fAddress->accept(this);
+                *fOut << ".set(";
+                inst->fValue->accept(this);
+                *fOut << ")";
+            } else {
+                inst->fValue->accept(this);
+            }
         }
 
         EndLine(' ');
@@ -667,7 +693,7 @@ class JAXInstVisitor : public TextInstVisitor {
     virtual void visit(::CastInst* inst)
     {
         if (isIntType(inst->fType->getType())) {
-            *fOut << "jnp.int32(";
+            *fOut << (fUseNumpy ? "np.int32(" : "jnp.int32(");
             inst->fInst->accept(this);
             *fOut << ")";
         } else {
@@ -700,6 +726,22 @@ class JAXInstVisitor : public TextInstVisitor {
     // Generate standard funcall (not 'method' like funcall...)
     virtual void visit(FunCallInst* inst)
     {
+        // Random foreign functions are dispatched to self.<name>() helpers with an
+        // RNG key injected as the first argument. Forward ALL DSP-provided arguments
+        // unchanged (rate, p, a/b, ...) rather than dropping them on unexpected arity:
+        // a wrong arity then fails loudly at runtime instead of silently using defaults.
+        if (inst->fName == "random_uniform" || inst->fName == "random_normal" ||
+            inst->fName == "random_exponential" || inst->fName == "random_bernoulli" ||
+            inst->fName == "random_beta") {
+            *fOut << "self." << inst->fName << "(rngs()";
+            if (inst->fArgs.size() > 0) {
+                *fOut << ", ";
+                generateFunCallArgs(inst->fArgs.begin(), inst->fArgs.end(), inst->fArgs.size());
+            }
+            *fOut << ")";
+            return;
+        }
+
         std::string name = (gPolyMathLibTable.find(inst->fName) != gPolyMathLibTable.end())
                                ? gPolyMathLibTable[inst->fName]
                                : inst->fName;
@@ -778,9 +820,6 @@ class JAXInstVisitor : public TextInstVisitor {
             *fOut << lower_bound->fNum << ":";
             Int32NumInst* upper_bound = dynamic_cast<Int32NumInst*>(inst->fUpperBound);
             if (upper_bound) {
-                // If an Int32NumInst, we just generate it without any type information
-                // (see visit(Int32NumInst* inst) which adds type information that we don't want
-                // here)
                 *fOut << upper_bound->fNum;
             } else {
                 inst->fUpperBound->accept(this);
