@@ -136,36 +136,6 @@ class EvalMetrics(Collection):
     concentration_std: Average.from_output("concentration_std")
 
 
-@jax.custom_vjp
-def magic_clamp(x, min_val, max_val):
-    """Clamp with conditional straight-through estimator (STE) gradient.
-
-    Forward: hard clamp to [min_val, max_val]
-    Backward: pass gradient if moving toward valid region, else zero
-    """
-    return jnp.clip(x, min_val, max_val)
-
-
-def magic_clamp_fwd(x, min_val, max_val):
-    return jnp.clip(x, min_val, max_val), (x, min_val, max_val)
-
-
-def magic_clamp_bwd(res, g):
-    x, min_val, max_val = res
-    # Pass gradient if:
-    # - x is within bounds, OR
-    # - x is below min and gradient is positive (pushing up), OR
-    # - x is above max and gradient is negative (pushing down)
-    in_bounds = (x >= min_val) & (x <= max_val)
-    below_min_pushing_up = (x < min_val) & (g > 0)
-    above_max_pushing_down = (x > max_val) & (g < 0)
-    mask = in_bounds | below_min_pushing_up | above_max_pushing_down
-    return (g * mask.astype(g.dtype), None, None)
-
-
-magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
-
-
 class PolicyWithBaseline(nnx.Module):
     """
     Actor-Critic policy for REINFORCE with learned baseline.
