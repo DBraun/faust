@@ -1,6 +1,6 @@
-# JAX Backend Tests
+# NNX Backend Tests
 
-This directory contains tests for the Faust JAX backend using the minimal.py architecture file.
+This directory contains tests for the Faust NNX backend using the minimal.py architecture file.
 
 ## Structure
 
@@ -52,7 +52,7 @@ make help
 ### Test Output
 
 The Makefile will:
-1. Compile each `.dsp` file in `dsp/` to a Python file using the JAX backend
+1. Compile each `.dsp` file in `dsp/` to a Python file using the NNX backend
 2. Run each generated Python file with `--duration 0.1 --jit`
 3. Report success/failure for each test
 4. Provide a summary of all test results
@@ -117,12 +117,12 @@ process = random_uniform;
 
 ## Requirements
 
-- Faust compiler built with JAX backend support
+- Faust compiler built with NNX backend support
 - Python 3 with the following packages:
   - `jax` and `jaxlib` - JAX framework
   - `numpy` - Numerical operations
   - `tqdm` - Progress bars for JIT benchmarking
-  - `flax` - Neural network library used by the JAX backend
+  - `flax` - Neural network library used by the NNX backend
   - `librosa` (optional) - For loading audio files
   - `scipy` (optional) - For saving WAV output files
 
@@ -136,8 +136,8 @@ pip install jax jaxlib numpy tqdm flax librosa scipy
 This test suite is integrated with GitHub Actions via `.github/workflows/jax-tests.yml`. The workflow:
 1. Builds Faust once and shares the build artifacts
 2. Runs two parallel test jobs:
-   - JAX impulse tests
-   - JAX minimal architecture tests (this test suite)
+   - NNX impulse tests
+   - NNX minimal architecture tests (this test suite)
 3. Tests are run on Ubuntu with Python 3.11
 
 ## Troubleshooting

@@ -581,7 +581,7 @@ void global::reset()
 #endif
 
 #ifdef NNX_BUILD
-    gNNXVisitor = nullptr;  // Will be (possibly) allocated in JAX backend
+    gNNXVisitor = nullptr;  // Will be (possibly) allocated in NNX backend
 #endif
 
 #ifdef ASSEMBLYSCRIPT_BUILD
@@ -1079,7 +1079,7 @@ global::~global()
 #endif
 #ifdef LINEN_BUILD
     // LinenInstVisitor shares NNXBaseInstVisitor::gFunctionSymbolTable; clear it
-    // for build configs where LINEN is enabled but JAX is not.
+    // for build configs where LINEN is enabled but NNX is not.
     LinenInstVisitor::cleanup();
 #endif
 #ifdef ASSEMBLYSCRIPT_BUILD
@@ -2100,7 +2100,11 @@ static void enumBackends(ostream& out)
 #endif
 
 #ifdef NNX_BUILD
-    out << dspto << "JAX" << endl;
+    out << dspto << "NNX" << endl;
+#endif
+
+#ifdef LINEN_BUILD
+    out << dspto << "Linen" << endl;
 #endif
 
 #ifdef JULIA_BUILD

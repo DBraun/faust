@@ -130,7 +130,7 @@ The impulse test suite (`tests/impulse-tests/Make.nnx`) validates that JAX outpu
 ```bash
 # Compare JAX output against C++ reference
 cd tests/impulse-tests
-faust -lang nnx dsp/echo.dsp -a archs/impulsennx.py -double > ir/nnx/double/jax_echo.py
-python3 ir/nnx/double/jax_echo.py > ir/nnx/double/echo.ir
+faust -lang nnx dsp/echo.dsp -a archs/impulsennx.py -double > ir/nnx/double/nnx_echo.py
+python3 ir/nnx/double/nnx_echo.py > ir/nnx/double/echo.ir
 ./filesCompare ir/nnx/double/echo.ir reference/echo.ir
 ```

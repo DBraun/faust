@@ -597,7 +597,7 @@ void InstructionsCompiler::compileMultiSignal(Tree L)
         }
     }
 
-    // These two vars are only used for JAX
+    // These two vars are only used for NNX/Linen
     string return_string = "state, jnp.stack([";
     string sep           = "";
 
@@ -1024,7 +1024,7 @@ ValueInst* InstructionsCompiler::generateFFun(Tree sig, Tree ff, Tree largs)
         FunTyped* fun_type = IB::genFunTyped(args_types, genBasicFIRTyped(ffrestype(ff)));
         pushExtGlobalDeclare(IB::genDeclareFunInst(funname, fun_type));
 
-        // For JAX backend, skip caching for random_* functions to ensure independent streams
+        // For the NNX/Linen backends, skip caching for random_* functions to ensure independent streams
         // Each call should generate fresh random values, not reuse cached results
         bool is_random_ffun = (gGlobal->gOutputLang == "nnx" || gGlobal->gOutputLang == "linen") &&
                             (funname.find("random_") == 0);

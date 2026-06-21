@@ -1,6 +1,6 @@
 # RL Integration Demo
 
-This directory demonstrates reinforcement learning for synthesizer parameter estimation using Faust's JAX backend and the `normalized_params` API.
+This directory demonstrates reinforcement learning for synthesizer parameter estimation using Faust's NNX backend and the `normalized_params` API.
 
 ## Overview
 
@@ -143,7 +143,7 @@ The statistics are computed from 1000 random synthesizer sounds to capture the t
 
 ## Prerequisites
 
-- Faust compiler with JAX backend
+- Faust compiler with NNX backend
 - Python 3.11+
 - JAX, Flax NNX, optax, distrax, orbax-checkpoint
 - librosax (audio feature extraction)
@@ -156,7 +156,7 @@ pip install jax jax-ai-stack librosax matplotlib einops
 ## References
 
 - **SynthRL Paper**: Shin & Lee, "Cross-domain Synthesizer Sound Matching via Reinforcement Learning", IJCAI 2025 ([code](https://github.com/argaaw/SynthRL))
-- **Faust JAX Backend**: `../../architecture/jax/README.md`
+- **Faust NNX Backend**: `../../architecture/jax/README.md`
 
 ## Notes
 

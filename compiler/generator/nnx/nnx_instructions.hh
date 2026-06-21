@@ -25,7 +25,7 @@
 #include "nnx_base_instructions.hh"
 
 /**
- * JAX/NNX init fields visitor.
+ * NNX init fields visitor.
  * Routes UI parameters to params[""], state variables to state[""],
  * cache variables (ending in "ca") as bare locals.
  */
@@ -69,7 +69,7 @@ struct NNXInitFieldsVisitor : public NNXBaseInitFieldsVisitor {
 };
 
 /**
- * JAX/NNX main instruction visitor.
+ * NNX main instruction visitor.
  * Routes UI parameters to params[""], state variables to state[""],
  * cache variables (ending in "ca") as bare locals.
  */

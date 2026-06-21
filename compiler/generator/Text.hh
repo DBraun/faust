@@ -253,7 +253,7 @@ inline std::string flattenJSON(const std::string& src)
     return dst;
 }
 
-// To be used for Python (JAX, Linen backends)
+// To be used for Python (NNX, Linen backends)
 inline std::string flattenJSONforPython(const std::string& src)
 {
     std::string dst;

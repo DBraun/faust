@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Faust (Functional Audio Stream) is a functional programming language for real-time signal processing and synthesis. This repository contains the Faust compiler that translates DSP specifications into efficient code for various languages (C++, C, JAVA, LLVM IR, WebAssembly, JAX, Rust, etc.).
+Faust (Functional Audio Stream) is a functional programming language for real-time signal processing and synthesis. This repository contains the Faust compiler that translates DSP specifications into efficient code for various languages (C++, C, JAVA, LLVM IR, WebAssembly, NNX, Rust, etc.).
 
 ## Key Development Commands
 
@@ -55,7 +55,7 @@ make native        # Revert to native mode
 **Best practice:** Use `cd build && make all -j8 -s` for fast, quiet builds.
 
 **Troubleshooting:**
-- **Error: "Cannot find program llvm-config"** - Use `make all` instead of `make full`. The `all` target builds without LLVM backend, which is sufficient for most development (including JAX backend).
+- **Error: "Cannot find program llvm-config"** - Use `make all` instead of `make full`. The `all` target builds without LLVM backend, which is sufficient for most development (including NNX backend).
 - **Build time** - First build takes 3-5 minutes on modern hardware with `-j8`. Incremental rebuilds are much faster.
 - **WSL2 performance** - Builds may be slower on WSL2 due to filesystem overhead. Consider using `/home/` paths instead of `/mnt/c/` for better performance.
 
@@ -66,9 +66,9 @@ make native        # Revert to native mode
 cd tests
 make -C impulse-tests  # Test all backends
 
-# JAX backend tests
+# NNX backend tests
 cd tests/jax-tests
-make test              # Run all JAX tests (use 5 minute timeout)
+make test              # Run all NNX tests (use 5 minute timeout)
 make test-table        # Run specific test (e.g., table.dsp)
 make compile-table     # Only compile without running
 
@@ -78,7 +78,7 @@ make compile-table     # Only compile without running
 # - Or check if file exists first
 # Clean generated files: rm generated/*.py generated/*.test generated/*.output.log
 
-# IMPORTANT: When running `make test` for all JAX tests, use a 5 minute timeout
+# IMPORTANT: When running `make test` for all NNX tests, use a 5 minute timeout
 # as there are many tests and they take time to complete:
 # Example: timeout=300000 (5 minutes in milliseconds)
 
@@ -124,13 +124,13 @@ Located in `/generator`:
 - `llvm_code_container.*` - LLVM IR backend
 - `wasm_*_code_container.*` - WebAssembly backends
 - `rust_code_container.*` - Rust backend
-- `jax_code_container.*` - JAX backend (with circular buffer optimization)
+- `nnx_code_container.*` - NNX backend (with circular buffer optimization)
 - `julia_code_container.*` - Julia backend
 - `template.*` - A template starting point for making a new backend
 
-#### JAX Backend Circular Buffer Optimization
+#### NNX Backend Circular Buffer Optimization
 
-The JAX backend implements a hybrid approach for delay line optimization:
+The NNX backend implements a hybrid approach for delay line optimization:
 
 **Circular Buffers** (O(1) performance):
 - Used for larger delay lines (> gMaxCopyDelay, typically > 16 samples)
@@ -145,8 +145,8 @@ The JAX backend implements a hybrid approach for delay line optimization:
 - Examples: tf_exp.dsp (biquad sections), vcf_wah_pedals.dsp, zita_rev1.dsp
 
 **Implementation files:**
-- `compiler/generator/instructions_compiler_jax.cpp/hh` - Compiler logic
-- `compiler/generator/jax/jax_instructions.hh` - Visitor for array access conversion
+- `compiler/generator/instructions_compiler_nnx.cpp/hh` - Compiler logic
+- `compiler/generator/nnx/nnx_instructions.hh` - Visitor for array access conversion
 
 ### Adding New Features
 

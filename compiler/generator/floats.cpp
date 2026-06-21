@@ -144,7 +144,7 @@ void initFaustFloat()
         floatmax[3] = 0x7FF0000000000000;
         floatmax[4] = 0x7F800000;
 
-        // Specific for JAX backend
+        // Specific for NNX/Linen backends
     } else if (gGlobal->gOutputLang == "nnx" || gGlobal->gOutputLang == "linen") {
         numsuffix[0] = "";
         numsuffix[1] = "";

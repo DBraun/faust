@@ -29,12 +29,12 @@
 using namespace std;
 
 /*
- JAX backend implementation with Flax NNX support:
+ NNX backend implementation with Flax NNX support:
 
  ### Core Architecture:
  - Generates a one-sample "tick" method instead of a traditional "compute" method
- - Uses JAX's nnx.scan for efficient loop processing over audio blocks
- - Architecture files (minimal.py, impulsejax.py) provide the __call__ wrapper
+ - Uses Flax NNX's nnx.scan for efficient loop processing over audio blocks
+ - Architecture files (minimal.py, impulsennx.py) provide the __call__ wrapper
  - Flax NNX modules handle parameter management and state initialization
 
  ### Key Design Decisions:
@@ -95,18 +95,18 @@ CodeContainer* NNXCodeContainer::createContainer(const string& name, int numInpu
     CodeContainer* container;
 
     if (gGlobal->gOpenCLSwitch) {
-        throw faustexception("ERROR : OpenCL not supported for JAX\n");
+        throw faustexception("ERROR : OpenCL not supported for NNX\n");
     }
     if (gGlobal->gCUDASwitch) {
-        throw faustexception("ERROR : CUDA not supported for JAX\n");
+        throw faustexception("ERROR : CUDA not supported for NNX\n");
     }
 
     if (gGlobal->gOpenMPSwitch) {
-        throw faustexception("ERROR : OpenMP not supported for JAX\n");
+        throw faustexception("ERROR : OpenMP not supported for NNX\n");
     } else if (gGlobal->gSchedulerSwitch) {
-        throw faustexception("ERROR : Scheduler not supported for JAX\n");
+        throw faustexception("ERROR : Scheduler not supported for NNX\n");
     } else if (gGlobal->gVectorSwitch) {
-        throw faustexception("ERROR : Vector not supported for JAX\n");
+        throw faustexception("ERROR : Vector not supported for NNX\n");
     } else {
         container = new NNXScalarCodeContainer(name, numInputs, numOutputs, dst, kInt);
     }

@@ -589,7 +589,7 @@ The Faust executable will be in `build/bin/faust`. Verify backends are included:
 
 ```bash
 ./build/bin/faust -v
-# Should show "DSP to JAX" and "DSP to Linen" in the embedded backends list
+# Should show "DSP to NNX" and "DSP to Linen" in the embedded backends list
 ```
 
 ## Differentiable DSP (DDSP) and Gradient-Based Optimization

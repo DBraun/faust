@@ -73,11 +73,11 @@ The generated impulse responses are not preserved by the shell scripts. Intermed
 
 You should run `make tools` before first run of `tests.sh`.
 
-### JAX tests
+### NNX tests
 
 #### Prerequisites
 
-- `faust` must be available from the `../../build/bin` folder. It must be compiled with the JAX backend
+- `faust` must be available from the `../../build/bin` folder. It must be compiled with the NNX backend
 - install the python requirements: `pip install -r requirements.txt`
 - install [JAX](https://jax.readthedocs.io/en/latest/) and [Flax](https://flax.readthedocs.io/en/latest/):
   - For new environments: `pip install jax-ai-stack` (includes JAX, Flax, and other useful libraries with pinned versions)

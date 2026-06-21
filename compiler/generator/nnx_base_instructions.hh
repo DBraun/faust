@@ -29,7 +29,7 @@
 
 /**
  * Base visitor for initializing array fields into the DSP structure during _initialize_carry().
- * Subclasses (JAX/NNX and Linen) override visit(NamedAddress*) for params/state routing.
+ * Subclasses (NNX and Linen) override visit(NamedAddress*) for params/state routing.
  */
 struct NNXBaseInitFieldsVisitor : public DispatchVisitor {
     std::ostream* fOut;
@@ -104,7 +104,7 @@ struct NNXBaseInitFieldsVisitor : public DispatchVisitor {
 };
 
 /**
- * Base instruction visitor for JAX code generation.
+ * Base instruction visitor for NNX/Linen code generation.
  *
  * Contains all shared visit methods for both NNX and Linen backends.
  * Subclasses override only visit(NamedAddress*) for different routing.
