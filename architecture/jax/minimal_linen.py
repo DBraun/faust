@@ -274,6 +274,11 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		# Build full label for UI path
 		full_label = "/".join(ui_path + [clean_label])
 
+		# Learnable soundfiles register their buffers as a real Flax Linen parameter;
+		# otherwise the buffers stay a plain (non-learnable) array.
+		if is_param:
+			fBuffers = self.param(zone + "_fBuffers", lambda key, v=fBuffers: v)
+
 		# Store soundfile dict as a plain attribute (no nnx.data wrapper needed for Linen)
 		soundfile_dict = {
 			"fLength": jnp.array(fLength, dtype=jnp.int32),
@@ -305,7 +310,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			unnorm_funcs: Dictionary mapping labels to (zone, unnormalization_func) tuples
 		"""
 		full_label = "/".join(ui_path+[label])
-		setattr(self, zone, jnp.zeros((), dtype=self.faust_float))
+		setattr(self, zone, self.param(zone, lambda key: jnp.zeros((), dtype=self.faust_float)))
 		unnorm_funcs[full_label] = (zone, lambda x: x)
 
 		# Store parameter metadata
@@ -372,7 +377,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		logits = logits.at[init_step].set(faust_float(NENTRY_LOGITS_INIT))
 
 		logits_zone = zone + "_logits"
-		setattr(self, logits_zone, logits)
+		setattr(self, logits_zone, self.param(logits_zone, lambda key, v=logits: v))
 
 		# (2) Temperature (Gumbel-softmax temperature parameter)
 		# Parse tau configuration from metadata
@@ -380,7 +385,12 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		tau_init = float(metadata.get("tau_init", str(NENTRY_TAU_INIT)))
 
 		tau_zone = zone + "_tau"
-		setattr(self, tau_zone, faust_float(tau_init))
+		if tau_learnable:
+			# Learnable temperature: a real Flax Linen parameter.
+			setattr(self, tau_zone, self.param(tau_zone, lambda key, v=faust_float(tau_init): v))
+		else:
+			# Fixed temperature: a plain (non-learnable) attribute.
+			setattr(self, tau_zone, faust_float(tau_init))
 
 		# Add unnormalization lambda for nentry
 		def make_nentry_unnorm(zone, step_values):
@@ -557,13 +567,17 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			"scale_mode": scale_mode,
 		}
 
-		init, a_min, a_max = faust_float(init), faust_float(a_min), faust_float(a_max)
+		# Keep init/a_min/a_max as Python floats (compile-time constants) so that
+		# setup() — which Flax re-runs inside every apply(), including under jax.jit —
+		# does not perform data-dependent Python control flow on traced arrays.
+		# normalize_value / create_unnormalize_func build the correctly-typed jnp
+		# arrays internally.
 
 		# Normalize init value to [0, 1] based on scale mode
 		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
 
-		# Store as plain attribute (no nnx.Param wrapper for Linen)
-		setattr(self, zone, normalized_init)
+		# Register the normalized parameter as a real Flax Linen parameter.
+		setattr(self, zone, self.param(zone, lambda key, v=normalized_init: v))
 
 		# Create and store the unnormalization function
 		unnorm_func = self.create_unnormalize_func(a_min, a_max, scale_mode)
@@ -703,10 +717,11 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		Raises:
 			InvalidRNGError: If rngs is not a valid type
 		"""
-		rngs = first_from(
-			rngs, self.rngs,
-			error_msg="No `rngs` argument was provided as either a __call__ argument or class attribute"
-		)
+		# Flax Linen modules don't hold an `rngs` attribute (RNGs are supplied per
+		# call via apply(..., rngs=...) or passed explicitly). Fall back to a fixed
+		# key so deterministic DSPs work without the caller threading an RNG.
+		if rngs is None:
+			return random.key(DEFAULT_RNG_SEED)
 
 		if isinstance(rngs, jax.Array):
 			return rngs
@@ -737,7 +752,6 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		"""
 		if self.deterministic:
 			return None
-		rngs = first_from(rngs, self.rngs, error_msg=None)
 		if rngs is None:
 			return None
 		if isinstance(rngs, rnglib.Rngs) and "nentry" in rngs:
@@ -1265,8 +1279,14 @@ def test(args: argparse.Namespace) -> None:
 
 	faust_float = jnp.float64 if args.double else jnp.float32
 
-	rngs = nnx.Rngs(args.seed, params=args.seed, rng_stream=args.seed)
-	model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float, rngs=rngs)
+	key = random.key(args.seed)
+	_model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float)
+
+	# Flax Linen: initialize the variables (runs setup → registers params), then
+	# bind the model for ergonomic method access (model.unnormalize(), model(...)).
+	_dummy = jnp.zeros((_model.num_inputs, 1), dtype=faust_float)
+	variables = _model.init(key, _dummy)
+	model = _model.bind(variables)
 
 	# Display model structure if requested
 	if args.tabulate is not False:
@@ -1335,14 +1355,15 @@ def test(args: argparse.Namespace) -> None:
 		print("model:", model)
 
 	if args.jit:
+		# Run the forward pass via apply(). The RNG key is passed positionally to
+		# __call__ (apply() reserves its own `rngs=` kwarg for make_rng), so we
+		# never mutate an RNG counter inside the jit trace.
 		@jax.jit
 		def forward(x: jnp.ndarray):
-			rng_key = model.rngs[model.rng_collection]() if isinstance(model.rngs, rnglib.Rngs) else None
-			y = model(x, unroll=args.unroll, rngs=rng_key)
-			return y
+			return _model.apply(variables, x, None, None, args.unroll, key)
 	else:
 		def forward(x: jnp.ndarray):
-			y = model(x, unroll=args.unroll)
+			y = model(x, unroll=args.unroll, rngs=key)
 			return y
 
 	if args.benchmark:
@@ -1439,20 +1460,21 @@ def realtime_audio_example(
 	# Initialize model
 	faust_float = jnp.float64 if use_double else jnp.float32
 
-	rngs = nnx.Rngs(DEFAULT_RNG_SEED, params=DEFAULT_RNG_SEED, rng_stream=DEFAULT_RNG_SEED)
-	model = mydsp(sample_rate=sample_rate, faust_float=faust_float, rngs=rngs)
+	_model = mydsp(sample_rate=sample_rate, faust_float=faust_float)
+	_dummy = jnp.zeros((_model.num_inputs, 1), dtype=faust_float)
+	variables = _model.init(random.key(DEFAULT_RNG_SEED), _dummy)
+	model = _model.bind(variables)
 
 	# Initialize carry state
 	carry = model.initialize_carry()
 
-	# JIT compile the process method
+	# JIT compile the process method (apply() runs process_block under the bound
+	# variables; the RNG key is passed positionally to avoid apply()'s `rngs=` kwarg).
 	@partial(jax.jit, donate_argnums=(0,))
 	def process_block_jit(carry, inputs: jnp.ndarray, rng_key: jax.Array):
-		outputs, new_carry = model.process_block(
-			carry,
-			inputs,
-			unroll=unroll,
-			rngs=rng_key,
+		outputs, new_carry = _model.apply(
+			variables, carry, inputs, None, None, unroll, rng_key,
+			method=mydsp.process_block,
 		)
 		return outputs, new_carry
 

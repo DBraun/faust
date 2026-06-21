@@ -57,7 +57,7 @@ from flax import nnx
 
 # Initialize model with proper RNG setup
 rngs = nnx.Rngs(0, params=0, rng_stream=0)
-model = module.mydsp(rngs=rngs)
+model = module.mydsp(sample_rate=44100, rngs=rngs)
 
 # Generate random values - for generators, use zero-channel input with desired length
 length = 100

@@ -156,46 +156,43 @@ void LinenCodeContainer::produceClass()
     tab(n + 1, *fOut);
     gGlobal->gLinenVisitor->Tab(n);
 
-    // Generate __init__ method for Linen
+    // Flax Linen modules are dataclasses: configure them via dataclass fields and
+    // a setup() method, rather than by overriding __init__ (which the dataclass
+    // machinery owns). See
+    // https://flax-linen.readthedocs.io/en/latest/api_reference/flax.linen/module.html
     tab(n + 1, *fOut);
-    *fOut << "def __init__(self, sample_rate: int, faust_float = jnp.float32, soundfile_dirs: List[str] = None, rngs: rnglib.Rngs | rnglib.RngStream | None = None, use_magic_clamp: bool = True):";
-    tab(n + 2, *fOut);
-    *fOut << "self.sample_rate = sample_rate";
-    tab(n + 2, *fOut);
-    *fOut << "self.soundfile_dirs = soundfile_dirs or []";
-    tab(n + 2, *fOut);
-    *fOut << "self.faust_float = faust_float";
+    *fOut << "sample_rate: int";
+    tab(n + 1, *fOut);
+    *fOut << "faust_float: Any = jnp.float32";
+    tab(n + 1, *fOut);
+    *fOut << "soundfile_dirs: Optional[List[str]] = None";
+    tab(n + 1, *fOut);
+    *fOut << "use_magic_clamp: bool = True";
+    tab(n + 1, *fOut);
+    tab(n + 1, *fOut);
+    *fOut << "# Compiled-in constants (class attributes, not dataclass fields).";
+    tab(n + 1, *fOut);
+    *fOut << "num_inputs = " << fNumInputs;
+    tab(n + 1, *fOut);
+    *fOut << "num_outputs = " << fNumOutputs;
+    tab(n + 1, *fOut);
+    tab(n + 1, *fOut);
+
+    // setup() replaces __init__ for Flax Linen dataclass modules: it registers
+    // the learnable parameters (via self.param) and builds the UI metadata.
+    *fOut << "def setup(self):";
     tab(n + 2, *fOut);
     *fOut << "self.rng_collection = \"default\"";
     tab(n + 2, *fOut);
-    *fOut << "# Handle RNG types (reuses nnx.Rngs as a standalone utility)";
-    tab(n + 2, *fOut);
-    *fOut << "if isinstance(rngs, rnglib.Rngs):";
-    tab(n + 3, *fOut);
-    *fOut << "self.rngs = rngs";
-    tab(n + 2, *fOut);
-    *fOut << "elif isinstance(rngs, rnglib.RngStream):";
-    tab(n + 3, *fOut);
-    *fOut << "self.rngs = rngs.fork()";
-    tab(n + 2, *fOut);
-    *fOut << "else:";
-    tab(n + 3, *fOut);
-    *fOut << "self.rngs = rngs";
-    tab(n + 2, *fOut);
     *fOut << "self.deterministic = False";
     tab(n + 2, *fOut);
-    *fOut << "self.use_magic_clamp = use_magic_clamp";
+    *fOut << "# Use object.__setattr__ for the mutable bookkeeping dicts: Flax Linen";
     tab(n + 2, *fOut);
-    *fOut << "self._parameter_metadata = {}";
+    *fOut << "# converts dicts assigned via self.x = {} into immutable FrozenDicts.";
     tab(n + 2, *fOut);
-    *fOut << "self._unnorm_funcs = {}";
+    *fOut << "object.__setattr__(self, \"_parameter_metadata\", {})";
     tab(n + 2, *fOut);
-    *fOut << "self.num_inputs = " << fNumInputs;
-    tab(n + 2, *fOut);
-    *fOut << "self.num_outputs = " << fNumOutputs;
-    tab(n + 2, *fOut);
-    tab(n + 2, *fOut);
-    *fOut << "# Build UI interface";
+    *fOut << "# Build UI interface (registers parameters via self.param)";
     tab(n + 2, *fOut);
     *fOut << "ui_path = []";
     tab(n + 2, *fOut);
@@ -203,7 +200,7 @@ void LinenCodeContainer::produceClass()
     tab(n + 2, *fOut);
     *fOut << "self.build_interface(ui_path, unnorm_funcs)";
     tab(n + 2, *fOut);
-    *fOut << "self._unnorm_funcs = unnorm_funcs";
+    *fOut << "object.__setattr__(self, \"_unnorm_funcs\", unnorm_funcs)";
     tab(n + 1, *fOut);
     tab(n + 1, *fOut);
 

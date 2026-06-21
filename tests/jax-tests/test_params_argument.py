@@ -5,13 +5,46 @@ This demonstrates how adding an optional params argument to __call__
 dramatically simplifies vmap for batch processing with different parameters.
 """
 
+import subprocess
+import tempfile
+from pathlib import Path
+
+import pytest
 import jax
 from jax import numpy as jnp
 from flax import nnx
-from my_example import mydsp
+
+from test_utils import load_module
+
+_HERE = Path(__file__).parent
 
 
-def test_original_api_still_works():
+def _compile_my_example():
+    """Compile dsp/my_example.dsp with the JAX backend and return its mydsp class.
+
+    Replaces the old `from my_example import mydsp`, which depended on a
+    pre-generated module that does not exist by default.
+    """
+    faust = _HERE.parent.parent / "build" / "bin" / "faust"
+    arch = _HERE.parent.parent / "architecture" / "jax" / "minimal.py"
+    libs = _HERE.parent.parent / "libraries"
+    dsp = _HERE / "dsp" / "my_example.dsp"
+    out = Path(tempfile.mkdtemp(prefix="faust_my_example_")) / "my_example.py"
+    subprocess.run(
+        [str(faust), "-lang", "jax", "-a", str(arch), "-I", str(libs),
+         "-o", str(out), str(dsp)],
+        check=True, capture_output=True, text=True,
+    )
+    return load_module(out, module_name="my_example").mydsp
+
+
+@pytest.fixture(scope="module")
+def mydsp():
+    """Compile my_example.dsp once per module and expose the mydsp class."""
+    return _compile_my_example()
+
+
+def test_original_api_still_works(mydsp):
     """Test that original API (no params arg) still works."""
     print("\n" + "="*60)
     print("Test 1: Original API (params=None)")
@@ -28,7 +61,7 @@ def test_original_api_still_works():
     print("✓ Original API works (backward compatible)")
 
 
-def test_params_argument_override():
+def test_params_argument_override(mydsp):
     """Test passing params explicitly."""
     print("\n" + "="*60)
     print("Test 2: Params Argument Override")
@@ -56,7 +89,7 @@ def test_params_argument_override():
     print("✓ Params override works")
 
 
-def test_vmap_with_params_simplified():
+def test_vmap_with_params_simplified(mydsp):
     """Test vmap with params argument - THE KEY BENEFIT!"""
     print("\n" + "="*60)
     print("Test 3: Simplified vmap with Params Argument")
@@ -100,7 +133,7 @@ def test_vmap_with_params_simplified():
     print("✓ Simplified vmap works - NO split/merge/clone overhead!")
 
 
-def test_params_with_variation():
+def test_params_with_variation(mydsp):
     """Test params argument with varied parameter values per batch item."""
     print("\n" + "="*60)
     print("Test 4: Params Argument with Variation")
@@ -149,27 +182,28 @@ if __name__ == "__main__":
     print("="*60)
 
     all_passed = True
+    mydsp = _compile_my_example()
 
     try:
-        test_original_api_still_works()
+        test_original_api_still_works(mydsp)
     except Exception as e:
         print(f"❌ Test 1 failed: {e}")
         all_passed = False
 
     try:
-        test_params_argument_override()
+        test_params_argument_override(mydsp)
     except Exception as e:
         print(f"❌ Test 2 failed: {e}")
         all_passed = False
 
     try:
-        test_vmap_with_params_simplified()
+        test_vmap_with_params_simplified(mydsp)
     except Exception as e:
         print(f"❌ Test 3 failed: {e}")
         all_passed = False
 
     try:
-        test_params_with_variation()
+        test_params_with_variation(mydsp)
     except Exception as e:
         print(f"❌ Test 4 failed: {e}")
         all_passed = False

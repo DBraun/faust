@@ -42,10 +42,8 @@ dspfiles := $(filter-out dsp/grain3.dsp,$(dspfiles))
 dspfiles := $(filter-out dsp/harpe.dsp,$(dspfiles))
 dspfiles := $(filter-out dsp/echo_bug.dsp,$(dspfiles))
 dspfiles := $(filter-out dsp/comb_bug_exp.dsp,$(dspfiles))
-dspfiles := $(filter-out dsp/table.dsp,$(dspfiles))
-dspfiles := $(filter-out dsp/tester.dsp,$(dspfiles))
-dspfiles := $(filter-out dsp/tester2.dsp,$(dspfiles))
-dspfiles := $(filter-out dsp/reverb_designer.dsp,$(dspfiles))
+# table.dsp / tester*.dsp / reverb_designer.dsp exercise tables and merged
+# subcontainers; kept enabled so the _initialize_carry init ordering stays covered.
 
 listfiles = $(dspfiles:dsp/%.dsp=ir/$1/%.ir)
 

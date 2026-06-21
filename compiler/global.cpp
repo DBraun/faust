@@ -112,6 +112,10 @@
 #include "jax_code_container.hh"
 #endif
 
+#ifdef LINEN_BUILD
+#include "linen_code_container.hh"
+#endif
+
 #ifdef ASSEMBLYSCRIPT_BUILD
 #include "assemblyscript_code_container.hh"
 #endif
@@ -1072,6 +1076,11 @@ global::~global()
 #endif
 #ifdef JAX_BUILD
     JAXInstVisitor::cleanup();
+#endif
+#ifdef LINEN_BUILD
+    // LinenInstVisitor shares JAXBaseInstVisitor::gFunctionSymbolTable; clear it
+    // for build configs where LINEN is enabled but JAX is not.
+    LinenInstVisitor::cleanup();
 #endif
 #ifdef ASSEMBLYSCRIPT_BUILD
     AssemblyScriptInstVisitor::cleanup();

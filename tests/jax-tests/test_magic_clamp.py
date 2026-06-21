@@ -9,7 +9,7 @@ import pytest
 import jax
 import jax.numpy as jnp
 import numpy as np
-from .magic_clamp import magic_clamp, standard_clamp, compare_clipping_gradients
+from magic_clamp import magic_clamp, standard_clamp, compare_clipping_gradients
 
 
 @pytest.mark.gradient
@@ -115,8 +115,14 @@ class TestMagicClampGradients:
             grad_std = results['standard_grad'][i]
             grad_magic = results['magic_clamp_grad'][i]
 
-            if 0.0 <= x <= 1.0:
-                # Inside bounds: both should be 1.0
+            if x == 0.0 or x == 1.0:
+                # Exactly on a bound: jnp.clip uses JAX's tie-splitting
+                # subgradient (0.5), while magic-clamp passes the gradient
+                # through (1.0) because the point is not strictly out of bounds.
+                assert grad_std == 0.5
+                assert grad_magic == 1.0
+            elif 0.0 < x < 1.0:
+                # Strictly inside bounds: both should be 1.0
                 assert grad_std == 1.0
                 assert grad_magic == 1.0
             elif x < 0.0:

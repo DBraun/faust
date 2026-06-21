@@ -49,7 +49,7 @@ with suppress_metal_message():
 	import math
 	import json
 	import dataclasses
-	from typing import Dict, List, Tuple, Callable
+	from typing import Dict, List, Tuple, Callable, Any, Optional
 	from pathlib import Path
 	import numpy as np
 	from jax import numpy as jnp, random
@@ -108,7 +108,7 @@ except ImportError:
 
 	def add_button(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
 		label = "/".join(ui_path+[label])
-		setattr(self, zone, jnp.zeros((), dtype=self.faust_float))
+		setattr(self, zone, self.param(zone, lambda key: jnp.zeros((), dtype=self.faust_float)))
 		unnorm_funcs[label] = (zone, lambda x: x)
 
 	def add_checkbox(self, zone: str, ui_path: list[str], label: str, unnorm_funcs: dict):
@@ -124,7 +124,7 @@ except ImportError:
 		init = self.faust_float(init)
 
 		# Create parameter with exact init value (no normalization for impulse tests)
-		setattr(self, zone, init)
+		setattr(self, zone, self.param(zone, lambda key, v=init: v))
 
 		# Create identity unnormalization function (parameter is already at correct value)
 		unnorm_funcs[label] = (zone, lambda x: x)
@@ -189,8 +189,8 @@ except ImportError:
 		# Normalize init value to [0, 1] based on scale mode
 		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
 
-		# Create the normalized parameter with label as name
-		setattr(self, zone, normalized_init)
+		# Register the normalized parameter as a real Flax Linen parameter.
+		setattr(self, zone, self.param(zone, lambda key, v=normalized_init: v))
 
 		# Create and store the unnormalization function
 		unnorm_func = self.create_unnormalize_func(a_min, a_max, scale_mode)
@@ -360,12 +360,16 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 		input_audio = jnp.zeros((N_CHANNELS, BLOCK_SIZE), dtype=faust_float)
 		input_audio = input_audio.at[:,0].set(1.)
 
-	# Initialize carry state
-	carry = model.initialize_carry()
+	# Initialize Flax Linen variables (runs setup, registers params).
+	dummy = jnp.zeros((model.num_inputs, BLOCK_SIZE), dtype=faust_float)
+	variables = model.init(random.key(0), dummy)
+
+	# Initialize carry state (does not depend on params).
+	carry = model.apply(variables, method=mydsp.initialize_carry)
 
 	@jax.jit
 	def process_block_jit(i, carry, inputs: jnp.ndarray):
-		outputs, new_carry = model.process_block(i, carry, inputs, length=BLOCK_SIZE, unroll=1)
+		outputs, new_carry = model.apply(variables, i, carry, inputs, length=BLOCK_SIZE, unroll=1, method=mydsp.process_block)
 		return outputs, new_carry
 
 	out_blocks = []

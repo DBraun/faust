@@ -7,8 +7,13 @@ __pycache__/
 
 # Virtual environments
 venv/
+.venv/
 env/
 ENV/
+
+# uv: commit the lockfile and the pinned Python version (the root .gitignore
+# ignores .python-version globally, so re-include it here).
+!.python-version
 
 # Pytest
 .pytest_cache/
