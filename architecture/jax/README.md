@@ -564,7 +564,8 @@ It is optional to override these methods:
 
 ### Building Faust with JAX Backend
 
-To build Faust with only the JAX backend:
+To build Faust with only the JAX backend — that is, both the `nnx` and `linen`
+variants (`NNX_BACKEND` + `LINEN_BACKEND`) and no other backends:
 
 ```bash
 # From the Faust root directory
