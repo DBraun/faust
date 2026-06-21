@@ -81,12 +81,23 @@ def compute_gradient_norm_by_prefix(grads, attr_prefix: str) -> jnp.ndarray:
     """
     matched_sq_norms = []
 
+    def _key_name(key):
+        # nnx.grad State paths use DictKey for module attribute names (e.g.
+        # DictKey("actor_continuous")); plain attributes use GetAttrKey. Read the
+        # string name from either, ignoring non-string keys (e.g. Sequential indices).
+        if isinstance(key, GetAttrKey):
+            return key.name
+        if isinstance(key, DictKey) and isinstance(key.key, str):
+            return key.key
+        return None
+
     def collect_matched_sq_norms(path, grad):
         if grad is None:
             return
         # Check if any part of the path matches the prefix
         for key in path:
-            if isinstance(key, GetAttrKey) and key.name.startswith(attr_prefix):
+            name = _key_name(key)
+            if name is not None and name.startswith(attr_prefix):
                 matched_sq_norms.append(jnp.sum(jnp.square(grad)))
                 return
 
