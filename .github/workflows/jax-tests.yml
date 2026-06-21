@@ -7,10 +7,6 @@ on:
   pull_request:
     branches: [ master-dev ]
   workflow_dispatch:
-  schedule:
-    # Nightly run (08:00 UTC) to exercise the suite against the latest
-    # unpinned jax/flax releases — see the test-jax-latest job below.
-    - cron: '0 8 * * *'
 
 # Cancel superseded runs on the same ref (this workflow fires on every branch push).
 concurrency:
@@ -24,7 +20,6 @@ jobs:
       github.repository_owner == 'grame-cncm'
       || github.event_name == 'pull_request'
       || github.event_name == 'workflow_dispatch'
-      || github.event_name == 'schedule'
     runs-on: ubuntu-latest
 
     steps:
@@ -238,9 +233,9 @@ jobs:
         python -m pytest -q
 
   test-jax-latest:
-    # Nightly / on-demand: run the pytest suite + minimal arch tests against the
-    # LATEST unpinned jax/flax releases to catch upstream regressions early.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # On-demand (workflow_dispatch): run the pytest suite + minimal arch tests against
+    # the LATEST unpinned jax/flax releases to catch upstream regressions early.
+    if: github.event_name == 'workflow_dispatch'
     needs: build-faust
     runs-on: ubuntu-latest
     env:
