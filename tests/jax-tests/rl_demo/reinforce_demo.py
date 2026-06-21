@@ -136,12 +136,134 @@ class EvalMetrics(Collection):
     concentration_std: Average.from_output("concentration_std")
 
 
+class HybridBetaCategoricalDistribution:
+    """Joint distribution over continuous (Beta) and discrete (Categorical) parameters.
+
+    Borrowed from Terrapin's ``HybridBetaCategoricalDistribution``: a policy head emits
+    the raw parameters -- per-continuous-parameter Beta ``mode`` / ``concentration`` and
+    per-categorical-parameter ``logits`` -- and this object owns sampling, log-probability
+    and entropy. Continuous parameters use the mode/concentration parameterization
+    (``concentration = alpha + beta``, with ``concentration > 2`` so ``alpha, beta > 1``
+    and the Beta mode is well defined).
+    """
+
+    def __init__(self, mode, concentration, categorical_logits,
+                 continuous_names, categorical_names):
+        self.mode = mode                              # [B, n_continuous]
+        self.concentration = concentration            # [B, n_continuous]
+        self.categorical_logits = categorical_logits  # {name: [B, n_options]}
+        self.continuous_names = continuous_names
+        self.categorical_names = categorical_names
+
+        # mode / concentration -> Beta(alpha, beta)
+        spread = concentration - 2.0
+        self._beta = distrax.Beta(mode * spread + 1.0, (1.0 - mode) * spread + 1.0)
+
+    def mode_action(self) -> dict:
+        """Deterministic action: Beta mode (continuous) and argmax (categorical)."""
+        actions = {name: self.mode[:, i] for i, name in enumerate(self.continuous_names)}
+        for name in self.categorical_names:
+            actions[name] = jnp.argmax(self.categorical_logits[name], axis=-1).astype(jnp.float32)
+        return actions
+
+    def sample(self, rng: jax.Array):
+        """Sample actions. Returns (actions_dict, total_log_prob, total_entropy)."""
+        rng_cont, rng_cat = random.split(rng, 2)
+
+        continuous_samples = self._beta.sample(seed=rng_cont)  # [B, n_continuous]
+        total_log_prob = jnp.sum(self._beta.log_prob(continuous_samples), axis=-1)
+        total_entropy = jnp.sum(self._beta.entropy(), axis=-1)
+        actions = {name: continuous_samples[:, i]
+                   for i, name in enumerate(self.continuous_names)}
+
+        if self.categorical_names:
+            keys = random.split(rng_cat, len(self.categorical_names))
+            for name, key in zip(self.categorical_names, keys):
+                cat = distrax.Categorical(logits=self.categorical_logits[name])
+                samples = cat.sample(seed=key)
+                actions[name] = samples.astype(jnp.float32)
+                total_log_prob = total_log_prob + cat.log_prob(samples)
+                total_entropy = total_entropy + cat.entropy()
+
+        return actions, total_log_prob, total_entropy
+
+    def log_prob(self, actions: dict) -> jnp.ndarray:
+        """Total log-probability of ``actions`` (continuous values + categorical indices)."""
+        continuous = jnp.stack([actions[name] for name in self.continuous_names], axis=-1)
+        total = jnp.sum(self._beta.log_prob(continuous), axis=-1)
+        for name in self.categorical_names:
+            cat = distrax.Categorical(logits=self.categorical_logits[name])
+            total = total + cat.log_prob(actions[name].astype(jnp.int32))
+        return total
+
+    def entropy(self) -> jnp.ndarray:
+        """Total entropy across all parameters."""
+        total = jnp.sum(self._beta.entropy(), axis=-1)
+        for name in self.categorical_names:
+            total = total + distrax.Categorical(logits=self.categorical_logits[name]).entropy()
+        return total
+
+
+class HybridHead(nnx.Module):
+    """Actor head emitting a :class:`HybridBetaCategoricalDistribution`.
+
+    Mirrors Terrapin's ``HybridHead``: one Linear for the continuous branch (Beta
+    ``mode`` + ``concentration``) plus one Linear per categorical parameter (logits).
+    The continuous bias is initialized so the initial Beta mode matches the synth's
+    default parameter values.
+    """
+
+    def __init__(self, feature_dim: int, continuous_names: list, categorical_info: dict, rngs: nnx.Rngs,
+                 concentration_base: float = 2.0, concentration_scale: float = 5.0,
+                 default_mode_values: dict = None):
+        self.continuous_names = continuous_names
+        self.categorical_info = categorical_info
+        self.num_continuous = len(continuous_names)
+        self.concentration_base = concentration_base
+        self.concentration_scale = concentration_scale
+
+        # Custom bias initialization for a better starting point.
+        def custom_bias_init(key, shape, dtype=jnp.float32):
+            """Init bias: mode outputs to logit(defaults), concentration outputs to -2.0."""
+            bias = jnp.zeros(shape, dtype=dtype)
+            if default_mode_values is not None:
+                for i, name in enumerate(continuous_names):
+                    default_val = default_mode_values.get(name, 0.5)
+                    # logit(p) = log(p / (1-p))
+                    bias = bias.at[i].set(jnp.log(default_val / (1.0 - default_val + 1e-8)))
+            # Concentration outputs: start at -2.0 for low initial concentration.
+            bias = bias.at[self.num_continuous:].set(-2.0)
+            return bias
+
+        self.actor_continuous = nnx.Linear(feature_dim, self.num_continuous * 2,
+                                           rngs=rngs, bias_init=custom_bias_init)
+        for name, num_options in categorical_info.items():
+            setattr(self, f'actor_categorical_{name}', nnx.Linear(feature_dim, num_options, rngs=rngs))
+
+    def __call__(self, x: jnp.ndarray, concentration_scale_override: float = None
+                 ) -> HybridBetaCategoricalDistribution:
+        continuous_out = self.actor_continuous(x)
+        # Mode-concentration parameterization. Higher concentration -> sharper Beta.
+        mode = nnx.sigmoid(continuous_out[..., :self.num_continuous])
+        scale = (concentration_scale_override if concentration_scale_override is not None
+                 else self.concentration_scale)
+        concentration = nnx.softplus(continuous_out[..., self.num_continuous:]) * scale + self.concentration_base
+        categorical_logits = {
+            name: getattr(self, f'actor_categorical_{name}')(x)
+            for name in self.categorical_info
+        }
+        return HybridBetaCategoricalDistribution(
+            mode, concentration, categorical_logits,
+            self.continuous_names, list(self.categorical_info.keys()),
+        )
+
+
 class PolicyWithBaseline(nnx.Module):
     """
     Actor-Critic policy for REINFORCE with learned baseline.
 
-    Actor: Predicts action distributions (Beta for continuous, Categorical for discrete)
-    Critic: Predicts state value V(s) for variance reduction
+    Actor: a HybridHead predicting Beta (continuous) + Categorical (discrete) actions.
+    Critic: predicts state value V(s) for variance reduction.
     """
 
     def __init__(self, in_features: int, continuous_names: list, categorical_info: dict, rngs: nnx.Rngs,
@@ -151,9 +273,6 @@ class PolicyWithBaseline(nnx.Module):
         self.categorical_info = categorical_info
         self.num_continuous = len(continuous_names)
         self.deterministic = False
-        self.concentration_base = concentration_base
-        self.concentration_scale = concentration_scale
-        self.default_mode_values = default_mode_values
 
         # Shared backbone - larger network performs better (tested: small+dropout was 53% worse)
         self.backbone = nnx.Sequential(
@@ -165,27 +284,11 @@ class PolicyWithBaseline(nnx.Module):
             nnx.relu
         )
 
-        # Actor head: continuous params (mode + concentration for Beta)
-        # Custom bias initialization for better starting point
-        def custom_bias_init(key, shape, dtype=jnp.float32):
-            """Initialize bias: mode outputs to logit(defaults), concentration outputs to -2.0."""
-            bias = jnp.zeros(shape, dtype=dtype)
-            # Mode outputs: initialize to logit of default values (or 0 for sigmoid(0)=0.5)
-            if default_mode_values is not None:
-                for i, name in enumerate(continuous_names):
-                    default_val = default_mode_values.get(name, 0.5)
-                    # logit(p) = log(p / (1-p))
-                    logit_val = jnp.log(default_val / (1.0 - default_val + 1e-8))
-                    bias = bias.at[i].set(logit_val)
-            # Concentration outputs: start at -2.0 for low initial concentration
-            bias = bias.at[self.num_continuous:].set(-2.0)
-            return bias
-
-        self.actor_continuous = nnx.Linear(128, self.num_continuous * 2, rngs=rngs, bias_init=custom_bias_init)
-
-        # Actor head: categorical params
-        for name, num_options in categorical_info.items():
-            setattr(self, f'actor_categorical_{name}', nnx.Linear(128, num_options, rngs=rngs))
+        # Actor head: Beta (continuous) + Categorical (discrete)
+        self.head = HybridHead(128, continuous_names, categorical_info, rngs,
+                               concentration_base=concentration_base,
+                               concentration_scale=concentration_scale,
+                               default_mode_values=default_mode_values)
 
         # Critic head: value function V(s)
         self.critic = nnx.Linear(128, 1, rngs=rngs)
@@ -195,92 +298,35 @@ class PolicyWithBaseline(nnx.Module):
         x = self.backbone(observations)
         return self.critic(x).squeeze(-1)  # [batch]
 
-    def get_distribution_params(self, observations: jnp.ndarray, concentration_scale_override: float = None):
-        """Get distribution parameters for actor.
+    def get_distribution(self, observations: jnp.ndarray, concentration_scale_override: float = None
+                         ) -> HybridBetaCategoricalDistribution:
+        """Build the action distribution for the given observations.
 
         Args:
             observations: Input observations [batch, obs_dim]
             concentration_scale_override: Optional override for concentration scale (for scheduling)
         """
-        x = self.backbone(observations)
+        return self.head(self.backbone(observations), concentration_scale_override)
 
-        # Continuous: mode-concentration parameterization
-        # Higher concentration gives sharper distributions for better convergence
-        # Configurable scale and base for concentration tuning
-        continuous_out = self.actor_continuous(x)
-        mode = nnx.sigmoid(continuous_out[..., :self.num_continuous])
-        scale = concentration_scale_override if concentration_scale_override is not None else self.concentration_scale
-        concentration = nnx.softplus(continuous_out[..., self.num_continuous:]) * scale + self.concentration_base
-
-        # Categorical: logits
-        categorical_logits = {}
-        for name in self.categorical_info.keys():
-            head = getattr(self, f'actor_categorical_{name}')
-            categorical_logits[name] = head(x)
-
-        return mode, concentration, categorical_logits
+    def get_distribution_params(self, observations: jnp.ndarray, concentration_scale_override: float = None):
+        """Raw actor distribution parameters (mode, concentration, categorical logits)."""
+        dist = self.get_distribution(observations, concentration_scale_override)
+        return dist.mode, dist.concentration, dist.categorical_logits
 
     def __call__(self, observations: jnp.ndarray, rng: jax.Array = None):
         """
-        Sample actions (training) or return mode (eval).
+        Sample actions (training) or return the mode (eval).
 
         Returns:
-            actions_dict: {param_name: sampled_values}
-            log_prob: Total log probability
-            entropy: Total entropy (for exploration bonus)
+            actions_dict: {param_name: values}
+            log_prob: total log probability [batch]
+            entropy: total entropy (for exploration bonus) [batch]
         """
-        mode, concentration, categorical_logits = self.get_distribution_params(observations)
-
-        # Convert mode-concentration to alpha-beta
-        alpha = mode * (concentration - 2.0) + 1.0
-        beta = (1.0 - mode) * (concentration - 2.0) + 1.0
-
-        actions_dict = {}
-
-        B = observations.shape[0]
-
+        dist = self.get_distribution(observations)
         if self.deterministic:
-            # Eval mode: return mode directly
-            for i, name in enumerate(self.continuous_names):
-                actions_dict[name] = mode[:, i]
-
-            for name in self.categorical_info.keys():
-                logits = categorical_logits[name]
-                actions_dict[name] = jnp.argmax(logits, axis=-1).astype(jnp.float32)
-
-            return actions_dict, jnp.zeros(B), jnp.zeros(B)
-
-        else:
-            # Training mode: sample and compute log_prob + entropy
-            rng_cont, rng_cat = random.split(rng, 2)
-
-            # Continuous: Beta distribution
-            beta_dist = distrax.Beta(alpha, beta)
-            continuous_samples = beta_dist.sample(seed=rng_cont)
-            continuous_log_probs = beta_dist.log_prob(continuous_samples)
-            continuous_entropy = beta_dist.entropy()
-
-            total_log_prob = jnp.sum(continuous_log_probs, axis=-1)
-            total_entropy = jnp.sum(continuous_entropy, axis=-1)
-
-            for i, name in enumerate(self.continuous_names):
-                actions_dict[name] = continuous_samples[:, i]
-
-            # Categorical
-            if self.categorical_info:
-                keys_cat = random.split(rng_cat, len(self.categorical_info))
-                for (name, _), key_c in zip(self.categorical_info.items(), keys_cat):
-                    logits = categorical_logits[name]
-                    cat_dist = distrax.Categorical(logits=logits)
-                    cat_samples = cat_dist.sample(seed=key_c)
-                    cat_log_probs = cat_dist.log_prob(cat_samples)
-                    cat_entropy = cat_dist.entropy()
-
-                    actions_dict[name] = cat_samples.astype(jnp.float32)
-                    total_log_prob = total_log_prob + cat_log_probs
-                    total_entropy = total_entropy + cat_entropy
-
-            return actions_dict, total_log_prob, total_entropy
+            B = observations.shape[0]
+            return dist.mode_action(), jnp.zeros(B), jnp.zeros(B)
+        return dist.sample(rng)
 
 
 def reinforce_demo(args):
@@ -569,34 +615,17 @@ def reinforce_demo(args):
             current_concentration_scale = concentration_scale_schedule(step)
             current_rl_weight = rl_weight_schedule(step)  # Curriculum: 0→1 for param→RL transition
 
-            # Recompute for gradients (with scheduled concentration)
-            mode, concentration, cat_logits = model.get_distribution_params(
+            # Recompute the distribution (with scheduled concentration) and score the
+            # rollout's actions under it. The HybridBetaCategoricalDistribution owns the
+            # log-prob / entropy math that was previously duplicated here and in __call__.
+            dist = model.get_distribution(
                 observations, concentration_scale_override=current_concentration_scale
             )
             values = model.get_value(observations)
 
-            # Recompute log probs
-            alpha = mode * (concentration - 2.0) + 1.0
-            beta = (1.0 - mode) * (concentration - 2.0) + 1.0
-
-            continuous_samples = jnp.stack(
-                [sampled_params_sg[name] for name in model.continuous_names],
-                axis=-1
-            )
-            beta_dist = distrax.Beta(alpha, beta)
-            continuous_log_probs = beta_dist.log_prob(continuous_samples)
-            continuous_entropy = beta_dist.entropy()
-
-            total_log_prob = jnp.sum(continuous_log_probs, axis=-1)
-            total_entropy = jnp.sum(continuous_entropy, axis=-1)
-
-            for name in model.categorical_info.keys():
-                logits = cat_logits[name]
-                cat_dist = distrax.Categorical(logits=logits)
-                cat_log_probs = cat_dist.log_prob(sampled_params_sg[name].astype(jnp.int32))
-                cat_entropy = cat_dist.entropy()
-                total_log_prob = total_log_prob + cat_log_probs
-                total_entropy = total_entropy + cat_entropy
+            mode = dist.mode  # used by the supervised parameter loss below
+            total_log_prob = dist.log_prob(sampled_params_sg)
+            total_entropy = dist.entropy()
 
             # Advantages: reward - baseline (stop gradient before normalization)
             # stop_gradient is necessary because we use supervised param_loss alongside RL

@@ -75,9 +75,9 @@ def analyze_checkpoint(checkpoint_path: str):
     print(f"  Layer 2: {policy.backbone.layers[3].kernel.value.shape} (256 → 128)")
 
     print(f"\nActor heads:")
-    print(f"  Continuous: {policy.actor_continuous.kernel.value.shape} (128 → {len(continuous_names) * 2})")
+    print(f"  Continuous: {policy.head.actor_continuous.kernel.value.shape} (128 → {len(continuous_names) * 2})")
     for name in categorical_info.keys():
-        head = getattr(policy, f'actor_categorical_{name}')
+        head = getattr(policy.head, f'actor_categorical_{name}')
         print(f"  Categorical ({name}): {head.kernel.value.shape} (128 → {categorical_info[name]})")
 
     print(f"\nCritic head:")
@@ -144,8 +144,8 @@ def analyze_checkpoint(checkpoint_path: str):
     print("Continuous Actor Head Analysis")
     print("=" * 70)
 
-    actor_cont_weights = policy.actor_continuous.kernel.value
-    actor_cont_bias = policy.actor_continuous.bias.value
+    actor_cont_weights = policy.head.actor_continuous.kernel.value
+    actor_cont_bias = policy.head.actor_continuous.bias.value
 
     num_continuous = len(continuous_names)
 
