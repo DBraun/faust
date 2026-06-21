@@ -106,7 +106,16 @@ state["fRec0"] = state["fRec0"].at[
 
 #### Mixed Usage in Real DSPs
 
-Complex DSPs often use both strategies. For example, `freeverb.dsp` generates code with 40 `jnp.roll` calls (for its short allpass filter delays) and 50 `IOTA` references (for its longer comb filter delay lines).
+A DSP mixes the shift-register and circular-buffer strategies when it has delay
+lines on both sides of `-mcd`. For example, `(_@8) + (+ ~ @(1000) * 0.5)`
+compiles the 8-sample delay to a `jnp.roll` shift register (mxd 8, below mcd) and
+the 1000-sample feedback delay to an `IOTA`-indexed circular buffer (mxd 1001).
+
+Note that a DSP with many delay lines does not necessarily use `jnp.roll` at all:
+`freeverb.dsp`, for instance, generates **no** `jnp.roll` at the default `-mcd`.
+All of its comb and allpass delays (256-2048 samples) are far above `-mcd`, so
+they become circular buffers (50 `IOTA` references), while its 40 one-sample
+damping-filter states use direct element copies (Strategy 1a).
 
 #### Compiler Flag: `-mcd <size>`
 
@@ -125,7 +134,7 @@ Both strategies produce identical numerical results -- the choice is purely abou
 
 #### Verifying Correctness
 
-The impulse test suite (`tests/impulse-tests/Make.nnx`) validates that JAX output matches the C++ reference implementation for 73 DSP files. To test a specific DSP:
+The impulse test suite (`tests/impulse-tests/Make.nnx`) validates that JAX output matches the C++ reference implementation for 82 DSP files. To test a specific DSP:
 
 ```bash
 # Compare JAX output against C++ reference
