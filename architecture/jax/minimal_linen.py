@@ -15,7 +15,6 @@
 # ************************************************************************
 
 import argparse
-import dataclasses
 from functools import partial
 import json
 from pathlib import Path
@@ -24,10 +23,8 @@ import warnings
 import numpy as np
 import jax
 from jax import numpy as jnp, random
-from flax import nnx
+from flax import linen as nn, nnx
 from flax.nnx import rnglib
-from flax.nnx.module import first_from
-from flax.typing import Dtype
 import librosa
 
 
@@ -228,7 +225,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			f"Could not load soundfile '{filepath}'. "
 			f"Attempted paths: {', '.join(attempted_paths)}"
 		)
-	
+
 	def add_soundfile(self, zone: str, ui_path: List[str], label: str, url: str, unnorm_funcs: Dict[str, Tuple[str, Callable]]) -> None:
 		"""
 		Add a soundfile to the DSP.
@@ -274,21 +271,20 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		# Build full label for UI path
 		full_label = "/".join(ui_path + [clean_label])
 
-		# Wrap buffers as Param if learnable, otherwise leave as array
-		# Note: Learnable soundfiles are stored in the dict and accessed via state,
-		# not through unnormalize() like regular UI parameters
+		# Learnable soundfiles register their buffers as a real Flax Linen parameter;
+		# otherwise the buffers stay a plain (non-learnable) array.
 		if is_param:
-			fBuffers = nnx.Param(fBuffers)
+			fBuffers = self.param(zone + "_fBuffers", lambda key, v=fBuffers: v)
 
-		# Wrap soundfile dict with nnx.data() to prevent Flax NNX pytree errors
+		# Store soundfile dict as a plain attribute (no nnx.data wrapper needed for Linen)
 		soundfile_dict = {
 			"fLength": jnp.array(fLength, dtype=jnp.int32),
 			"fOffset": jnp.array(fOffset, dtype=jnp.int32),
 			"fBuffers": fBuffers,
 			"fSR": jnp.array(fSR, dtype=self.faust_float)
 		}
-		setattr(self, zone, nnx.data(soundfile_dict))
-		
+		setattr(self, zone, soundfile_dict)
+
 		# Store parameter metadata
 		self._parameter_metadata[zone] = {
 			"full_label": full_label,
@@ -299,7 +295,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			"metadata": metadata,
 			"num_files": len(filepaths),
 		}
-	
+
 	def add_button(self, zone: str, ui_path: List[str], label: str, unnorm_funcs: Dict[str, Tuple[str, Callable]]) -> None:
 		"""
 		Add a button UI element.
@@ -311,9 +307,9 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			unnorm_funcs: Dictionary mapping labels to (zone, unnormalization_func) tuples
 		"""
 		full_label = "/".join(ui_path+[label])
-		setattr(self, zone, nnx.Param(jnp.zeros((), dtype=self.faust_float)))
+		setattr(self, zone, self.param(zone, lambda key: jnp.zeros((), dtype=self.faust_float)))
 		unnorm_funcs[full_label] = (zone, lambda x: x)
-		
+
 		# Store parameter metadata
 		self._parameter_metadata[zone] = {
 			"full_label": full_label,
@@ -324,7 +320,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			"max": 1.0,
 			"default": 0.0,
 		}
-	
+
 	def add_checkbox(self, zone: str, ui_path: List[str], label: str, unnorm_funcs: Dict[str, Tuple[str, Callable]]) -> None:
 		"""
 		Add a checkbox UI element.
@@ -338,7 +334,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		self.add_button(zone, ui_path, label, unnorm_funcs)
 		# Update type in metadata
 		self._parameter_metadata[zone]["type"] = "checkbox"
-	
+
 	def add_nentry(
 		self, zone: str, ui_path: List[str], label: str,
 		init: float, a_min: float, a_max: float, step_size: float,
@@ -378,7 +374,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		logits = logits.at[init_step].set(faust_float(NENTRY_LOGITS_INIT))
 
 		logits_zone = zone + "_logits"
-		setattr(self, logits_zone, nnx.Param(logits))
+		setattr(self, logits_zone, self.param(logits_zone, lambda key, v=logits: v))
 
 		# (2) Temperature (Gumbel-softmax temperature parameter)
 		# Parse tau configuration from metadata
@@ -387,10 +383,12 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 
 		tau_zone = zone + "_tau"
 		if tau_learnable:
-			setattr(self, tau_zone, nnx.Param(faust_float(tau_init)))
+			# Learnable temperature: a real Flax Linen parameter.
+			setattr(self, tau_zone, self.param(tau_zone, lambda key, v=faust_float(tau_init): v))
 		else:
-			setattr(self, tau_zone, nnx.Variable(faust_float(tau_init)))
-		
+			# Fixed temperature: a plain (non-learnable) attribute.
+			setattr(self, tau_zone, faust_float(tau_init))
+
 		# Add unnormalization lambda for nentry
 		def make_nentry_unnorm(zone, step_values):
 			def unnorm_nentry(logits, tau, gumbel_key=None):
@@ -413,7 +411,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			return unnorm_nentry
 
 		unnorm_funcs[full_label] = (zone, make_nentry_unnorm(zone, step_values))
-		
+
 		# Store parameter metadata
 		self._parameter_metadata[zone] = {
 			"full_label": full_label,
@@ -431,7 +429,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			"tau_init": float(tau_init),
 			"metadata": metadata,
 		}
-	
+
 	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> jnp.ndarray:
 		"""
 		Normalize a value from [a_min, a_max] to [0, 1] based on scale mode.
@@ -476,7 +474,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 				f"Unknown scale mode '{scale_mode}'. "
 				f"Supported modes are: 'linear', 'exp', 'log'"
 			)
-	
+
 	def create_unnormalize_func(self, a_min: float, a_max: float, scale_mode: str) -> Callable[[jnp.ndarray], jnp.ndarray]:
 		"""
 		Create an unnormalization function for the given scale mode.
@@ -519,9 +517,9 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			)
 		elif scale_mode == "log":
 			# Logarithmic scale: map normalized [0,1] to log space, then exponentiate
-			# For [100, 10000]: 0.0→100, 0.5→1000, 1.0→10000 (geometric spacing)
+			# For [100, 10000]: 0.0->100, 0.5->1000, 1.0->10000 (geometric spacing)
 			def log_unnorm(normalized):
-				# Map [0,1] → [log10(a_min), log10(a_max)]
+				# Map [0,1] -> [log10(a_min), log10(a_max)]
 				log_min = jnp.log10(faust_float(a_min))
 				log_max = jnp.log10(faust_float(a_max))
 				log_val = jnp.interp(
@@ -537,7 +535,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 				f"Unknown scale mode '{scale_mode}'. "
 				f"Supported modes are: 'linear', 'exp', 'log'"
 			)
-	
+
 	def add_slider(self, zone: str, ui_path: List[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: Dict[str, Tuple[str, Callable]], scale_mode: str = "linear") -> None:
 		"""
 		Add a slider UI element with the specified parameters.
@@ -566,18 +564,22 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			"scale_mode": scale_mode,
 		}
 
-		init, a_min, a_max = faust_float(init), faust_float(a_min), faust_float(a_max)
-		
+		# Keep init/a_min/a_max as Python floats (compile-time constants) so that
+		# setup() — which Flax re-runs inside every apply(), including under jax.jit —
+		# does not perform data-dependent Python control flow on traced arrays.
+		# normalize_value / create_unnormalize_func build the correctly-typed jnp
+		# arrays internally.
+
 		# Normalize init value to [0, 1] based on scale mode
 		normalized_init = self.normalize_value(init, a_min, a_max, scale_mode)
-		
-		# Create the normalized parameter with label as name
-		setattr(self, zone, nnx.Param(normalized_init))
+
+		# Register the normalized parameter as a real Flax Linen parameter.
+		setattr(self, zone, self.param(zone, lambda key, v=normalized_init: v))
 
 		# Create and store the unnormalization function
 		unnorm_func = self.create_unnormalize_func(a_min, a_max, scale_mode)
 		unnorm_funcs[full_label] = (zone, unnorm_func)
-	
+
 	def add_hslider(self, zone: str, ui_path: List[str], label: str, init: float, a_min: float, a_max: float, unnorm_funcs: Dict[str, Tuple[str, Callable]], scale_mode: str) -> None:
 		"""Add a horizontal slider UI element. See add_slider for details."""
 		self.add_slider(zone, ui_path, label, init, a_min, a_max, unnorm_funcs, scale_mode)
@@ -613,7 +615,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			"max": a_max,
 			"output_only": True,
 		}
-	
+
 	def add_hbargraph(self, zone: str, ui_path: List[str], label: str, a_min: float, a_max: float, unnorm_funcs: Dict[str, Tuple[str, Callable]]) -> None:
 		"""Add a horizontal bargraph UI element. See add_bargraph for details."""
 		self.add_bargraph(zone, ui_path, label, a_min, a_max, unnorm_funcs)
@@ -657,7 +659,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 
 		Args:
 			rng: JAX random number generator key
-			rate: Rate parameter (λ, must be > 0). Mean = 1/rate. Default: 1.0
+			rate: Rate parameter (must be > 0). Mean = 1/rate. Default: 1.0
 
 		Returns:
 			Random value from exponential distribution with specified rate
@@ -698,7 +700,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		return random.beta(rng, a=a, b=b, shape=(), dtype=self.faust_float)
 
 	def _extract_rng_key(
-		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, jax.Array]]
+		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, jax.Array]] = None
 	) -> jax.Array:
 		"""
 		Extract a JAX random key from various RNG sources.
@@ -712,10 +714,11 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		Raises:
 			InvalidRNGError: If rngs is not a valid type
 		"""
-		rngs = first_from(
-			rngs, self.rngs,
-			error_msg="No `rngs` argument was provided as either a __call__ argument or class attribute"
-		)
+		# Flax Linen modules don't hold an `rngs` attribute (RNGs are supplied per
+		# call via apply(..., rngs=...) or passed explicitly). Fall back to a fixed
+		# key so deterministic DSPs work without the caller threading an RNG.
+		if rngs is None:
+			return random.key(DEFAULT_RNG_SEED)
 
 		if isinstance(rngs, jax.Array):
 			return rngs
@@ -729,7 +732,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			)
 
 	def _extract_gumbel_key(
-		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, jax.Array]]
+		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, jax.Array]] = None
 	) -> Optional[jax.Array]:
 		"""
 		Extract a Gumbel PRNG key for nentry Gumbel-softmax sampling.
@@ -746,7 +749,6 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		"""
 		if self.deterministic:
 			return None
-		rngs = first_from(rngs, self.rngs, error_msg=None)
 		if rngs is None:
 			return None
 		if isinstance(rngs, rnglib.Rngs) and "nentry" in rngs:
@@ -761,7 +763,6 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			gumbel_key: Optional pre-extracted JAX PRNG key for Gumbel-softmax
 				sampling of nentry parameters. Required for training mode
 				(deterministic=False) when nentry params exist.
-				Extract before calling: ``gumbel_key = self.rngs.nentry()``
 
 		Returns:
 			Dictionary mapping zones to unnormalized parameter values
@@ -782,12 +783,16 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		for label, (zone, unnorm_func) in self._unnorm_funcs.items():
 			# Check if it's a nentry (needs module as arg)
 			if hasattr(self, f"{zone}_logits"):
-				logits = getattr(self, f"{zone}_logits")[...]
-				tau = getattr(self, f"{zone}_tau")[...]
+				logits = getattr(self, f"{zone}_logits")
+				tau = getattr(self, f"{zone}_tau")
+				# Extract raw values (plain arrays in Linen, no [...] indexing needed
+				# but use jnp.asarray for safety)
+				logits = jnp.asarray(logits)
+				tau = jnp.asarray(tau)
 				params[zone] = unnorm_func(logits, tau, gumbel_keys.get(zone))
 			elif hasattr(self, zone):
 				# Regular parameter
-				normalized_value = getattr(self, zone)[...]
+				normalized_value = jnp.asarray(getattr(self, zone))
 				params[zone] = unnorm_func(normalized_value)
 			else:
 				raise ValueError(f"Zone not found: {zone}")
@@ -841,8 +846,8 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 					unnormalized[zone] = normalized_params[zone]
 				else:
 					# Fall back to self (default logits/tau)
-					logits = getattr(self, f"{zone}_logits")[...]
-					tau = getattr(self, f"{zone}_tau")[...]
+					logits = jnp.asarray(getattr(self, f"{zone}_logits"))
+					tau = jnp.asarray(getattr(self, f"{zone}_tau"))
 					unnormalized[zone] = unnorm_func(logits, tau)
 			else:
 				# Regular parameter - apply unnorm_func
@@ -850,7 +855,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 				unnormalized[zone] = unnorm_func(normalized_value)
 
 		return unnormalized
-	
+
 	def get_parameter_metadata(self) -> Dict[str, Dict[str, Any]]:
 		"""
 		Get metadata for all parameters.
@@ -897,14 +902,14 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 				if hasattr(self, zone):
 					if normalized:
 						# Return normalized [0, 1] value
-						continuous[zone] = getattr(self, zone)[...]
+						continuous[zone] = jnp.asarray(getattr(self, zone))
 					else:
 						# Return physical (unnormalized) value
 						# Look up unnorm_func from _unnorm_funcs using full_label
 						full_label = metadata["full_label"]
 						if full_label in self._unnorm_funcs:
 							_, unnorm_func = self._unnorm_funcs[full_label]
-							normalized_val = getattr(self, zone)[...]
+							normalized_val = jnp.asarray(getattr(self, zone))
 							continuous[zone] = unnorm_func(normalized_val)
 
 		if batch_size is None:
@@ -945,9 +950,8 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 
 			# Only include nentry parameters
 			if param_type == "nentry":
-				# Access logits and tau (works for both nnx.Param and nnx.Variable)
-				logits = getattr(self, f"{zone}_logits")[...]
-				tau = getattr(self, f"{zone}_tau")[...]
+				logits = jnp.asarray(getattr(self, f"{zone}_logits"))
+				tau = jnp.asarray(getattr(self, f"{zone}_tau"))
 
 				categorical[zone] = {
 					'logits': logits,
@@ -1074,28 +1078,24 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 
 		Returns:
 			Dictionary containing all stateful components (delays, filter states, soundfiles, etc.)
-		"""		
+		"""
 		# Initialize the full state using fast numpy
 		state = self._initialize_carry()
 
 		# Add soundfiles to state if they exist
-		# Soundfiles are wrapped with nnx.data() for Flax NNX compatibility
 		for attr_name in dir(self):
 			if attr_name.startswith("fSoundfile"):
-				# nnx.data() creates a transparent wrapper, just add it directly
+				state[attr_name] = getattr(self, attr_name)
+
+		# Add bargraph values to state (needed for jax.lax.scan pytree matching)
+		for attr_name in dir(self):
+			if attr_name.startswith(("fVbargraph", "fHbargraph")):
 				state[attr_name] = getattr(self, attr_name)
 
 		# Convert numpy to JAX numpy arrays
 		state = jax.tree.map(jnp.array, state)
 
 		return state
-	
-	def _get_bargraph_zones(self) -> list:
-		"""Return list of bargraph zone names (output-only parameters)."""
-		return [
-			zone for zone, meta in self._parameter_metadata.items()
-			if meta.get("output_only")
-		]
 
 	def process_block(
 		self,
@@ -1109,6 +1109,8 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 		"""
 		Process one block of audio and return updated state.
 
+		Uses jax.lax.scan for efficient sequential processing over audio blocks.
+
 		Args:
 			carry: State dictionary from previous block
 			inputs: Input audio block of shape (num_inputs, block_size)
@@ -1116,8 +1118,8 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			normalized_params: Optional normalized parameter dict
 			                   - Continuous params: values in [0, 1]
 			                   - Categorical params: logits, tau, or discrete values
-			unroll (int): unroll argument for nnx.scan
-			rngs: rng key.
+			unroll (int): unroll argument for jax.lax.scan
+			rngs: JAX random key
 
 		Returns:
 			Tuple of (output_block, new_carry) where:
@@ -1128,14 +1130,6 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			Provide either params OR normalized_params, not both.
 			- params: Use when you have physical values (e.g., freq=440.0)
 			- normalized_params: Use for RL (continuous [0,1] + categorical logits/tau)
-
-		Bargraph outputs:
-			Controlled by ``return_bargraphs`` (constructor parameter, default False).
-			When True, a third element is always returned:
-			``outputs, carry, bargraphs = model.process_block(carry, inputs)``
-			where bargraphs is a dict mapping zone names to arrays of shape (block_size,).
-			If the DSP has no bargraphs, the dict is empty.
-			When False (default), only (outputs, carry) is returned.
 		"""
 		if params is not None and normalized_params is not None:
 			raise ValueError("Cannot provide both params and normalized_params")
@@ -1161,34 +1155,25 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			# Use self attributes (default)
 			params = self.unnormalize(gumbel_key=gumbel_key)
 
-		bargraph_zones = self._get_bargraph_zones()
+		# Merge unnormalized params into carry state
+		for k, v in params.items():
+			carry[k] = v
 
-		# Pre-populate bargraph keys so the params pytree is stable across scan steps
-		for zone in bargraph_zones:
-			if zone not in params:
-				params[zone] = self.faust_float(0.0)
+		# Prepare scan inputs: transpose inputs to (length, num_inputs) and pair with RNG keys
+		scan_inputs = (jnp.moveaxis(inputs, -1, 0), scan_rngs)
 
-		faust_float = self.faust_float
+		def scan_body(carry, x):
+			input_sample, _rng = x
+			new_carry, y = self.tick(carry, input_sample, _rng)
+			return new_carry, y
 
-		def scan_body(carry_and_params, x, _rng):
-			carry, params = carry_and_params
-			new_carry, y = self.tick(params, carry, x, _rng)
-			bg = {zone: params[zone] for zone in bargraph_zones}
-			# Cast bargraph values to faust_float so carry dtype stays consistent
-			for zone in bargraph_zones:
-				params[zone] = faust_float(params[zone])
-			return (new_carry, params), (y, bg)
+		new_carry, outputs = jax.lax.scan(
+			scan_body, carry, scan_inputs, length=length, unroll=unroll
+		)
 
-		(new_carry, _), (outputs, bargraph_data) = nnx.scan(
-			scan_body,
-			length=length,
-			unroll=unroll,
-			in_axes=(nnx.Carry, 1, 0),
-			out_axes=(nnx.Carry, (1, 0)),
-		)((carry, params), inputs, scan_rngs)
+		# outputs shape is (length, num_outputs), transpose to (num_outputs, length)
+		outputs = jnp.moveaxis(outputs, 0, -1)
 
-		if self.return_bargraphs:
-			return outputs, new_carry, bargraph_data
 		return outputs, new_carry
 
 	def __call__(
@@ -1209,7 +1194,7 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			                   - Continuous params: values in [0, 1]
 			                   - Categorical params: logits, tau, or discrete values
 			unroll: Unroll factor for scan
-			rngs: Random number generator
+			rngs: JAX random key
 
 		Returns:
 			Output audio of shape (num_outputs, length)
@@ -1245,34 +1230,25 @@ magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
 			# Use self attributes (default)
 			params = self.unnormalize(gumbel_key=gumbel_key)
 
-		bargraph_zones = self._get_bargraph_zones()
+		# Merge unnormalized params into carry state
+		for k, v in params.items():
+			carry[k] = v
 
-		# Pre-populate bargraph keys so the params pytree is stable across scan steps
-		for zone in bargraph_zones:
-			if zone not in params:
-				params[zone] = self.faust_float(0.0)
+		# Prepare scan inputs: transpose inputs to (length, num_inputs) and pair with RNG keys
+		scan_inputs = (jnp.moveaxis(inputs, -1, 0), scan_rngs)
 
-		faust_float = self.faust_float
+		def scan_body(carry, x):
+			input_sample, _rng = x
+			new_carry, y = self.tick(carry, input_sample, _rng)
+			return new_carry, y
 
-		def scan_body(carry_and_params, x, _rng):
-			carry, params = carry_and_params
-			new_carry, y = self.tick(params, carry, x, _rng)
-			bg = {zone: params[zone] for zone in bargraph_zones}
-			# Cast bargraph values to faust_float so carry dtype stays consistent
-			for zone in bargraph_zones:
-				params[zone] = faust_float(params[zone])
-			return (new_carry, params), (y, bg)
+		new_carry, outputs = jax.lax.scan(
+			scan_body, carry, scan_inputs, length=length, unroll=unroll
+		)
 
-		(new_carry, _), (outputs, bargraph_data) = nnx.scan(
-			scan_body,
-			length=length,
-			unroll=unroll,
-			in_axes=(nnx.Carry, 1, 0),
-			out_axes=(nnx.Carry, (1, 0)),
-		)((carry, params), inputs, scan_rngs)
+		# outputs shape is (length, num_outputs), transpose to (num_outputs, length)
+		outputs = jnp.moveaxis(outputs, 0, -1)
 
-		if self.return_bargraphs:
-			return outputs, bargraph_data
 		return outputs
 
 
@@ -1300,37 +1276,42 @@ def test(args: argparse.Namespace) -> None:
 
 	faust_float = jnp.float64 if args.double else jnp.float32
 
-	rngs = nnx.Rngs(args.seed, params=args.seed, rng_stream=args.seed)
-	model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float, rngs=rngs)
-	
+	key = random.key(args.seed)
+	_model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float)
+
+	# Flax Linen: initialize the variables (runs setup → registers params), then
+	# bind the model for ergonomic method access (model.unnormalize(), model(...)).
+	_dummy = jnp.zeros((_model.num_inputs, 1), dtype=faust_float)
+	variables = _model.init(key, _dummy)
+	model = _model.bind(variables)
+
 	# Display model structure if requested
 	if args.tabulate is not False:
 		logger.info("\n" + "="*60)
 		logger.info("Model Structure Analysis")
 		logger.info("="*60)
 
-		# Create dummy inputs for tabulation
-		dummy_length = args.block_size if args.realtime else 1024
-		dummy_inputs = jnp.zeros((model.num_inputs, dummy_length), dtype=faust_float)
+		# Show basic model information
+		logger.info(f"Model: {model}")
+		logger.info(f"Parameters:")
+		for zone, metadata in model.get_parameter_metadata().items():
+			param_type = metadata.get("type", "unknown")
+			full_label = metadata.get("full_label", zone)
+			if param_type in ["slider", "hslider", "vslider"]:
+				logger.info(f"  {full_label} [{zone}]: {metadata.get('min')} .. {metadata.get('max')} (default: {metadata.get('default')}, scale: {metadata.get('scale_mode')})")
+			elif param_type == "nentry":
+				logger.info(f"  {full_label} [{zone}]: nentry {metadata.get('min')} .. {metadata.get('max')} (step: {metadata.get('step')}, options: {metadata.get('num_options')})")
+			elif param_type in ["button", "checkbox"]:
+				logger.info(f"  {full_label} [{zone}]: {param_type}")
+			elif param_type == "soundfile":
+				logger.info(f"  {full_label} [{zone}]: soundfile ({metadata.get('num_files')} files)")
+			else:
+				logger.info(f"  {full_label} [{zone}]: {param_type}")
 
-		# Determine depth: None for full depth, or convert string to int
-		if args.tabulate is None:
-			depth = None  # --tabulate (no argument) = full depth
-		else:
-			depth = int(args.tabulate)  # --tabulate 2 = depth 2
-
-		# Tabulate the model structure
-		# Note: nnx.tabulate may have issues with scan (https://github.com/google/flax/issues/5067)
-		table_str = nnx.tabulate(model, dummy_inputs, depth=depth)
-
-		logger.info(table_str)
 		logger.info("="*60 + "\n")
 
 	logger.info(f"Number of input channels: {model.num_inputs}")
 	logger.info(f"Number of output channels: {model.num_outputs}")
-
-	# json_obj = model.json_metadata
-	# logger.debug(f"JSON info: {json_obj}")
 
 	key = random.key(args.seed)
 
@@ -1371,27 +1352,15 @@ def test(args: argparse.Namespace) -> None:
 		print("model:", model)
 
 	if args.jit:
-		# For JIT, we need to handle the model call differently
-		# Extract a key before JIT compilation
-		if model.rngs is not None:
-			# Get a single RNG key to use for the entire forward pass
-			if isinstance(model.rngs, rnglib.Rngs):
-				rng_key = model.rngs[model.rng_collection]()
-			elif isinstance(model.rngs, rnglib.RngStream):
-				rng_key = model.rngs()
-			else:
-				rng_key = None
-		else:
-			rng_key = None
-		
+		# Run the forward pass via apply(). The RNG key is passed positionally to
+		# __call__ (apply() reserves its own `rngs=` kwarg for make_rng), so we
+		# never mutate an RNG counter inside the jit trace.
 		@jax.jit
 		def forward(x: jnp.ndarray):
-			# Pass the pre-extracted RNG key
-			y = model(x, unroll=args.unroll, rngs=rng_key)
-			return y
+			return _model.apply(variables, x, None, None, args.unroll, key)
 	else:
 		def forward(x: jnp.ndarray):
-			y = model(x, unroll=args.unroll)
+			y = model(x, unroll=args.unroll, rngs=key)
 			return y
 
 	if args.benchmark:
@@ -1401,32 +1370,30 @@ def test(args: argparse.Namespace) -> None:
 		logger.info(f"Running benchmark with {args.benchmark} iterations...")
 		logger.info(f"Block size: {N_SAMPLES} samples")
 		logger.info(f"Unroll factor: {args.unroll}")
-		
+
 		# Warmup runs
 		logger.info("Warming up JIT compilation...")
 		for _ in range(3):
-			result = forward(input_audio)
-			jax.block_until_ready(result)
+			y = forward(input_audio).block_until_ready()
 
 		# Benchmark runs with timing
 		times = []
 		for _ in tqdm.trange(args.benchmark, desc="Benchmarking"):
 			start_time = time.perf_counter()
-			result = forward(input_audio)
-			jax.block_until_ready(result)
+			y = forward(input_audio).block_until_ready()
 			end_time = time.perf_counter()
 			times.append(end_time - start_time)
-		
+
 		# Calculate statistics
 		times_ms = [t * 1000 for t in times]
 		avg_time_ms = sum(times_ms) / len(times_ms)
 		min_time_ms = min(times_ms)
 		max_time_ms = max(times_ms)
-		
+
 		# Calculate throughput
 		samples_per_sec = N_SAMPLES / (avg_time_ms / 1000)
 		realtime_factor = samples_per_sec / args.sample_rate
-		
+
 		logger.info("\n" + "="*60)
 		logger.info("Benchmark Results")
 		logger.info("="*60)
@@ -1436,23 +1403,16 @@ def test(args: argparse.Namespace) -> None:
 		logger.info(f"Throughput: {samples_per_sec:.0f} samples/sec")
 		logger.info(f"Real-time factor: {realtime_factor:.2f}x")
 		if realtime_factor >= 1.0:
-			logger.info(f"✓ Can run in real-time ({realtime_factor:.2f}x faster than real-time)")
+			logger.info(f"Can run in real-time ({realtime_factor:.2f}x faster than real-time)")
 		else:
-			logger.info(f"✗ Cannot run in real-time ({realtime_factor:.2f}x slower than real-time)")
+			logger.info(f"Cannot run in real-time ({realtime_factor:.2f}x slower than real-time)")
 		logger.info("="*60 + "\n")
 
 	y = forward(input_audio)
 
-	# If bargraphs are present, __call__ returns (outputs, bargraph_data)
-	bargraph_data = None
-	if isinstance(y, tuple):
-		y, bargraph_data = y
-
 	params = model.unnormalize()
 	if args.verbose:
 		print("params", params)
-		if bargraph_data:
-			print("bargraph_data", {k: v.shape for k, v in bargraph_data.items()})
 
 	assert y.ndim == 2
 	assert y.shape[0] == model.num_outputs
@@ -1497,35 +1457,36 @@ def realtime_audio_example(
 	# Initialize model
 	faust_float = jnp.float64 if use_double else jnp.float32
 
-	rngs = nnx.Rngs(DEFAULT_RNG_SEED, params=DEFAULT_RNG_SEED, rng_stream=DEFAULT_RNG_SEED)
-	model = mydsp(sample_rate=sample_rate, faust_float=faust_float, rngs=rngs)
+	_model = mydsp(sample_rate=sample_rate, faust_float=faust_float)
+	_dummy = jnp.zeros((_model.num_inputs, 1), dtype=faust_float)
+	variables = _model.init(random.key(DEFAULT_RNG_SEED), _dummy)
+	model = _model.bind(variables)
 
 	# Initialize carry state
 	carry = model.initialize_carry()
 
-	# JIT compile the process method
+	# JIT compile the process method (apply() runs process_block under the bound
+	# variables; the RNG key is passed positionally to avoid apply()'s `rngs=` kwarg).
 	@partial(jax.jit, donate_argnums=(0,))
 	def process_block_jit(carry, inputs: jnp.ndarray, rng_key: jax.Array):
-		outputs, new_carry = model.process_block(
-			carry,
-			inputs,
-			unroll=unroll,
-			rngs=rng_key,
+		outputs, new_carry = _model.apply(
+			variables, carry, inputs, None, None, unroll, rng_key,
+			method=mydsp.process_block,
 		)
 		return outputs, new_carry
 
 	# Create a generator for audio blocks
 	def audio_generator():
 		nonlocal carry
-		rng_key = random.key(DEFAULT_RNG_SEED)
+		rng = random.key(DEFAULT_RNG_SEED)
 
 		# For processors, you would get input from sounddevice
 		# For this example, we'll use zeros
 		inputs = jnp.zeros((model.num_inputs, block_size))
-		
+
 		while True:
 			# Process block
-			subkey, rng_key = random.split(rng_key)
+			subkey, rng = random.split(rng)
 			outputs, carry = process_block_jit(carry, inputs, subkey)
 
 			# Convert to numpy and reshape for sounddevice
@@ -1548,8 +1509,8 @@ def realtime_audio_example(
 		outdata[:] = next(audio_gen)
 
 	# Start streaming
-	print(f"▶ Streaming audio at {sample_rate} Hz, {block_size} samples/block")
-	print(f"  Model: {model.num_inputs} inputs → {model.num_outputs} outputs")
+	print(f"Streaming audio at {sample_rate} Hz, {block_size} samples/block")
+	print(f"  Model: {model.num_inputs} inputs -> {model.num_outputs} outputs")
 	print("  Press Ctrl+C to stop...")
 
 	try:
@@ -1563,14 +1524,14 @@ def realtime_audio_example(
 			while True:
 				time.sleep(1)
 	except KeyboardInterrupt:
-		print("\n⏹ Stopped.")
+		print("\nStopped.")
 
 
 if __name__ == "__main__":
 	import argparse
 
 	# fmt: off
-	parser = argparse.ArgumentParser(description="Run a JAX/Flax model converted from Faust code")
+	parser = argparse.ArgumentParser(description="Run a JAX/Flax Linen model converted from Faust code")
 	parser.add_argument("-sr", "--sample-rate", type=int, default=DEFAULT_SAMPLE_RATE, help=f"Sample rate (default: {DEFAULT_SAMPLE_RATE})")
 	parser.add_argument("-d", "--duration", type=float, default=None, help="Output duration in seconds")
 	parser.add_argument("--unroll", type=int, default=1, help="Unroll size for jax.lax.scan (default: 1)")
