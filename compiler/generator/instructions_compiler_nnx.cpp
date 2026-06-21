@@ -19,13 +19,13 @@
  ************************************************************************
  ************************************************************************/
 
-#include "instructions_compiler_jax.hh"
+#include "instructions_compiler_nnx.hh"
 #include "ppsig.hh"
 #include "sigtyperules.hh"
 
 using namespace std;
 
-StatementInst* InstructionsCompilerJAX::generateShiftArray(const string& vname, int delay)
+StatementInst* InstructionsCompilerNNX::generateShiftArray(const string& vname, int delay)
 {
     Values truncated_args;
     truncated_args.push_back(IB::genLoadArrayStructVar(vname));
@@ -34,7 +34,7 @@ StatementInst* InstructionsCompilerJAX::generateShiftArray(const string& vname, 
                                       IB::genFunCallInst(string("jnp.roll"), truncated_args));
 }
 
-ValueInst* InstructionsCompilerJAX::generateDelayLine(ValueInst* exp, BasicTyped* ctype,
+ValueInst* InstructionsCompilerNNX::generateDelayLine(ValueInst* exp, BasicTyped* ctype,
                                                       const string& vname, int mxd,
                                                       Address::AccessType& access, ValueInst* ccs)
 {
@@ -138,7 +138,7 @@ ValueInst* InstructionsCompilerJAX::generateDelayLine(ValueInst* exp, BasicTyped
     return exp;
 }
 
-ValueInst* InstructionsCompilerJAX::generateSoundfile(Tree sig, Tree path)
+ValueInst* InstructionsCompilerNNX::generateSoundfile(Tree sig, Tree path)
 {
     string varname = gGlobal->getFreshID("fSoundfile");
     string SFcache = varname + "ca";

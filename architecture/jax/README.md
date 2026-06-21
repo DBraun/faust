@@ -32,7 +32,7 @@
 
 The JAX backend allows Faust to generate Python code that uses JAX and Flax for efficient numerical computation with automatic differentiation support. Two framework variants are available:
 
-- **`-lang jax`** (NNX) — Uses Flax NNX (`nnx.Module`). Modern, recommended for new projects.
+- **`-lang nnx`** (NNX) — Uses Flax NNX (`nnx.Module`). Modern, recommended for new projects.
 - **`-lang linen`** (Linen) — Uses Flax Linen (`nn.Module`). For compatibility with existing Linen codebases.
 
 Both backends share the same code generator (~95% shared) and produce identical numerical results. The key difference is the module framework and how parameters/state are routed.
@@ -75,14 +75,14 @@ Generate JAX code from a Faust DSP file:
 
 ```bash
 # NNX (default, modern)
-./build/bin/faust -lang jax -I libraries my_example.dsp -cn MyExample -o my_example.py
+./build/bin/faust -lang nnx -I libraries my_example.dsp -cn MyExample -o my_example.py
 
 # Linen (legacy framework compatibility)
 ./build/bin/faust -lang linen -I libraries my_example.dsp -cn MyExample -o my_example.py
 ```
 
 Options:
-- `-lang jax`: Use the JAX/NNX backend
+- `-lang nnx`: Use the JAX/NNX backend
 - `-lang linen`: Use the JAX/Linen backend
 - `-I libraries`: Include path for Faust libraries (you can omit this entirely if `faust` has been fully installed)
 - `-a architecture/jax/minimal.py`: NNX architecture file (use `-a jax/minimal.py` if `faust` has been fully installed)
@@ -218,7 +218,7 @@ for block_idx in range(num_blocks):
 
 Both backends produce the same numerical output and share the same architecture file API. Choose based on your project's framework:
 
-| | NNX (`-lang jax`) | Linen (`-lang linen`) |
+| | NNX (`-lang nnx`) | Linen (`-lang linen`) |
 |---|---|---|
 | Module base class | `nnx.Module` | `nn.Module` |
 | Architecture file | `minimal.py` | `minimal_linen.py` |
@@ -298,13 +298,13 @@ The `-mcd` flag determines when to use circular buffers vs roll operations:
 
 ```bash
 # Default: delays ≤16 use roll, delays >16 use circular buffers
-./build/bin/faust -lang jax mydsp.dsp -o mydsp.py
+./build/bin/faust -lang nnx mydsp.dsp -o mydsp.py
 
 # Force more delays to use roll operations (may reduce performance)
-./build/bin/faust -lang jax -mcd 64 mydsp.dsp -o mydsp.py
+./build/bin/faust -lang nnx -mcd 64 mydsp.dsp -o mydsp.py
 
 # Force more delays to use circular buffers (may improve performance)
-./build/bin/faust -lang jax -mcd 8 mydsp.dsp -o mydsp.py
+./build/bin/faust -lang nnx -mcd 8 mydsp.dsp -o mydsp.py
 ```
 
 #### Implementation Strategies
@@ -397,7 +397,7 @@ Run the backend impulse tests:
 cd tests/impulse-tests
 
 # NNX backend
-make jax
+make nnx
 
 # Linen backend
 make linen
@@ -405,7 +405,7 @@ make linen
 
 ### Impulse Test Architecture
 
-The `tests/impulse-tests/archs/impulsejax.py` (NNX) and `tests/impulse-tests/archs/impulsejax_linen.py` (Linen) files are specialized architectures for impulse response testing. They have specific requirements:
+The `tests/impulse-tests/archs/impulsennx.py` (NNX) and `tests/impulse-tests/archs/impulsejax_linen.py` (Linen) files are specialized architectures for impulse response testing. They have specific requirements:
 
 1. **Output Formatting**: Must match the reference format exactly with proper spacing:
    ```
@@ -442,7 +442,7 @@ Each `"name": replace` entry drops the widget's default value and substitutes a 
 Compile with:
 
 ```bash
-faust -lang jax poly_synth.dsp -cn SynthVoice -o poly_synth.py
+faust -lang nnx poly_synth.dsp -cn SynthVoice -o poly_synth.py
 ```
 
 ### Single Voice
@@ -520,7 +520,7 @@ For optimal performance:
 ## Available Architecture Files
 
 ### `minimal.py` (NNX)
-Architecture for `-lang jax`. Uses Flax NNX (`nnx.Module`). Includes:
+Architecture for `-lang nnx`. Uses Flax NNX (`nnx.Module`). Includes:
 - All UI element handlers (sliders, buttons, soundfiles, etc.)
 - Basic `__call__` method for processing
 - Generator support (0-input DSPs)

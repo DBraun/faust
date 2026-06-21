@@ -37,7 +37,7 @@ process = random_uniform;
 
         cmd = [
             str(faust_bin),
-            "-lang", "jax",
+            "-lang", "nnx",
             "-a", str(arch_file),
             "-I", str(libraries_path),
             dsp_path,
@@ -119,7 +119,7 @@ process = _ : @(100);
             
             cmd = [
                 str(faust_bin),
-                "-lang", "jax",
+                "-lang", "nnx",
                 "-mcd", str(mcd),
                 "-I", str(libraries_path),
                 dsp_path,

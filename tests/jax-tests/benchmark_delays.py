@@ -90,7 +90,7 @@ def compile_dsp(dsp_code, mcd_value, output_path):
         
         cmd = [
             str(faust_bin),
-            "-lang", "jax",
+            "-lang", "nnx",
             "-a", str(arch_file),
             "-mcd", str(mcd_value),
             dsp_path,

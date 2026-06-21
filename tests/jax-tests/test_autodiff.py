@@ -73,41 +73,37 @@ class TestBasicGradients:
 class TestParameterOptimization:
 	"""Test parameter optimization using gradient descent."""
 
-	def test_slider_parameter_optimization(
-		self,
-		compile_and_load_dsp,
-		default_rngs
-	):
-		"""Test optimizing slider parameters to match a target output."""
-		# This test requires a DSP with slider parameters
-		# For now, it's a structural placeholder
-		# TODO: Create a simple gain.dsp and test optimizing the gain parameter
-		pytest.skip("Requires DSP with slider parameters")
+	def test_slider_parameter_optimization(self, compile_and_load_dsp, default_rngs):
+		"""Gradient descent on a slider parameter converges to a target output.
 
-	def test_nentry_parameter_optimization(
-		self,
-		compile_and_load_dsp,
-		default_rngs
-	):
-		"""Test optimizing nentry parameters using Gumbel-softmax."""
-		# This test requires a DSP with nentry parameters
-		# It should verify that:
-		# 1. With nentry RNG, gradients flow through the soft sampling
-		# 2. Without nentry RNG, uses hard argmax (no gradients)
-		pytest.skip("Requires DSP with nentry parameters")
+		This is the canonical DDSP loop: render a target with a known gain, then
+		optimize a second model's gain (starting from its default) to match it.
+		"""
+		mydsp = compile_and_load_dsp("learnable_gain.dsp")
 
-	def test_parameter_learning_convergence(
-		self,
-		compile_and_load_dsp,
-		default_rngs
-	):
-		"""Test that parameter learning converges to minimize loss."""
-		# End-to-end test of parameter optimization
-		# 1. Create a DSP with parameters
-		# 2. Define target output
-		# 3. Optimize parameters to match target
-		# 4. Verify loss decreases
-		pytest.skip("Requires DSP with learnable parameters")
+		# Target: same DSP with the (normalized) gain parameter set to 0.9.
+		target = mydsp(sample_rate=44100, faust_float=jnp.float32, rngs=default_rngs)
+		target.fHslider0 = nnx.Param(jnp.array(0.9, dtype=jnp.float32))
+		x = jnp.ones((target.num_inputs, 128), dtype=jnp.float32)
+		target_out = target(x)
+
+		# Model under optimization, starting from the default gain (0.5).
+		model = mydsp(sample_rate=44100, faust_float=jnp.float32, rngs=default_rngs)
+
+		def loss_fn(model):
+			return jnp.mean((model(x) - target_out) ** 2)
+
+		losses = []
+		lr = 1.0
+		for _ in range(200):
+			loss, grads = nnx.value_and_grad(loss_fn)(model)
+			losses.append(float(loss))
+			params = nnx.state(model, nnx.Param)
+			nnx.update(model, jax.tree.map(lambda p, g: p - lr * g, params, grads))
+
+		# Loss collapses and the learned gain matches the target.
+		assert losses[-1] < losses[0] * 1e-2, f"loss did not converge: {losses[0]} -> {losses[-1]}"
+		assert float(model.fHslider0[...]) == pytest.approx(0.9, abs=1e-2)
 
 
 @pytest.mark.gradient
@@ -129,41 +125,6 @@ class TestConstraintGradients:
 
 		# Outside clip range, gradient is zero
 		assert grad == 0.0
-
-	def test_bounded_parameter_gradients(self):
-		"""Test gradients for bounded slider parameters."""
-		# Slider parameters are clipped to [0, 1] before unnormalization
-		# This test verifies gradient behavior at boundaries
-		pytest.skip("Requires implementation")
-
-	def test_scale_mode_gradients(self):
-		"""Test that gradients flow through scale mode transformations."""
-		# Test linear, exp, and log scale modes preserve gradients
-		pytest.skip("Requires implementation")
-
-
-@pytest.mark.gradient
-@pytest.mark.slow
-class TestDDSPGradients:
-	"""Test gradient-based optimization for DDSP (differentiable DSP) use cases."""
-
-	def test_filter_coefficient_learning(self):
-		"""Test learning optimal filter coefficients from audio examples."""
-		# This would test a biquad or IIR filter
-		# and optimize its coefficients to match a target frequency response
-		pytest.skip("Requires filter DSP implementation")
-
-	def test_effect_parameter_matching(self):
-		"""Test learning effect parameters to match target processing."""
-		# This would test an audio effect (reverb, delay, etc.)
-		# and optimize parameters to match target output
-		pytest.skip("Requires effect DSP implementation")
-
-	def test_synthesis_parameter_optimization(self):
-		"""Test learning synthesis parameters for sound matching."""
-		# This would test a synthesizer
-		# and optimize parameters to match target sound
-		pytest.skip("Requires synthesis DSP implementation")
 
 
 @pytest.mark.gradient
@@ -193,14 +154,3 @@ class TestGradientNumericalStability:
 		for grad_array in jax.tree_util.tree_leaves(grads):
 			if isinstance(grad_array, jnp.ndarray):
 				assert jnp.all(jnp.isfinite(grad_array)), "Gradient contains NaN or inf"
-
-	def test_gradient_checkpointing_compatibility(self):
-		"""Test compatibility with JAX gradient checkpointing."""
-		# Verify that scan-based processing works with checkpointing
-		# to save memory during backprop
-		pytest.skip("Requires implementation")
-
-
-# Note: These tests provide a framework for gradient testing
-# Many are marked as skip because they require specific DSP files
-# As the test suite develops, these should be implemented with actual DSP examples

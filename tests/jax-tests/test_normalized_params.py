@@ -22,7 +22,7 @@ def compile_my_example():
     dsp_file = Path(__file__).parent / "dsp" / "my_example.dsp"
     output_file = Path(__file__).parent / "my_example.py"
 
-    cmd = [str(faust_bin), "-lang", "jax", "-a", str(arch_file),
+    cmd = [str(faust_bin), "-lang", "nnx", "-a", str(arch_file),
            "-I", str(lib_dir), str(dsp_file), "-o", str(output_file)]
 
     subprocess.run(cmd, capture_output=True, check=True)

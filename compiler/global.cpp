@@ -108,8 +108,8 @@
 #include "jsfx_code_container.hh"
 #endif
 
-#ifdef JAX_BUILD
-#include "jax_code_container.hh"
+#ifdef NNX_BUILD
+#include "nnx_code_container.hh"
 #endif
 
 #ifdef LINEN_BUILD
@@ -580,8 +580,8 @@ void global::reset()
     gTableSizeVisitor = nullptr;  // Will be (possibly) allocated in Cmajor backend
 #endif
 
-#ifdef JAX_BUILD
-    gJAXVisitor = nullptr;  // Will be (possibly) allocated in JAX backend
+#ifdef NNX_BUILD
+    gNNXVisitor = nullptr;  // Will be (possibly) allocated in JAX backend
 #endif
 
 #ifdef ASSEMBLYSCRIPT_BUILD
@@ -989,7 +989,7 @@ bool global::hasForeignFunction(const string& name, const string& inc_file)
          startWith(gOutputLang, "wasm") || (gOutputLang == "interp") ||
          startWith(gOutputLang, "cmajor") || startWith(gOutputLang, "codebox") ||
          (gOutputLang == "dlang") || (gOutputLang == "csharp") || (gOutputLang == "rust") ||
-         (gOutputLang == "julia") || startWith(gOutputLang, "jsfx") || (gOutputLang == "jax") ||
+         (gOutputLang == "julia") || startWith(gOutputLang, "jsfx") || (gOutputLang == "nnx") ||
          (gOutputLang == "asc") || (gOutputLang == "linen"));
 
     return (internal_math_ff &&
@@ -1074,11 +1074,11 @@ global::~global()
 #ifdef JSFX_BUILD
     JSFXInstVisitor::cleanup();
 #endif
-#ifdef JAX_BUILD
-    JAXInstVisitor::cleanup();
+#ifdef NNX_BUILD
+    NNXInstVisitor::cleanup();
 #endif
 #ifdef LINEN_BUILD
-    // LinenInstVisitor shares JAXBaseInstVisitor::gFunctionSymbolTable; clear it
+    // LinenInstVisitor shares NNXBaseInstVisitor::gFunctionSymbolTable; clear it
     // for build configs where LINEN is enabled but JAX is not.
     LinenInstVisitor::cleanup();
 #endif
@@ -2099,7 +2099,7 @@ static void enumBackends(ostream& out)
     out << dspto << "Java" << endl;
 #endif
 
-#ifdef JAX_BUILD
+#ifdef NNX_BUILD
     out << dspto << "JAX" << endl;
 #endif
 
@@ -2215,7 +2215,7 @@ string global::printHelp()
          << "                                        'lang' should be asc, c, cpp (default), "
             "cmajor, "
             "codebox, csharp, "
-            "dlang, fir, interp, java, jax, jsfx, julia, linen, llvm, "
+            "dlang, fir, interp, java, jsfx, julia, linen, llvm, nnx, "
             "ocpp, rust, sdf3, vhdl or wast/wasm."
          << endl;
 #endif

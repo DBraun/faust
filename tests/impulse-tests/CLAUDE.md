@@ -26,18 +26,18 @@ FAUST=$PWD/../../build/bin/faust
 1. **Focus on specific failing tests** - Instead of running the full test suite, test individual DSP files:
    ```bash
    # Generate JAX code for a specific file
-   $FAUST -lang jax dsp/table2.dsp -a archs/impulsejax.py -double > ir/jax/double/jax_table2.py
+   $FAUST -lang nnx dsp/table2.dsp -a archs/impulsennx.py -double > ir/nnx/double/jax_table2.py
    
    # Run the test
-   python3 ir/jax/double/jax_table2.py > ir/jax/double/table2.ir
+   python3 ir/nnx/double/jax_table2.py > ir/nnx/double/table2.ir
    
    # Compare output
-   ./filesCompare ir/jax/double/table2.ir reference/table2.ir
+   ./filesCompare ir/nnx/double/table2.ir reference/table2.ir
    ```
 
 2. **Use debug output** to understand what's being generated:
    ```bash
-   $FAUST -lang jax dsp/table2.dsp -d > /tmp/table2_debug.txt
+   $FAUST -lang nnx dsp/table2.dsp -d > /tmp/table2_debug.txt
    ```
 
 3. **Compare with C++ backend** to understand expected behavior:

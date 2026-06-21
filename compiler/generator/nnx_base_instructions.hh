@@ -19,8 +19,8 @@
  ************************************************************************
  ************************************************************************/
 
-#ifndef _JAX_BASE_INSTRUCTIONS_H
-#define _JAX_BASE_INSTRUCTIONS_H
+#ifndef _NNX_BASE_INSTRUCTIONS_H
+#define _NNX_BASE_INSTRUCTIONS_H
 
 #include <string>
 
@@ -31,11 +31,11 @@
  * Base visitor for initializing array fields into the DSP structure during _initialize_carry().
  * Subclasses (JAX/NNX and Linen) override visit(NamedAddress*) for params/state routing.
  */
-struct JAXBaseInitFieldsVisitor : public DispatchVisitor {
+struct NNXBaseInitFieldsVisitor : public DispatchVisitor {
     std::ostream* fOut;
     int           fTab;
 
-    JAXBaseInitFieldsVisitor(std::ostream* out, int tab = 0) : fOut(out), fTab(tab) {}
+    NNXBaseInitFieldsVisitor(std::ostream* out, int tab = 0) : fOut(out), fTab(tab) {}
 
     virtual void visit(DeclareVarInst* inst)
     {
@@ -109,7 +109,7 @@ struct JAXBaseInitFieldsVisitor : public DispatchVisitor {
  * Contains all shared visit methods for both NNX and Linen backends.
  * Subclasses override only visit(NamedAddress*) for different routing.
  */
-class JAXBaseInstVisitor : public TextInstVisitor {
+class NNXBaseInstVisitor : public TextInstVisitor {
    protected:
     /*
      Global functions names table as a static variable in the visitor
@@ -132,14 +132,36 @@ class JAXBaseInstVisitor : public TextInstVisitor {
     std::set<std::string> fLogSet;  // set of widget zone having a log UI scale
     std::set<std::string> fExpSet;  // set of widget zone having an exp UI scale
 
+   protected:
+    // Emit a Python double-quoted string literal with proper escaping. Faust UI
+    // labels/URLs (and their embedded metadata, e.g. "[style:menu{...}]") may
+    // contain characters that are special inside a Python string ("\\", '"', ...);
+    // plain quote() would produce broken source, so escape them here.
+    static std::string pyStr(const std::string& s)
+    {
+        std::string out = "\"";
+        for (char c : s) {
+            switch (c) {
+                case '\\': out += "\\\\"; break;
+                case '"':  out += "\\\""; break;
+                case '\n': out += "\\n"; break;
+                case '\r': out += "\\r"; break;
+                case '\t': out += "\\t"; break;
+                default:   out += c; break;
+            }
+        }
+        out += "\"";
+        return out;
+    }
+
    public:
     using TextInstVisitor::visit;
 
     // Use numpy functions (prefix "np.") when true, jax.numpy "jnp." when false.
     bool fUseNumpy = true;
 
-    JAXBaseInstVisitor(std::ostream* out, const std::string& struct_name, int tab = 0)
-        : TextInstVisitor(out, ".", new JAXStringTypeManager(xfloat(), "*", struct_name), tab)
+    NNXBaseInstVisitor(std::ostream* out, const std::string& struct_name, int tab = 0)
+        : TextInstVisitor(out, ".", new NNXStringTypeManager(xfloat(), "*", struct_name), tab)
     {
         // Mark all math.h functions as generated...
         gFunctionSymbolTable["abs"] = true;
@@ -334,7 +356,7 @@ class JAXBaseInstVisitor : public TextInstVisitor {
         gPolyMathLibTable["copysign"] = "jnp.copysign";
     }
 
-    virtual ~JAXBaseInstVisitor() {}
+    virtual ~NNXBaseInstVisitor() {}
 
     virtual void visit(AddMetaDeclareInst* inst)
     {
@@ -351,7 +373,7 @@ class JAXBaseInstVisitor : public TextInstVisitor {
 
     virtual void visit(OpenboxInst* inst)
     {
-        *fOut << "ui_path.append(" << quote(inst->fName) << ")";
+        *fOut << "ui_path.append(" << pyStr(inst->fName) << ")";
         EndLine(' ');
     }
 
@@ -364,7 +386,7 @@ class JAXBaseInstVisitor : public TextInstVisitor {
     virtual void visit(AddButtonInst* inst)
     {
         *fOut << "self.add_button(" << quote(inst->fZone) << ", ui_path, "
-              << quote(inst->fLabel) << ", unnorm_funcs)";
+              << pyStr(inst->fLabel) << ", unnorm_funcs)";
         EndLine(' ');
     }
 
@@ -384,7 +406,7 @@ class JAXBaseInstVisitor : public TextInstVisitor {
                 // clang-format off
                 *fOut << "self.add_hslider("
                     << quote(inst->fZone) << ", ui_path, "
-                    << quote(inst->fLabel) << ", "
+                    << pyStr(inst->fLabel) << ", "
                     << checkReal(inst->fInit) << ", "
                     << checkReal(inst->fMin) << ", "
                     << checkReal(inst->fMax) << ", unnorm_funcs, "
@@ -395,7 +417,7 @@ class JAXBaseInstVisitor : public TextInstVisitor {
                 // clang-format off
                 *fOut << "self.add_vslider("
                     << quote(inst->fZone) << ", ui_path, "
-                    << quote(inst->fLabel) << ", "
+                    << pyStr(inst->fLabel) << ", "
                     << checkReal(inst->fInit) << ", "
                     << checkReal(inst->fMin) << ", "
                     << checkReal(inst->fMax) << ", unnorm_funcs, "
@@ -406,7 +428,7 @@ class JAXBaseInstVisitor : public TextInstVisitor {
                 // clang-format off
                 *fOut << "self.add_nentry("
                     << quote(inst->fZone) << ", ui_path, "
-                    << quote(inst->fLabel) << ", "
+                    << pyStr(inst->fLabel) << ", "
                     << checkReal(inst->fInit) << ", "
                     << checkReal(inst->fMin) << ", "
                     << checkReal(inst->fMax) << ", "
@@ -420,7 +442,7 @@ class JAXBaseInstVisitor : public TextInstVisitor {
     virtual void visit(AddBargraphInst* inst)
     {
         *fOut << "self.add_hbargraph(" << quote(inst->fZone) << ", ui_path, "
-              << quote(inst->fLabel) << ", "
+              << pyStr(inst->fLabel) << ", "
               << checkReal(inst->fMin) << ", "
               << checkReal(inst->fMax) << ", unnorm_funcs)";
         EndLine(' ');
@@ -429,7 +451,7 @@ class JAXBaseInstVisitor : public TextInstVisitor {
     virtual void visit(AddSoundfileInst* inst)
     {
         *fOut << "self.add_soundfile(" << quote(inst->fSFZone) << ", ui_path, "
-              << quote(inst->fLabel) << ", " << quote(inst->fURL) << ", unnorm_funcs)";
+              << pyStr(inst->fLabel) << ", " << pyStr(inst->fURL) << ", unnorm_funcs)";
         EndLine(' ');
     }
 
@@ -498,7 +520,7 @@ class JAXBaseInstVisitor : public TextInstVisitor {
     {
         if (inst->fAddress->isStaticStruct()) {
             *fOut << fTypeManager->generateType(inst->fType, inst->getName());
-            // Allocation is actually done in JAXBaseInitFieldsVisitor
+            // Allocation is actually done in NNXBaseInitFieldsVisitor
         } else {
             *fOut << fTypeManager->generateType(inst->fType, inst->getName());
             if (inst->fValue) {
@@ -704,51 +726,19 @@ class JAXBaseInstVisitor : public TextInstVisitor {
     // Generate standard funcall (not 'method' like funcall...)
     virtual void visit(FunCallInst* inst)
     {
-        // Special handling for random_uniform function
-        if (inst->fName == "random_uniform") {
-            *fOut << "self.random_uniform(rngs())";
-            return;
-        }
-
-        // Special handling for random_normal function
-        if (inst->fName == "random_normal") {
-            *fOut << "self.random_normal(rngs())";
-            return;
-        }
-
-        // Special handling for random_exponential function
-        if (inst->fName == "random_exponential") {
-            if (inst->fArgs.size() == 1) {
-                *fOut << "self.random_exponential(rngs(), ";
+        // Random foreign functions are dispatched to self.<name>() helpers with an
+        // RNG key injected as the first argument. Forward ALL DSP-provided arguments
+        // unchanged (rate, p, a/b, ...) rather than dropping them on unexpected arity:
+        // a wrong arity then fails loudly at runtime instead of silently using defaults.
+        if (inst->fName == "random_uniform" || inst->fName == "random_normal" ||
+            inst->fName == "random_exponential" || inst->fName == "random_bernoulli" ||
+            inst->fName == "random_beta") {
+            *fOut << "self." << inst->fName << "(rngs()";
+            if (inst->fArgs.size() > 0) {
+                *fOut << ", ";
                 generateFunCallArgs(inst->fArgs.begin(), inst->fArgs.end(), inst->fArgs.size());
-                *fOut << ")";
-            } else {
-                *fOut << "self.random_exponential(rngs())";
             }
-            return;
-        }
-
-        // Special handling for random_bernoulli function
-        if (inst->fName == "random_bernoulli") {
-            if (inst->fArgs.size() == 1) {
-                *fOut << "self.random_bernoulli(rngs(), ";
-                generateFunCallArgs(inst->fArgs.begin(), inst->fArgs.end(), inst->fArgs.size());
-                *fOut << ")";
-            } else {
-                *fOut << "self.random_bernoulli(rngs())";
-            }
-            return;
-        }
-
-        // Special handling for random_beta function
-        if (inst->fName == "random_beta") {
-            if (inst->fArgs.size() == 2) {
-                *fOut << "self.random_beta(rngs(), ";
-                generateFunCallArgs(inst->fArgs.begin(), inst->fArgs.end(), inst->fArgs.size());
-                *fOut << ")";
-            } else {
-                *fOut << "self.random_beta(rngs())";
-            }
+            *fOut << ")";
             return;
         }
 

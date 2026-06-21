@@ -87,7 +87,7 @@ def compile_faust_dsp(faust_compiler, jax_architecture_dir, jax_library_dir, tem
 
 		cmd = [
 			str(faust_compiler),
-			"-lang", "jax",
+			"-lang", "nnx",
 			"-a", str(jax_architecture_dir / "minimal.py"),
 			"-I", str(jax_library_dir),
 			"-o", str(output_file),

@@ -85,7 +85,7 @@ jobs:
         source tests/jax-tests/.venv/bin/activate
         cd tests/impulse-tests
         make filesCompare
-        make jax
+        make nnx
 
   test-linen-impulse:
     # Run Linen impulse tests against the pinned dependency set (uv.lock).

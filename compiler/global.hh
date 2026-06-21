@@ -63,7 +63,7 @@ class Garbageable;
 struct DispatchVisitor;
 class WASTInstVisitor;
 class WASMInstVisitor;
-class JAXInstVisitor;
+class NNXInstVisitor;
 class LinenInstVisitor;
 class JuliaInstVisitor;
 class JSFXInstVisitor;
@@ -707,8 +707,8 @@ struct global {
     TableSizeVisitor* gTableSizeVisitor;
 #endif
 
-#ifdef JAX_BUILD
-    JAXInstVisitor* gJAXVisitor;
+#ifdef NNX_BUILD
+    NNXInstVisitor* gNNXVisitor;
 #endif
 
 #ifdef ASSEMBLYSCRIPT_BUILD

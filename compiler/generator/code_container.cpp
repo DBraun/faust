@@ -1038,7 +1038,7 @@ DeclareFunInst* CodeContainer::generateFillFun(const string& name, const string&
     BlockInst* block = IB::genBlockInst();
     block->pushBackInst(fComputeBlockInstructions);
     // Hack for Julia
-    if (gGlobal->gOutputLang == "julia" || gGlobal->gOutputLang == "jax" || gGlobal->gOutputLang == "linen") {
+    if (gGlobal->gOutputLang == "julia" || gGlobal->gOutputLang == "nnx" || gGlobal->gOutputLang == "linen") {
         block->pushBackInst(fCurLoop->generateSimpleScalarLoop("count"));
     } else {
         block->pushBackInst(fCurLoop->generateScalarLoop("count"));

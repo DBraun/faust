@@ -44,7 +44,7 @@ def compile_synth():
         arch_file = Path(__file__).parent.parent.parent.parent / "architecture" / "jax" / "minimal.py"
         lib_dir = Path(__file__).parent.parent.parent.parent / "libraries"
         cmd = [
-            str(faust_bin), "-lang", "jax",
+            str(faust_bin), "-lang", "nnx",
             "-a", str(arch_file),
             "-I", str(lib_dir),
             str(dsp_file),
@@ -53,7 +53,7 @@ def compile_synth():
     else:
         # Production: use installed Faust with installed architecture
         cmd = [
-            "faust", "-lang", "jax",
+            "faust", "-lang", "nnx",
             "-a", "jax/minimal.py",
             str(dsp_file),
             "-o", str(output_file)

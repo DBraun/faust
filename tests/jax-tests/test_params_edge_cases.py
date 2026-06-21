@@ -20,7 +20,7 @@ def compile_dsp(dsp_name):
     output_file = Path(__file__).parent / "generated" / f"{dsp_name}.py"
 
     cmd = [
-        str(faust_bin), "-lang", "jax",
+        str(faust_bin), "-lang", "nnx",
         "-a", str(arch_file),
         "-I", str(lib_dir),
         str(dsp_file),

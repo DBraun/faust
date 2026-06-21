@@ -31,7 +31,7 @@ def _compile_my_example():
     dsp = _HERE / "dsp" / "my_example.dsp"
     out = Path(tempfile.mkdtemp(prefix="faust_my_example_")) / "my_example.py"
     subprocess.run(
-        [str(faust), "-lang", "jax", "-a", str(arch), "-I", str(libs),
+        [str(faust), "-lang", "nnx", "-a", str(arch), "-I", str(libs),
          "-o", str(out), str(dsp)],
         check=True, capture_output=True, text=True,
     )

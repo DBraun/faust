@@ -19,7 +19,7 @@
  ************************************************************************
  ************************************************************************/
 
-#include "jax_code_container.hh"
+#include "nnx_code_container.hh"
 #include "Text.hh"
 #include "exception.hh"
 #include "fir_function_builder.hh"
@@ -54,7 +54,7 @@ using namespace std;
  ### Subcontainer Handling:
  - All subcontainers merged into main DSP structure for simplified typing
  - Global variables moved to DSP structure level
- - JAXInitFieldsVisitor handles waveform initialization with NumPy for speed
+ - NNXInitFieldsVisitor handles waveform initialization with NumPy for speed
 
  ### Delay Line Optimization:
  - Small delays (≤16 samples) use jnp.roll operations
@@ -62,7 +62,7 @@ using namespace std;
  - Controlled by -mcd compiler flag (default 16)
 */
 
-dsp_factory_base* JAXCodeContainer::produceFactory()
+dsp_factory_base* NNXCodeContainer::produceFactory()
 {
     return new text_dsp_factory_aux(
         fKlassName, "", "",
@@ -70,7 +70,7 @@ dsp_factory_base* JAXCodeContainer::produceFactory()
         "");
 }
 
-JAXCodeContainer::JAXCodeContainer(const std::string& name, int numInputs, int numOutputs,
+NNXCodeContainer::NNXCodeContainer(const std::string& name, int numInputs, int numOutputs,
                                    std::ostream* out)
 {
     // Mandatory
@@ -79,17 +79,17 @@ JAXCodeContainer::JAXCodeContainer(const std::string& name, int numInputs, int n
     fOut       = out;
 
     // Allocate one static visitor to be shared by main module and sub containers
-    if (!gGlobal->gJAXVisitor) {
-        gGlobal->gJAXVisitor = new JAXInstVisitor(out, name);
+    if (!gGlobal->gNNXVisitor) {
+        gGlobal->gNNXVisitor = new NNXInstVisitor(out, name);
     }
 }
 
-CodeContainer* JAXCodeContainer::createScalarContainer(const string& name, int sub_container_type)
+CodeContainer* NNXCodeContainer::createScalarContainer(const string& name, int sub_container_type)
 {
-    return new JAXScalarCodeContainer(name, 0, 1, fOut, sub_container_type);
+    return new NNXScalarCodeContainer(name, 0, 1, fOut, sub_container_type);
 }
 
-CodeContainer* JAXCodeContainer::createContainer(const string& name, int numInputs, int numOutputs,
+CodeContainer* NNXCodeContainer::createContainer(const string& name, int numInputs, int numOutputs,
                                                  ostream* dst)
 {
     CodeContainer* container;
@@ -108,13 +108,13 @@ CodeContainer* JAXCodeContainer::createContainer(const string& name, int numInpu
     } else if (gGlobal->gVectorSwitch) {
         throw faustexception("ERROR : Vector not supported for JAX\n");
     } else {
-        container = new JAXScalarCodeContainer(name, numInputs, numOutputs, dst, kInt);
+        container = new NNXScalarCodeContainer(name, numInputs, numOutputs, dst, kInt);
     }
 
     return container;
 }
 
-void JAXCodeContainer::produceClass()
+void NNXCodeContainer::produceClass()
 {
     int n = 0;
 
@@ -165,13 +165,13 @@ void JAXCodeContainer::produceClass()
 
     // Functions
     tab(n, *fOut);
-    gGlobal->gJAXVisitor->Tab(n);
+    gGlobal->gNNXVisitor->Tab(n);
 
     *fOut << "class " << fKlassName << "(nnx.Module):";
     tab(n + 1, *fOut);
 
     tab(n + 1, *fOut);
-    gGlobal->gJAXVisitor->Tab(n);
+    gGlobal->gNNXVisitor->Tab(n);
 
     // Generate __init__ method for NNX
     tab(n + 1, *fOut);
@@ -241,7 +241,7 @@ void JAXCodeContainer::produceClass()
         tab(n + 2, *fOut);
         tab(n + 2, *fOut);
         *fOut << "# global declarations:";
-        JAXInitFieldsVisitor initializer(fOut, n + 2);
+        NNXInitFieldsVisitor initializer(fOut, n + 2);
         generateDeclarations(&initializer);
         // Generate global variables initialisation
         for (const auto& it : fGlobalDeclarationInstructions->fCode) {
@@ -253,21 +253,17 @@ void JAXCodeContainer::produceClass()
         tab(n + 2, *fOut);
         *fOut << "# init constants:";
         tab(n + 2, *fOut);
-        gGlobal->gJAXVisitor->Tab(n + 2);
-        inlineSubcontainersFunCalls(fInitInstructions)->accept(gGlobal->gJAXVisitor);
+        gGlobal->gNNXVisitor->Tab(n + 2);
+        inlineSubcontainersFunCalls(fInitInstructions)->accept(gGlobal->gNNXVisitor);
         tab(n + 2, *fOut);
         *fOut << "# inline subcontainers:";
         tab(n + 2, *fOut);
-        gGlobal->gJAXVisitor->Tab(n + 2);
-        inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gJAXVisitor);
+        gGlobal->gNNXVisitor->Tab(n + 2);
+        inlineSubcontainersFunCalls(fStaticInitInstructions)->accept(gGlobal->gNNXVisitor);
         tab(n + 2, *fOut);
         *fOut << "# instance clear:";
         tab(n + 2, *fOut);
-        generateClear(gGlobal->gJAXVisitor);
-        tab(n + 2, *fOut);
-        
-        // TODO: Initialize bargraphs if needed
-        
+        generateClear(gGlobal->gNNXVisitor);
         tab(n + 2, *fOut);
         *fOut << "return state";
         tab(n + 1, *fOut);
@@ -297,8 +293,8 @@ void JAXCodeContainer::produceClass()
     tab(n + 1, *fOut);
     *fOut << "def build_interface(self, ui_path: List[str], unnorm_funcs: Dict[str, Tuple[str, Callable]]) -> None:";
     tab(n + 2, *fOut);
-    gGlobal->gJAXVisitor->Tab(n + 2);
-    generateUserInterface(gGlobal->gJAXVisitor);
+    gGlobal->gNNXVisitor->Tab(n + 2);
+    generateUserInterface(gGlobal->gNNXVisitor);
     tab(n + 2, *fOut);
     *fOut << "return";
 
@@ -308,7 +304,7 @@ void JAXCodeContainer::produceClass()
     tab(n, *fOut);
 }
 
-void JAXCodeContainer::generateCompute(int n)
+void NNXCodeContainer::generateCompute(int n)
 {
     // Generates declaration
     tab(n, *fOut);
@@ -323,20 +319,20 @@ void JAXCodeContainer::generateCompute(int n)
     tab(n + 1, *fOut);
 
     tab(n + 1, *fOut);
-    gGlobal->gJAXVisitor->Tab(n + 1);
+    gGlobal->gNNXVisitor->Tab(n + 1);
 
     // Generates local variables declaration and setup
-    gGlobal->gJAXVisitor->fUseNumpy = false;
-    generateComputeBlock(gGlobal->gJAXVisitor);
+    gGlobal->gNNXVisitor->fUseNumpy = false;
+    generateComputeBlock(gGlobal->gNNXVisitor);
 
     auto loop = fCurLoop->generateOneSample();
-    loop->accept(gGlobal->gJAXVisitor);
+    loop->accept(gGlobal->gNNXVisitor);
 
-    generatePostComputeBlock(gGlobal->gJAXVisitor);
-    gGlobal->gJAXVisitor->fUseNumpy = true;
+    generatePostComputeBlock(gGlobal->gNNXVisitor);
+    gGlobal->gNNXVisitor->fUseNumpy = true;
 }
 
-void JAXCodeContainer::generateSR()
+void NNXCodeContainer::generateSR()
 {
     if (!fGeneratedSR) {
         pushDeclare(IB::genDecStructVar("fSampleRate", IB::genInt32Typed()));
@@ -346,9 +342,9 @@ void JAXCodeContainer::generateSR()
 }
 
 // Scalar
-JAXScalarCodeContainer::JAXScalarCodeContainer(const string& name, int numInputs, int numOutputs,
+NNXScalarCodeContainer::NNXScalarCodeContainer(const string& name, int numInputs, int numOutputs,
                                                std::ostream* out, int sub_container_type)
-    : JAXCodeContainer(name, numInputs, numOutputs, out)
+    : NNXCodeContainer(name, numInputs, numOutputs, out)
 {
     fSubContainerType = sub_container_type;
 }

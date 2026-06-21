@@ -12,7 +12,7 @@ endif
 
 PYTHON ?= python3
 ARCHITECTURE ?= ../../architecture/jax/minimal.py
-FAUSTOPTIONS ?= -lang jax -a $(ARCHITECTURE)
+FAUSTOPTIONS ?= -lang nnx -a $(ARCHITECTURE)
 
 # Find all DSP files in the dsp directory
 dspfiles := $(wildcard dsp/*.dsp)
@@ -90,7 +90,7 @@ help:
 	@echo "Options:"
 	@echo "  FAUST='path/to/faust'       : Specify Faust compiler path"
 	@echo "  PYTHON='python3'            : Specify Python interpreter"
-	@echo "  FAUSTOPTIONS='-lang jax...' : Additional Faust options"
+	@echo "  FAUSTOPTIONS='-lang nnx...' : Additional Faust options"
 
 # Create output directory and dummy WAV files for sound.dsp
 $(outdir):

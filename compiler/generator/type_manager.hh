@@ -703,9 +703,9 @@ class CodeboxStringTypeManager : public StringTypeManager {
 
 // StringTypeManager for JAX backend
 
-class JAXStringTypeManager : public StringTypeManager {
+class NNXStringTypeManager : public StringTypeManager {
    public:
-    JAXStringTypeManager(const std::string& float_macro_name, const std::string& ptr_ref,
+    NNXStringTypeManager(const std::string& float_macro_name, const std::string& ptr_ref,
                          const std::string& struct_name = "")
         : StringTypeManager(float_macro_name, ptr_ref)
     {

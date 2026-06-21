@@ -19,18 +19,18 @@
  ************************************************************************
  ************************************************************************/
 
-#ifndef _JAX_INSTRUCTIONS_H
-#define _JAX_INSTRUCTIONS_H
+#ifndef _NNX_INSTRUCTIONS_H
+#define _NNX_INSTRUCTIONS_H
 
-#include "jax_base_instructions.hh"
+#include "nnx_base_instructions.hh"
 
 /**
  * JAX/NNX init fields visitor.
  * Routes UI parameters to params[""], state variables to state[""],
  * cache variables (ending in "ca") as bare locals.
  */
-struct JAXInitFieldsVisitor : public JAXBaseInitFieldsVisitor {
-    using JAXBaseInitFieldsVisitor::JAXBaseInitFieldsVisitor;
+struct NNXInitFieldsVisitor : public NNXBaseInitFieldsVisitor {
+    using NNXBaseInitFieldsVisitor::NNXBaseInitFieldsVisitor;
 
     void visit(NamedAddress* named) override
     {
@@ -73,9 +73,9 @@ struct JAXInitFieldsVisitor : public JAXBaseInitFieldsVisitor {
  * Routes UI parameters to params[""], state variables to state[""],
  * cache variables (ending in "ca") as bare locals.
  */
-class JAXInstVisitor : public JAXBaseInstVisitor {
+class NNXInstVisitor : public NNXBaseInstVisitor {
    public:
-    using JAXBaseInstVisitor::JAXBaseInstVisitor;
+    using NNXBaseInstVisitor::NNXBaseInstVisitor;
 
     void visit(NamedAddress* named) override
     {

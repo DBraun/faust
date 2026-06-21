@@ -21,7 +21,7 @@ def compile_dsp(dsp_file, output_file):
 
     cmd = [
         str(faust_bin),
-        "-lang", "jax",
+        "-lang", "nnx",
         "-a", str(arch_file),
         "-I", str(lib_dir),
         str(dsp_file),

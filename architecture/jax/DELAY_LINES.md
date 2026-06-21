@@ -112,25 +112,25 @@ Complex DSPs often use both strategies. For example, `freeverb.dsp` generates co
 
 ```bash
 # Default (16): small delays use roll, large delays use circular buffers
-faust -lang jax mydsp.dsp -a architecture/jax/minimal.py
+faust -lang nnx mydsp.dsp -a architecture/jax/minimal.py
 
 # Lower threshold: more circular buffers (better performance for large DSPs)
-faust -lang jax -mcd 8 mydsp.dsp -a architecture/jax/minimal.py
+faust -lang nnx -mcd 8 mydsp.dsp -a architecture/jax/minimal.py
 
 # Higher threshold: more roll operations
-faust -lang jax -mcd 64 mydsp.dsp -a architecture/jax/minimal.py
+faust -lang nnx -mcd 64 mydsp.dsp -a architecture/jax/minimal.py
 ```
 
 Both strategies produce identical numerical results -- the choice is purely about performance. The default of 16 is a good balance for most DSPs.
 
 #### Verifying Correctness
 
-The impulse test suite (`tests/impulse-tests/Make.jax`) validates that JAX output matches the C++ reference implementation for 73 DSP files. To test a specific DSP:
+The impulse test suite (`tests/impulse-tests/Make.nnx`) validates that JAX output matches the C++ reference implementation for 73 DSP files. To test a specific DSP:
 
 ```bash
 # Compare JAX output against C++ reference
 cd tests/impulse-tests
-faust -lang jax dsp/echo.dsp -a archs/impulsejax.py -double > ir/jax/double/jax_echo.py
-python3 ir/jax/double/jax_echo.py > ir/jax/double/echo.ir
-./filesCompare ir/jax/double/echo.ir reference/echo.ir
+faust -lang nnx dsp/echo.dsp -a archs/impulsennx.py -double > ir/nnx/double/jax_echo.py
+python3 ir/nnx/double/jax_echo.py > ir/nnx/double/echo.ir
+./filesCompare ir/nnx/double/echo.ir reference/echo.ir
 ```

@@ -22,15 +22,15 @@
 #ifndef _LINEN_INSTRUCTIONS_H
 #define _LINEN_INSTRUCTIONS_H
 
-#include "jax_base_instructions.hh"
+#include "nnx_base_instructions.hh"
 
 /**
  * Linen init fields visitor.
  * All struct variables (UI params and state) route to state[""].
  * Cache variables (ending in "ca") are bare locals.
  */
-struct LinenInitFieldsVisitor : public JAXBaseInitFieldsVisitor {
-    using JAXBaseInitFieldsVisitor::JAXBaseInitFieldsVisitor;
+struct LinenInitFieldsVisitor : public NNXBaseInitFieldsVisitor {
+    using NNXBaseInitFieldsVisitor::NNXBaseInitFieldsVisitor;
 
     void visit(NamedAddress* named) override
     {
@@ -56,9 +56,9 @@ struct LinenInitFieldsVisitor : public JAXBaseInitFieldsVisitor {
  * All struct variables (UI params and state) route to state[""].
  * Cache variables (ending in "ca") are bare locals.
  */
-class LinenInstVisitor : public JAXBaseInstVisitor {
+class LinenInstVisitor : public NNXBaseInstVisitor {
    public:
-    using JAXBaseInstVisitor::JAXBaseInstVisitor;
+    using NNXBaseInstVisitor::NNXBaseInstVisitor;
 
     void visit(NamedAddress* named) override
     {
