@@ -20,9 +20,17 @@ dependencies = [
 
 [project.optional-dependencies]
 # Extras used only by the reinforcement-learning demo under rl_demo/.
+# Not installed by the CI `uv sync` (default group only); declared so the demo is
+# reproducible via `uv sync --extra rl-demo`.
 rl-demo = [
     "librosax",
     "einops",
+    "distrax",
+    "matplotlib",
+    "orbax-checkpoint",
+    "clu",
+    "tensorflow",   # required by clu.metric_writers, imported by reinforce_demo.py
+    "tensorboard",  # clu.metric_writers.summary_writer imports tensorboard's hparams api
 ]
 
 [tool.uv]
