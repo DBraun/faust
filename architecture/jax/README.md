@@ -14,6 +14,8 @@
   - [Benchmarking Tools](#benchmarking-tools)
 - [Testing](#testing)
 - [Polyphony Support](#polyphony-support)
+- [Saving and Loading Parameters](#saving-and-loading-parameters)
+  - [Functional training with outer `jax.jit`](#functional-training-with-outer-jaxjit)
 - [Troubleshooting](#troubleshooting)
 - [Available Architecture Files](#available-architecture-files)
   - [UI Element Handlers](#ui-element-handlers)
@@ -459,7 +461,7 @@ sample_rate = 44100
 num_frames = 1024
 
 model = SynthVoice(sample_rate=sample_rate)
-state = model._initialize_carry()
+state = model.initialize_carry()
 
 # inputs: (num_inputs, num_frames) — [freq, gain, gate]
 inputs = jnp.stack([
@@ -482,7 +484,7 @@ num_voices = 4
 
 # Create one model, replicate state for each voice
 model = SynthVoice(sample_rate=sample_rate)
-states = jax.tree.map(lambda x: jnp.stack([x] * num_voices), model._initialize_carry())
+states = jax.tree.map(lambda x: jnp.stack([x] * num_voices), model.initialize_carry())
 
 # Per-voice inputs: (num_voices, num_inputs, num_frames)
 freqs = jnp.array([261.63, 329.63, 392.00, 523.25])  # C major chord
@@ -509,12 +511,105 @@ output = jnp.sum(voices, axis=0)  # shape: (1, num_frames)
 
 Because `vmap` compiles into a single fused kernel, this runs at near-constant cost regardless of voice count on GPU/TPU.
 
+### Polyphony under outer `jax.jit` (and backprop into shared params)
+
+The closure example above bakes the model's parameters in as constants. For
+training — or simply to follow the "outer `jax.jit`" convention — split the model
+once into `(graphdef, state)` and run a plain `jax.jit` that merges inside. The
+merged model is a *free variable* of `poly_step`, so its parameters are **shared
+(broadcast) across all voices** while `carry`/`inputs`/`rng` are mapped:
+
+```python
+from flax import nnx
+
+graphdef, params, rest = nnx.split(model, nnx.Param, ...)  # params = shared, learnable
+
+@jax.jit
+def poly_render(params, carries, voice_inputs, rng_keys):
+    m = nnx.merge(graphdef, params, rest)
+    def poly_step(carry, inputs, rng_key):
+        return m.process_block(carry, inputs, rngs=rng_key)
+    voices, _ = jax.vmap(poly_step, in_axes=(0, 0, 0))(carries, voice_inputs, rng_keys)
+    return jnp.sum(voices, axis=0)  # polyphonic mix: (num_outputs, num_frames)
+```
+
+Because the same `params` feed every voice, **gradients accumulate** the per-voice
+contributions onto the one shared parameter set — exactly what you want when
+fitting a polyphonic synth:
+
+```python
+def loss(params, carries, voice_inputs, rng_keys, target):
+    return jnp.mean((poly_render(params, carries, voice_inputs, rng_keys) - target) ** 2)
+
+grads = jax.grad(loss)(params, carries, voice_inputs, rng_keys, target)
+# reverse-mode AD flows through jax.vmap and the inner scan; one optimizer step on
+# `params` (e.g. optax) lowers the loss. The trained params persist with
+# save_params / load_params below, independent of the voice count.
+```
+
+## Saving and Loading Parameters
+
+Trained (or edited) parameters can be written to a portable, framework-agnostic
+[`safetensors`](https://github.com/huggingface/safetensors) file and reloaded
+later. Faust UI parameters are commonly 0-dim scalars, which safetensors cannot
+store directly; the helpers reshape such leaves to `(1,)` on save and restore their
+original shape on load (the affected keys are recorded in the file metadata).
+
+**NNX** (`minimal.py`) — instance methods on the model (state lives in the module):
+
+```python
+model.save_params("synth.safetensors")   # writes every nnx.Param leaf
+
+fresh = mydsp(sample_rate=44100, rngs=nnx.Rngs(0))
+fresh.load_params("synth.safetensors")    # in-place; same compiled DSP structure
+```
+
+**Linen** (`minimal_linen.py`) — module-level functions (params are external):
+
+```python
+from my_compiled_dsp import save_params, load_params
+
+variables = model.init(jax.random.key(0), x)
+save_params(variables, "synth.safetensors")
+
+variables = load_params("synth.safetensors")  # pass to model.apply / model.bind
+y = model.apply(variables, x)
+```
+
+### Functional training with outer `jax.jit`
+
+NNX modules can be trained with a plain `jax.jit` (faster than `nnx.jit`, which
+traverses the module graph in Python on every call — see the
+[Flax performance guide](https://flax.readthedocs.io/en/latest/guides/performance.html)).
+Split the model and optimizer **once**, then merge inside the jitted step and return
+the updated `nnx.state`:
+
+```python
+import optax
+from functools import partial
+
+optimizer = nnx.Optimizer(model, optax.adam(1e-3), wrt=nnx.Param)
+graphdef, state = nnx.split((model, optimizer))   # once, before the loop
+
+@partial(jax.jit, donate_argnums=(1,))
+def train_step(graphdef, state, batch):
+    model, opt = nnx.merge(graphdef, state)
+    loss, grads = nnx.value_and_grad(lambda m: loss_fn(m, batch))(model)
+    opt.update(model=model, grads=grads)
+    return nnx.state((model, opt)), loss
+
+for batch in dataset:
+    state, loss = train_step(graphdef, state, batch)
+
+nnx.update((model, optimizer), state)   # sync the live objects when done
+```
+
 ## Troubleshooting
 
 ### Performance
 
 For optimal performance:
-- Use `jax.jit` or `nnx.jit`
+- Prefer an outer `jax.jit` over `nnx.jit` (split once, merge inside — see [Functional training with outer `jax.jit`](#functional-training-with-outer-jaxjit)).
 - Consider using GPU acceleration with large batch sizes.
 
 ## Available Architecture Files

@@ -27,6 +27,7 @@ from jax.tree_util import tree_map_with_path, DictKey, GetAttrKey
 from flax import nnx, struct
 import optax
 import distrax
+from functools import partial
 from pathlib import Path
 import matplotlib.pyplot as plt
 import datetime
@@ -35,8 +36,11 @@ from clu import metric_writers, periodic_actions
 from clu.metrics import Collection, Average, LastValue
 from flax.training.early_stopping import EarlyStopping
 from einops import rearrange
-import orbax.checkpoint as ocp
-from utils import compile_synth, spectral_distance, batched_spectral_distance, extract_features
+from utils import (
+    compile_synth, spectral_distance, batched_spectral_distance,
+    extract_features, compute_synthrl_reward,
+    save_nnx_params, load_nnx_params,
+)
 
 
 def stack_forest(forest):
@@ -500,35 +504,18 @@ def reinforce_demo(args):
         wrt=nnx.Param
     )
 
-    # Setup checkpointing with Orbax
+    # Checkpoints are portable .safetensors files holding the policy's params.
     ckpt_dir = Path(__file__).parent / args.checkpoint_dir
     ckpt_dir.mkdir(parents=True, exist_ok=True)
-    checkpointer = ocp.StandardCheckpointer()
 
-    # Restore from checkpoint if requested
+    # Restore from a checkpoint if requested (loads policy params in place; the
+    # optimizer state starts fresh, matching the previous Orbax behaviour).
     start_update = 0
     if args.restore_checkpoint is not None:
         restore_path = Path(args.restore_checkpoint).resolve()  # Convert to absolute path
         if restore_path.exists():
             print(f"\nRestoring checkpoint from: {restore_path}")
-            # Create abstract model for structure
-            abstract_policy = nnx.eval_shape(lambda: PolicyWithBaseline(
-                obs_dim, continuous_names, categorical_info, rngs=nnx.Rngs(0),
-                concentration_base=args.concentration_base,
-                concentration_scale=args.concentration_scale,
-                default_mode_values=default_params_normalized
-            ))
-            graphdef, abstract_state = nnx.split(abstract_policy)
-            # Restore state
-            state_restored = checkpointer.restore(restore_path, abstract_state)
-            # Merge into policy
-            policy = nnx.merge(graphdef, state_restored)
-            # Re-create optimizer with restored policy
-            optimizer = nnx.Optimizer(
-                policy,
-                optax.chain(optax.clip_by_global_norm(1.0), optax.adam(lr_schedule)),
-                wrt=nnx.Param
-            )
+            load_nnx_params(policy, restore_path)
             print("✓ Checkpoint restored successfully")
         else:
             print(f"⚠️  Checkpoint not found: {restore_path}, starting from scratch")
@@ -552,7 +539,7 @@ def reinforce_demo(args):
     print(f"\nTensorBoard logs: {log_dir}")
     print(f"  View with: tensorboard --logdir {log_dir}")
     print(f"\nCheckpoint directory: {ckpt_dir}")
-    print(f"  Best model will be saved to: {ckpt_dir / 'best'}")
+    print(f"  Best model will be saved to: {ckpt_dir / 'best.safetensors'}")
 
     print(f"\nTask: Parameter estimation from audio")
     print(f"  - Black-box synth plays C3 with unknown params")
@@ -580,10 +567,15 @@ def reinforce_demo(args):
     print(f"  Multi-scale spectral loss: {args.use_multiscale_loss}")
     print(f"  Feature count: {obs_dim} (expanded MFCCs + spectral contrast)")
 
-    # JIT-compiled update step
-    @nnx.jit
-    def train_step(policy_model, opt, rng, step):
+    # JIT-compiled update step.
+    # Functional pattern: split (policy, optimizer) once before the loop, then run
+    # a plain jax.jit that merges inside and returns the updated nnx.state. This
+    # avoids nnx.jit's per-call Python graph traversal (see Flax performance guide).
+    @partial(jax.jit, donate_argnums=(1,))
+    def train_step(graphdef, state, rng, step):
         """Single REINFORCE update with baseline."""
+        policy_model, opt = nnx.merge(graphdef, state)
+        policy_model.train()  # mode flag lives in graphdef; set it on the merged model
         rng_blackbox, rng_policy, rng_synth = random.split(rng, 3)
         black_box_audio, observations, black_box_params = generate_black_box_batch(rng_blackbox)
 
@@ -604,7 +596,6 @@ def reinforce_demo(args):
 
         # Compute rewards using SynthRL-style multi-component reward
         # Combines spectral convergence, log magnitude error, and MFCC distance
-        from utils import compute_synthrl_reward
         base_rewards = compute_synthrl_reward(generated_audio, black_box_audio, sample_rate)
 
         # Waveform bonus: extra reward for correct categorical prediction
@@ -711,11 +702,12 @@ def reinforce_demo(args):
 
         # Convert to TrainMetrics Collection
         train_metrics = TrainMetrics.single_from_model_output(**metrics)
-        return train_metrics
+        # Return the updated state (donated buffers) plus metrics.
+        return nnx.state((policy_model, opt)), train_metrics
 
-    # JIT-compiled evaluation step
-    @nnx.jit
-    def eval_step(policy_model, observations, target_params, target_audio, rng):
+    # JIT-compiled evaluation step (functional: read-only, no donation).
+    @jax.jit
+    def eval_step(graphdef, state, observations, target_params, target_audio, rng):
         """Single evaluation step to compute parameter estimation metrics.
 
         Args:
@@ -728,6 +720,8 @@ def reinforce_demo(args):
         Returns:
             Dictionary with eval metrics (continuous_mae, categorical_accuracy, spectral_distance)
         """
+        policy_model, _ = nnx.merge(graphdef, state)
+        policy_model.eval()  # deterministic predictions on the merged (read-only) copy
         # Get predictions (deterministic mode) and distribution params
         predicted_params, _, _ = policy_model(observations, rng=None)
         mode, concentration, _ = policy_model.get_distribution_params(observations)
@@ -822,6 +816,11 @@ def reinforce_demo(args):
     else:
         early_stop = None
 
+    # Functional training state: split (policy, optimizer) once; thread (graphdef,
+    # state) through the loop. graphdef is static structure (mode flag, names);
+    # state holds the arrays donated into and out of the jitted train step.
+    graphdef, state = nnx.split((policy, optimizer))
+
     with metric_writers.ensure_flushes(writer):
         for update in range(num_updates):
             # Generate data
@@ -830,7 +829,7 @@ def reinforce_demo(args):
 
             # Train step
             with report_progress.timed("train"):
-                train_metrics = train_step(policy, optimizer, rng, jnp.array(update))
+                state, train_metrics = train_step(graphdef, state, rng, jnp.array(update))
 
             # Accumulate metrics for TensorBoard
             train_metrics_all.append(train_metrics)
@@ -855,17 +854,16 @@ def reinforce_demo(args):
                     eval_audio, eval_features, eval_params = generate_black_box_batch(random.key(10000 + update))
                     num_eval = 20
 
-                    # Run eval step
-                    policy.eval()
+                    # Run eval step (eval mode is set inside on the merged copy)
                     eval_params_slice = {k: v[:num_eval] for k, v in eval_params.items()}
                     eval_metrics_dict = eval_step(
-                        policy,
+                        graphdef,
+                        state,
                         eval_features[:num_eval],
                         eval_params_slice,
                         eval_audio[:num_eval],
                         random.key(20000 + update),
                     )
-                    policy.train()
 
                     # Extract audio for logging (not part of metrics)
                     generated_audio = eval_metrics_dict.pop('generated_audio')
@@ -891,19 +889,19 @@ def reinforce_demo(args):
                     # Checkpoint management and early stopping
                     current_mae = float(eval_computed['continuous_mae'])
 
-                    # Save best checkpoint
+                    # Save best checkpoint (sync live policy from threaded state first)
                     if current_mae < best_mae:
                         best_mae = current_mae
-                        _, state = nnx.split(policy)
-                        best_ckpt_path = ckpt_dir / 'best'
-                        checkpointer.save(best_ckpt_path, state, force=True)
+                        nnx.update((policy, optimizer), state)
+                        best_ckpt_path = ckpt_dir / 'best.safetensors'
+                        save_nnx_params(policy, best_ckpt_path)
                         print(f"  ✓ Saved best checkpoint (MAE={best_mae:.4f}) to: {best_ckpt_path}")
 
                     # Save periodic checkpoint
                     if args.checkpoint_every > 0 and update % args.checkpoint_every == 0:
-                        _, state = nnx.split(policy)
-                        periodic_ckpt_path = ckpt_dir / f'checkpoint_{update:06d}'
-                        checkpointer.save(periodic_ckpt_path, state, force=True)
+                        nnx.update((policy, optimizer), state)
+                        periodic_ckpt_path = ckpt_dir / f'checkpoint_{update:06d}.safetensors'
+                        save_nnx_params(policy, periodic_ckpt_path)
                         print(f"  ✓ Saved periodic checkpoint to: {periodic_ckpt_path}")
 
                     # Early stopping check
@@ -915,6 +913,12 @@ def reinforce_demo(args):
                             print(f"    No improvement for {args.early_stopping_patience} evaluation checks")
                             break
 
+    # Sync the live policy/optimizer from the final threaded state so the
+    # post-loop reporting (final mode, per-parameter breakdown) sees the trained
+    # weights rather than the pre-training init.
+    nnx.update((policy, optimizer), state)
+    policy.eval()  # deterministic predictions for the reporting below
+
     # Final mode
     mode_final, _, _ = policy.get_distribution_params(test_obs)
     print(f"\nFinal mode: {mode_final[0]}")
@@ -922,8 +926,8 @@ def reinforce_demo(args):
     # Checkpoint summary
     if best_mae < float('inf'):
         print(f"\n📦 Best checkpoint saved with MAE: {best_mae:.4f}")
-        print(f"   Location: {ckpt_dir / 'best'}")
-        print(f"   Restore with: --restore-checkpoint {ckpt_dir / 'best'}")
+        print(f"   Location: {ckpt_dir / 'best.safetensors'}")
+        print(f"   Restore with: --restore-checkpoint {ckpt_dir / 'best.safetensors'}")
 
     # Plot training curves
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
@@ -956,11 +960,11 @@ def reinforce_demo(args):
         num_test = 20
         test_audio, test_features, test_params = generate_black_box_batch(random.key(9999))
 
-        # Run eval step
-        policy.eval()
+        # Run eval step (eval mode is set inside on the merged copy)
         test_params_slice = {k: v[:num_test] for k, v in test_params.items()}
         eval_metrics_dict = eval_step(
-            policy,
+            graphdef,
+            state,
             test_features[:num_test],
             test_params_slice,
             test_audio[:num_test],

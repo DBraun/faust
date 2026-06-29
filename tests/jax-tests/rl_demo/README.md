@@ -58,7 +58,7 @@ python reinforce_demo.py \
   --curriculum-stage 2 \
   --stage2-transition-start 0 \
   --stage2-transition-end 1000 \
-  --restore-checkpoint checkpoints_stage1/best \
+  --restore-checkpoint checkpoints_stage1/best.safetensors \
   --checkpoint-dir checkpoints_stage2
 ```
 
@@ -79,7 +79,7 @@ python reinforce_demo.py \
 - `--concentration-schedule`: Sharpen Beta distributions over time
 
 **Checkpointing**:
-- `--restore-checkpoint PATH`: Resume from Orbax checkpoint
+- `--restore-checkpoint PATH`: Resume from a `.safetensors` checkpoint
 - `--checkpoint-dir DIR`: Save location (default: checkpoints)
 - `--checkpoint-every N`: Periodic saves (0=best only)
 - `--early-stopping-patience N`: Stop if no improvement for N evals
@@ -145,7 +145,7 @@ The statistics are computed from 1000 random synthesizer sounds to capture the t
 
 - Faust compiler with NNX backend
 - Python 3.11+
-- JAX, Flax NNX, optax, distrax, orbax-checkpoint
+- JAX, Flax NNX, optax, distrax, safetensors
 - librosax (audio feature extraction)
 - matplotlib, einops (utilities)
 
@@ -163,4 +163,5 @@ pip install jax jax-ai-stack librosax matplotlib einops
 - **Gradient flow**: Uses `stop_gradient` on advantages before normalization when combining supervised + RL losses
 - **Evaluation**: Deterministic (returns mode/argmax), training samples from distributions
 - **Audio rendering**: Vmapped on CPU for faster synthesis (vs GPU overhead for small DSP)
-- **Checkpointing**: Orbax format, stores full NNX model state
+- **Checkpointing**: portable `.safetensors` files, store the policy's parameters
+- **JIT**: outer `jax.jit` over `nnx.split`/`merge` (Trainer-style), not `nnx.jit`

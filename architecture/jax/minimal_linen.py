@@ -15,6 +15,7 @@
 # ************************************************************************
 
 import argparse
+from collections.abc import Mapping
 from functools import partial
 import json
 from pathlib import Path
@@ -167,6 +168,132 @@ def magic_clamp_bwd(res, g):
 
 # Register custom VJP
 magic_clamp.defvjp(magic_clamp_fwd, magic_clamp_bwd)
+
+
+# ---------------------------------------------------------------------------
+# Safetensors parameter persistence (portable, framework-agnostic).
+#
+# safetensors cannot store 0-dim arrays, but Faust UI parameters are commonly
+# scalars (0-dim). Such leaves are reshaped to (1,) on save and their keys are
+# recorded in the file's metadata under "__zero_dim__" so the original 0-dim
+# shape is restored exactly on load.
+#
+# Linen keeps parameters external (a ``variables`` pytree from ``model.init``),
+# so save/load are module-level functions operating on that pytree, rather than
+# instance methods as in the NNX backend.
+# ---------------------------------------------------------------------------
+def _flatten_state(tree: Mapping, prefix: str = "") -> Dict[str, np.ndarray]:
+	"""Flatten a nested parameter mapping into dot-separated keys.
+
+	Args:
+		tree: Nested mapping of names to arrays (or nested mappings).
+		prefix: Key prefix used during recursion.
+
+	Returns:
+		Flat dict mapping dot-separated paths to numpy arrays.
+	"""
+	out: Dict[str, np.ndarray] = {}
+	for k, v in tree.items():
+		key = f"{prefix}.{k}" if prefix else str(k)
+		if isinstance(v, Mapping):
+			out.update(_flatten_state(v, key))
+		else:
+			out[key] = np.asarray(v)
+	return out
+
+
+def _unflatten_state(flat: Dict[str, np.ndarray]) -> Dict[str, Any]:
+	"""Rebuild a nested dict from dot-separated keys (inverse of ``_flatten_state``).
+
+	All-digit path components are converted back to ``int`` so that list/Sequential
+	indices round-trip — sequences use integer keys, and module attribute names are
+	never all-digit.
+
+	Args:
+		flat: Flat dict mapping dot-separated paths to arrays.
+
+	Returns:
+		Nested dict reconstructed from the dotted paths.
+	"""
+	def _key(part: str) -> Union[str, int]:
+		return int(part) if part.isdigit() else part
+
+	out: Dict[Any, Any] = {}
+	for key, value in flat.items():
+		parts = key.split(".")
+		d = out
+		for part in parts[:-1]:
+			d = d.setdefault(_key(part), {})
+		d[_key(parts[-1])] = value
+	return out
+
+
+def _save_state_safetensors(pure_tree: Mapping, path: Union[str, Path]) -> None:
+	"""Write a nested parameter mapping to a ``.safetensors`` file.
+
+	Args:
+		pure_tree: Nested mapping of plain arrays.
+		path: Destination ``.safetensors`` file path.
+	"""
+	from safetensors.numpy import save_file
+
+	flat = _flatten_state(pure_tree)
+	zero_dim: List[str] = []
+	out: Dict[str, np.ndarray] = {}
+	for k, v in flat.items():
+		arr = np.asarray(v)
+		if arr.ndim == 0:
+			# np.ascontiguousarray promotes 0-dim to (1,), so detect/reshape first.
+			zero_dim.append(k)
+			arr = arr.reshape(1)
+		out[k] = np.ascontiguousarray(arr)
+	save_file(out, str(path), metadata={"__zero_dim__": json.dumps(zero_dim)})
+
+
+def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
+	"""Read a ``.safetensors`` file written by ``_save_state_safetensors``.
+
+	Args:
+		path: Source ``.safetensors`` file path.
+
+	Returns:
+		Nested dict of arrays with original (incl. 0-dim) shapes restored.
+	"""
+	from safetensors import safe_open
+
+	flat: Dict[str, np.ndarray] = {}
+	with safe_open(str(path), framework="numpy") as f:
+		meta = f.metadata() or {}
+		for key in f.keys():
+			flat[key] = f.get_tensor(key)
+	zero_dim = json.loads(meta["__zero_dim__"]) if "__zero_dim__" in meta else []
+	for key in zero_dim:
+		flat[key] = flat[key].reshape(())
+	return _unflatten_state(flat)
+
+
+def save_params(variables: Mapping, path: Union[str, Path]) -> None:
+	"""Save Linen ``variables`` to a portable ``.safetensors`` file.
+
+	Args:
+		variables: The variables pytree returned by ``model.init`` (e.g.
+			``{"params": {...}}``).
+		path: Destination ``.safetensors`` file path.
+	"""
+	_save_state_safetensors(variables, path)
+
+
+def load_params(path: Union[str, Path]) -> Dict[str, Any]:
+	"""Load Linen ``variables`` from a ``.safetensors`` file.
+
+	Args:
+		path: Source ``.safetensors`` file written by :func:`save_params`.
+
+	Returns:
+		A ``variables`` dict suitable for ``model.apply`` / ``model.bind``.
+	"""
+	return _load_state_safetensors(path)
+
 
 # Generated code
 <<includeIntrinsic>>

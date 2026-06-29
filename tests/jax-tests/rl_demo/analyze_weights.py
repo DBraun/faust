@@ -10,11 +10,10 @@ This script loads a checkpoint and analyzes:
 import jax
 from jax import numpy as jnp
 from flax import nnx
-import orbax.checkpoint as ocp
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
-from utils import compile_synth
+from utils import compile_synth, load_nnx_params
 import argparse
 
 
@@ -48,20 +47,16 @@ def analyze_checkpoint(checkpoint_path: str):
 
     obs_dim = 20
 
-    # Create abstract model and restore
+    # Construct the policy and load its params from the safetensors checkpoint.
     from reinforce_demo import PolicyWithBaseline
     default_params_normalized = {name: 0.5 for name in continuous_names}
 
-    abstract_policy = nnx.eval_shape(lambda: PolicyWithBaseline(
+    policy = PolicyWithBaseline(
         obs_dim, continuous_names, categorical_info, rngs=nnx.Rngs(0),
         concentration_base=2.0, concentration_scale=5.0,
         default_mode_values=default_params_normalized
-    ))
-    graphdef, abstract_state = nnx.split(abstract_policy)
-
-    checkpointer = ocp.StandardCheckpointer()
-    state_restored = checkpointer.restore(checkpoint_path, abstract_state)
-    policy = nnx.merge(graphdef, state_restored)
+    )
+    load_nnx_params(policy, checkpoint_path)
 
     print("✓ Checkpoint loaded successfully")
 
@@ -248,8 +243,8 @@ def analyze_checkpoint(checkpoint_path: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze REINFORCE policy weights")
-    parser.add_argument("--checkpoint", type=str, default="checkpoints/best",
-                        help="Path to checkpoint to analyze (default: checkpoints/best)")
+    parser.add_argument("--checkpoint", type=str, default="checkpoints/best.safetensors",
+                        help="Path to checkpoint to analyze (default: checkpoints/best.safetensors)")
 
     args = parser.parse_args()
     analyze_checkpoint(args.checkpoint)

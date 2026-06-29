@@ -169,17 +169,23 @@ def online_demo():
     total_samples = num_blocks * block_size
     freq_sweep = jnp.linspace(220, 880, total_samples)
 
-    # JIT-compiled block processing function
-    @nnx.jit
-    def process_one_block(carry_in, input_block, features, rng):
+    # Split the (inference-only) policy once, then run a plain jax.jit step that
+    # merges inside — the outer-jax.jit convention. policy_state is constant across
+    # blocks (the policy is never updated); `carry` is the real loop-carried state.
+    policy_graphdef, policy_state = nnx.split(policy)
+
+    @jax.jit
+    def process_one_block(policy_state, carry_in, input_block, features, rng):
         """Process one block with policy-predicted parameters."""
+        policy_model = nnx.merge(policy_graphdef, policy_state)
+
         # Policy predicts parameters based on features
-        params_normalized_batch = policy(features[None, :])
+        params_normalized_batch = policy_model(features[None, :])
 
         # Extract scalars for process_block
         params_normalized = {name: value[0] for name, value in params_normalized_batch.items()}
 
-        # Process block
+        # Process block (synth is a frozen closure: its params are constants here)
         audio_block, carry_out = synth.process_block(
             carry_in,
             input_block,
@@ -212,7 +218,8 @@ def online_demo():
 
         # Process this block (JIT-compiled)
         rng = random.key(block_idx)
-        carry, audio_block, params_normalized = process_one_block(carry, input_block, features, rng)
+        carry, audio_block, params_normalized = process_one_block(
+            policy_state, carry, input_block, features, rng)
 
         # Store results
         all_audio_blocks.append(audio_block)

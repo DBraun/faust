@@ -5,7 +5,10 @@ Shared utilities for RL demos.
 import sys
 from pathlib import Path
 import subprocess
+import json
 import jax
+import numpy as np
+from flax import nnx
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from test_utils import load_module
@@ -177,7 +180,7 @@ def compute_synthrl_reward(
     # SC = ||spec_gen - spec_target||_F / ||spec_target||_F
     fro_diff = jnp.sqrt(jnp.sum((spec_gen - spec_target) ** 2, axis=(1, 2, 3)))  # [batch]
     fro_target = jnp.sqrt(jnp.sum(spec_target ** 2, axis=(1, 2, 3)))  # [batch]
-    sc = jnp.clip(fro_diff / (fro_target + 1e-8), a_max=5.0)  # [batch]
+    sc = jnp.clip(fro_diff / (fro_target + 1e-8), max=5.0)  # [batch]
 
     # 3. Log Magnitude Error
     log_spec_gen = jnp.log10(spec_gen + 1e-8)
@@ -196,7 +199,7 @@ def compute_synthrl_reward(
     combined_error = sc_coef * sc + log_mae_coef * log_mae + mfcc_coef * mfcc_mae
 
     # 6. Inverse reward with clamping
-    rewards = 1.0 / jnp.clip(combined_error, a_min=0.1, a_max=5.0)
+    rewards = 1.0 / jnp.clip(combined_error, min=0.1, max=5.0)
 
     return rewards
 
@@ -360,3 +363,83 @@ def multi_scale_spectral_loss(predicted: jnp.ndarray, target: jnp.ndarray, sampl
     fft_sizes = [2048, 1024, 512]
     losses = [spectral_distance(predicted, target, sample_rate, fft_size) for fft_size in fft_sizes]
     return jnp.mean(jnp.array(losses))
+
+
+def _flatten_params(tree, prefix=""):
+    """Flatten a nested pure-dict of arrays into dot-separated keys."""
+    out = {}
+    for k, v in tree.items():
+        key = f"{prefix}.{k}" if prefix else str(k)
+        if isinstance(v, dict):
+            out.update(_flatten_params(v, key))
+        else:
+            out[key] = np.asarray(v)
+    return out
+
+
+def _unflatten_params(flat):
+    """Rebuild a nested dict from dot-separated keys (inverse of _flatten_params).
+
+    All-digit path components are converted back to ``int`` so that list/Sequential
+    indices in the nnx state (e.g. ``backbone.layers.0.kernel``) round-trip — nnx
+    uses integer keys for sequences, and module attribute names are never all-digit.
+    """
+    def _key(part):
+        return int(part) if part.isdigit() else part
+
+    out = {}
+    for key, value in flat.items():
+        parts = key.split(".")
+        d = out
+        for part in parts[:-1]:
+            d = d.setdefault(_key(part), {})
+        d[_key(parts[-1])] = value
+    return out
+
+
+def save_nnx_params(module: nnx.Module, path) -> None:
+    """Save an nnx.Module's learnable parameters to a portable .safetensors file.
+
+    Mirrors the ``save_params`` helper that Faust now emits in its NNX
+    architecture file, so the RL demo can checkpoint the policy without Orbax.
+    0-dim scalars (which safetensors cannot store) are reshaped to (1,) and their
+    keys recorded under the ``__zero_dim__`` metadata key for exact restoration.
+
+    Args:
+        module: The nnx.Module whose ``nnx.Param`` leaves are saved.
+        path: Destination ``.safetensors`` file path.
+    """
+    from safetensors.numpy import save_file
+
+    pure = nnx.to_pure_dict(nnx.state(module, nnx.Param))
+    flat = _flatten_params(pure)
+    zero_dim = []
+    out = {}
+    for k, v in flat.items():
+        arr = np.asarray(v)
+        if arr.ndim == 0:
+            # np.ascontiguousarray promotes 0-dim to (1,), so detect/reshape first.
+            zero_dim.append(k)
+            arr = arr.reshape(1)
+        out[k] = np.ascontiguousarray(arr)
+    save_file(out, str(path), metadata={"__zero_dim__": json.dumps(zero_dim)})
+
+
+def load_nnx_params(module: nnx.Module, path) -> None:
+    """Load learnable parameters in-place into an nnx.Module from a .safetensors file.
+
+    Args:
+        module: The nnx.Module to update in place (same structure as when saved).
+        path: Source ``.safetensors`` file written by :func:`save_nnx_params`.
+    """
+    from safetensors import safe_open
+
+    flat = {}
+    with safe_open(str(path), framework="numpy") as f:
+        meta = f.metadata() or {}
+        for key in f.keys():
+            flat[key] = f.get_tensor(key)
+    zero_dim = json.loads(meta["__zero_dim__"]) if "__zero_dim__" in meta else []
+    for key in zero_dim:
+        flat[key] = flat[key].reshape(())
+    nnx.update(module, _unflatten_params(flat))

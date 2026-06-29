@@ -214,3 +214,123 @@ class TestPolyphonyVmap:
 		# Second block should differ from first (oscillator phase has advanced,
 		# AR envelope has evolved)
 		assert not jnp.allclose(voices1, voices2), "Consecutive blocks should differ (state should evolve)"
+
+
+@pytest.mark.integration
+@pytest.mark.gradient
+@pytest.mark.ci
+class TestPolyphonyGradSafetensors:
+	"""Backprop into shared params and safetensors round-trip, under outer jax.jit + vmap.
+
+	Uses poly_synth_param.dsp, which keeps one shared learnable ``cutoff`` slider
+	(an ``nnx.Param`` broadcast across voices) alongside the per-voice freq/gain/gate
+	inputs. This demonstrates the conventions this branch standardizes on:
+
+	1. The functional split/merge ``jax.jit(jax.vmap(...))`` render matches the
+	   plain closed-over-model render (composition).
+	2. Gradients flow into the shared param — the per-voice contributions
+	   accumulate onto the one shared param set — and a small gradient step lowers
+	   the loss (polyphonic training).
+	3. ``save_params``/``load_params`` reproduce identical params, audio, and
+	   gradients, independent of voice count (portable persistence).
+	"""
+
+	@staticmethod
+	def _make_voice_inputs(freqs, num_frames, gain=0.5):
+		"""Create per-voice inputs: (num_voices, 3, num_frames)."""
+		return jnp.stack([
+			jnp.stack([
+				jnp.full(num_frames, f),
+				jnp.full(num_frames, gain),
+				jnp.full(num_frames, 1.0),
+			])
+			for f in freqs
+		])
+
+	def test_backprop_and_safetensors_roundtrip(self, compile_and_load_dsp, tmp_path):
+		mydsp = compile_and_load_dsp("poly_synth_param.dsp", extra_args=["-double"])
+		model = mydsp(sample_rate=44100, rngs=nnx.Rngs(0, params=0, rng_stream=0))
+
+		assert model.num_inputs == 3  # freq, gain, gate as inputs
+
+		num_voices, num_frames = 3, 256
+		freqs = jnp.array([261.63, 329.63, 392.00])  # C major triad
+		voice_inputs = self._make_voice_inputs(freqs, num_frames)
+		carries = jax.tree.map(
+			lambda x: jnp.stack([x] * num_voices), model.initialize_carry()
+		)
+		rng_keys = random.split(random.key(0), num_voices)
+
+		# Split the shared learnable params (the differentiation target) from the
+		# rest of the module state (RNG counters, fixed variables, ...).
+		graphdef, params_state, rest = nnx.split(model, nnx.Param, ...)
+		assert len(jax.tree.leaves(params_state)) == 1  # exactly the shared cutoff
+
+		@jax.jit
+		def poly_render(params_state):
+			m = nnx.merge(graphdef, params_state, rest)
+
+			def poly_step(carry, inputs, rng_key):
+				return m.process_block(carry, inputs, rngs=rng_key)
+
+			# Params are shared (closed over in `m`); voices/carry/rng are mapped.
+			voices, _ = jax.vmap(poly_step, in_axes=(0, 0, 0))(
+				carries, voice_inputs, rng_keys
+			)
+			return jnp.sum(voices, axis=0)  # polyphonic mix: (num_outputs, frames)
+
+		# (1) Composition: the split/merge jit+vmap render matches the plain
+		# closed-over-model render.
+		def poly_render_plain(m):
+			def poly_step(carry, inputs, rng_key):
+				return m.process_block(carry, inputs, rngs=rng_key)
+
+			voices, _ = jax.vmap(poly_step)(carries, voice_inputs, rng_keys)
+			return jnp.sum(voices, axis=0)
+
+		out_jit = poly_render(params_state)
+		out_plain = poly_render_plain(model)
+		assert out_jit.shape == (model.num_outputs, num_frames)
+		assert jnp.allclose(out_jit, out_plain, atol=1e-6)
+
+		# Target: the polyphonic mix at a different (reachable) normalized cutoff.
+		target_state = jax.tree.map(lambda p: jnp.full_like(p, 0.6), params_state)
+		target = poly_render(target_state)
+
+		def loss_fn(ps):
+			return jnp.mean((poly_render(ps) - target) ** 2)
+
+		# (2) Backprop into the shared param.
+		loss0, grads = jax.value_and_grad(loss_fn)(params_state)
+		gleaves = jax.tree.leaves(grads)
+		assert all(jnp.all(jnp.isfinite(g)) for g in gleaves)
+		gnorm = jnp.sqrt(sum(jnp.sum(g ** 2) for g in gleaves))
+		assert float(gnorm) > 0.0, "shared-param gradient should be non-zero"
+
+		# A small (normalized) gradient-descent step lowers the loss.
+		lr = 1e-2
+		stepped = jax.tree.map(
+			lambda p, g: p - lr * g / (gnorm + 1e-12), params_state, grads
+		)
+		loss1 = loss_fn(stepped)
+		assert float(loss1) < float(loss0)
+
+		# (3) Save/load round-trip reproduces params, audio, and gradients.
+		nnx.update(model, stepped)  # write trained params into the live model
+		ckpt = tmp_path / "poly.safetensors"
+		model.save_params(ckpt)
+
+		fresh = mydsp(sample_rate=44100, rngs=nnx.Rngs(0, params=0, rng_stream=0))
+		fresh.load_params(ckpt)
+		_, fresh_ps, _ = nnx.split(fresh, nnx.Param, ...)
+
+		# (a) identical params
+		for a, b in zip(jax.tree.leaves(stepped), jax.tree.leaves(fresh_ps)):
+			assert jnp.array_equal(a, b)
+		# (b) identical polyphonic audio
+		assert jnp.array_equal(poly_render(fresh_ps), poly_render(stepped))
+		# (c) identical gradients
+		_, grads_stepped = jax.value_and_grad(loss_fn)(stepped)
+		_, grads_fresh = jax.value_and_grad(loss_fn)(fresh_ps)
+		for a, b in zip(jax.tree.leaves(grads_stepped), jax.tree.leaves(grads_fresh)):
+			assert jnp.array_equal(a, b)
