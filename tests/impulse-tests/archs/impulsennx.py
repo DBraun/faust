@@ -55,7 +55,6 @@ with suppress_metal_message():
 	from jax import numpy as jnp, random
 	from flax import nnx
 	from flax.nnx import rnglib
-	from flax.nnx.module import first_from
 	from flax.typing import Dtype
 
 try:

@@ -229,12 +229,16 @@ def _unflatten_state(flat: Dict[str, np.ndarray]) -> Dict[str, Any]:
 	return out
 
 
-def _save_state_safetensors(pure_tree: Mapping, path: str | Path) -> None:
+def _save_state_safetensors(
+	pure_tree: Mapping, path: str | Path, extra_metadata: Optional[Dict[str, str]] = None
+) -> None:
 	"""Write a nested parameter mapping to a ``.safetensors`` file.
 
 	Args:
 		pure_tree: Nested mapping of plain arrays.
 		path: Destination ``.safetensors`` file path.
+		extra_metadata: Additional string entries stored in the file's metadata
+			header.
 	"""
 	from safetensors.numpy import save_file
 
@@ -248,17 +252,21 @@ def _save_state_safetensors(pure_tree: Mapping, path: str | Path) -> None:
 			zero_dim.append(k)
 			arr = arr.reshape(1)
 		out[k] = np.ascontiguousarray(arr)
-	save_file(out, str(path), metadata={"__zero_dim__": json.dumps(zero_dim)})
+	metadata = {"__zero_dim__": json.dumps(zero_dim)}
+	if extra_metadata is not None:
+		metadata.update(extra_metadata)
+	save_file(out, str(path), metadata=metadata)
 
 
-def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
+def _load_state_safetensors(path: str | Path) -> Tuple[Dict[str, Any], Dict[str, str]]:
 	"""Read a ``.safetensors`` file written by ``_save_state_safetensors``.
 
 	Args:
 		path: Source ``.safetensors`` file path.
 
 	Returns:
-		Nested dict of arrays with original (incl. 0-dim) shapes restored.
+		Tuple of (nested dict of arrays with original (incl. 0-dim) shapes
+		restored, metadata dict from the file header).
 	"""
 	from safetensors import safe_open
 
@@ -270,7 +278,7 @@ def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
 	zero_dim = json.loads(meta["__zero_dim__"]) if "__zero_dim__" in meta else []
 	for key in zero_dim:
 		flat[key] = flat[key].reshape(())
-	return _unflatten_state(flat)
+	return _unflatten_state(flat), meta
 
 
 def save_params(variables: Mapping, path: str | Path) -> None:
@@ -284,16 +292,38 @@ def save_params(variables: Mapping, path: str | Path) -> None:
 	_save_state_safetensors(variables, path)
 
 
-def load_params(path: str | Path) -> Dict[str, Any]:
+def load_params(path: str | Path, expected: Optional[Mapping] = None) -> Dict[str, Any]:
 	"""Load Linen ``variables`` from a ``.safetensors`` file.
 
 	Args:
 		path: Source ``.safetensors`` file written by :func:`save_params`.
+		expected: Optional reference ``variables`` pytree (e.g. the result of
+			``model.init``) whose structure the file must match exactly.
+			Recommended: different DSPs reuse generic parameter names (most
+			DSPs have an ``fHslider0``), so a file saved from the wrong DSP
+			could otherwise be applied without complaint and silently produce
+			wrong values.
 
 	Returns:
 		A ``variables`` dict suitable for ``model.apply`` / ``model.bind``.
+
+	Raises:
+		UnknownParameterError: If ``expected`` is given and the file's
+			parameter set does not match its structure.
 	"""
-	return _load_state_safetensors(path)
+	tree, _metadata = _load_state_safetensors(path)
+	if expected is not None:
+		file_keys = set(_flatten_state(tree))
+		expected_keys = set(_flatten_state(expected))
+		missing = sorted(expected_keys - file_keys)
+		unexpected = sorted(file_keys - expected_keys)
+		if missing or unexpected:
+			raise UnknownParameterError(
+				f"'{path}' does not match the expected variables structure: "
+				f"parameters missing from the file: {missing}; "
+				f"parameters not in the expected structure: {unexpected}."
+			)
+	return tree
 
 
 # Generated code
@@ -871,14 +901,14 @@ def load_params(path: str | Path) -> Dict[str, Any]:
 		Uses the ``nentry`` RNG name to avoid collision with
 		``jax.random.gumbel`` which Flax NNX binds onto ``Rngs``.
 
+		Flax Linen modules hold no ``rngs`` attribute (RNGs are supplied per
+		call), so the key can only come from the ``rngs`` argument.
+
 		Returns:
 			JAX PRNG key if nentry is available and model is in
 			training mode, None otherwise.
 		"""
 		if self.deterministic:
-			return None
-		rngs = first_from(rngs, self.rngs, error_msg=None)
-		if rngs is None:
 			return None
 		if isinstance(rngs, rnglib.Rngs) and "nentry" in rngs:
 			return rngs.nentry()
@@ -1192,10 +1222,14 @@ def load_params(path: str | Path) -> Dict[str, Any]:
 				f"Valid zones are: {sorted(defaults.keys())}"
 			)
 
-		# Merge: start with defaults, override with provided values
+		# Merge: start with defaults, override with provided values.
+		# Convert plain Python/numpy values to jnp arrays; values that are
+		# already jax Arrays (including tracers under jit) pass through.
+		# Note: don't test isinstance(value, ArrayLike) here — ArrayLike is a
+		# Union that includes Python floats, so it would skip the conversion.
 		result = dict(defaults)
 		for zone, value in partial_params.items():
-			result[zone] = jnp.array(value) if not isinstance(value, ArrayLike) else value
+			result[zone] = value if isinstance(value, Array) else jnp.array(value)
 
 		return result
 
@@ -1450,7 +1484,8 @@ def test(args: argparse.Namespace) -> None:
 			args.input, mono=False, sr=args.sample_rate, duration=args.duration
 		)
 		if input_audio.ndim == 1:
-			input_audio = input_audio.unsqueeze(0)
+			# librosa returns a 1-dim array for mono files; add the channel axis.
+			input_audio = np.expand_dims(input_audio, 0)
 
 		N_SAMPLES = input_audio.shape[1]
 		N_CHANNELS = input_audio.shape[0]

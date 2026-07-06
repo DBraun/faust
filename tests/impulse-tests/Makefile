@@ -84,6 +84,7 @@ help:
 	@echo " 'rnbo'   : check double output with rnbo backend and various options"
 	@echo " 'dlang'  : check double output with D backend and various options"
 	@echo " 'nnx'    : check double output with NNX backend and various options"
+	@echo " 'linen'  : check double output with Linen backend and various options"
 	@echo " 'julia'  : check double output with Julia backend and various options"
 	@echo " 'jsfx'   : check double output with JSFX backend and various options"
 	@echo " 'assemblyscript' : smoke-test output generation with AssemblyScript backend"
@@ -146,6 +147,7 @@ github_action:
 	$(MAKE) -f Make.rust outdir=rust/no CARGOOPTIONS="" FAUSTOPTIONS="-I ../../libraries/ -double -a archs/rust/architecture_trait_ff64.rs"
 	$(MAKE) -f Make.gcc outdir=cpp/double lang=cpp arch=impulsearch.cpp FAUSTOPTIONS="-I ../../libraries/ -I dsp -double"
 	$(MAKE) -f Make.nnx outdir=nnx/double FAUSTOPTIONS="-I ../../libraries/ -double"
+	$(MAKE) -f Make.linen outdir=linen/double FAUSTOPTIONS="-I ../../libraries/ -double"
 
 #########################################################################
 # c++ and c backends

@@ -228,12 +228,17 @@ def _unflatten_state(flat: Dict[str, np.ndarray]) -> Dict[str, Any]:
 	return out
 
 
-def _save_state_safetensors(pure_tree: Mapping, path: str | Path) -> None:
+def _save_state_safetensors(
+	pure_tree: Mapping, path: str | Path, extra_metadata: Optional[Dict[str, str]] = None
+) -> None:
 	"""Write a nested parameter mapping to a ``.safetensors`` file.
 
 	Args:
 		pure_tree: Nested mapping of plain arrays (no Variable wrappers).
 		path: Destination ``.safetensors`` file path.
+		extra_metadata: Additional string entries stored in the file's metadata
+			header (e.g. DSP identity, used by ``load_params`` to verify the
+			file matches the model it is loaded into).
 	"""
 	from safetensors.numpy import save_file
 
@@ -247,17 +252,21 @@ def _save_state_safetensors(pure_tree: Mapping, path: str | Path) -> None:
 			zero_dim.append(k)
 			arr = arr.reshape(1)
 		out[k] = np.ascontiguousarray(arr)
-	save_file(out, str(path), metadata={"__zero_dim__": json.dumps(zero_dim)})
+	metadata = {"__zero_dim__": json.dumps(zero_dim)}
+	if extra_metadata is not None:
+		metadata.update(extra_metadata)
+	save_file(out, str(path), metadata=metadata)
 
 
-def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
+def _load_state_safetensors(path: str | Path) -> Tuple[Dict[str, Any], Dict[str, str]]:
 	"""Read a ``.safetensors`` file written by ``_save_state_safetensors``.
 
 	Args:
 		path: Source ``.safetensors`` file path.
 
 	Returns:
-		Nested dict of arrays with original (incl. 0-dim) shapes restored.
+		Tuple of (nested dict of arrays with original (incl. 0-dim) shapes
+		restored, metadata dict from the file header).
 	"""
 	from safetensors import safe_open
 
@@ -269,7 +278,7 @@ def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
 	zero_dim = json.loads(meta["__zero_dim__"]) if "__zero_dim__" in meta else []
 	for key in zero_dim:
 		flat[key] = flat[key].reshape(())
-	return _unflatten_state(flat)
+	return _unflatten_state(flat), meta
 
 
 # Generated code
@@ -847,9 +856,11 @@ def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
 		"""
 		if self.deterministic:
 			return None
-		rngs = first_from(rngs, self.rngs, error_msg=None)
+		# Fall back to the module's own rngs; a missing RNG is not an error here
+		# (nentry sampling is simply skipped), so don't use first_from(), which
+		# raises when every candidate is None.
 		if rngs is None:
-			return None
+			rngs = self.rngs
 		if isinstance(rngs, rnglib.Rngs) and "nentry" in rngs:
 			return rngs.nentry()
 		# note: don't check if rngs is Array because we require the user to instantiate nnx.Rngs with an `nentry` kwarg.
@@ -1160,10 +1171,14 @@ def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
 				f"Valid zones are: {sorted(defaults.keys())}"
 			)
 
-		# Merge: start with defaults, override with provided values
+		# Merge: start with defaults, override with provided values.
+		# Convert plain Python/numpy values to jnp arrays; values that are
+		# already jax Arrays (including tracers under jit) pass through.
+		# Note: don't test isinstance(value, ArrayLike) here — ArrayLike is a
+		# Union that includes Python floats, so it would skip the conversion.
 		result = dict(defaults)
 		for zone, value in partial_params.items():
-			result[zone] = jnp.array(value) if not isinstance(value, ArrayLike) else value
+			result[zone] = value if isinstance(value, Array) else jnp.array(value)
 
 		return result
 
@@ -1192,6 +1207,24 @@ def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
 
 		return state
 
+	def _param_labels(self) -> Dict[str, str]:
+		"""Map each input parameter zone to its human-readable full label.
+
+		Bargraphs are excluded: they are output-only displays, not saved
+		parameters. The map serves as a lightweight identity for the compiled
+		DSP — two different DSPs can share generic zone names like
+		``fHslider0``, but they will rarely also share the full UI label paths.
+
+		Returns:
+			Dict mapping zones (e.g. ``fHslider0``) to full labels
+			(e.g. ``Synth/Oscillator/Frequency``).
+		"""
+		return {
+			zone: meta["full_label"]
+			for zone, meta in self._parameter_metadata.items()
+			if not meta.get("output_only")
+		}
+
 	def save_params(self, path: str | Path) -> None:
 		"""Save the model's learnable parameters to a ``.safetensors`` file.
 
@@ -1200,21 +1233,84 @@ def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
 		safetensors file. Non-trainable state (fixed temperatures, RNG counters,
 		soundfile metadata) is reconstructed at construction time and is not saved.
 
+		The file's metadata header records the DSP class name and the
+		zone-to-label map so that :meth:`load_params` can verify the file was
+		saved from the same compiled DSP.
+
 		Args:
 			path: Destination ``.safetensors`` file path.
 		"""
-		_save_state_safetensors(nnx.to_pure_dict(nnx.state(self, nnx.Param)), path)
+		extra_metadata = {
+			"__dsp_class__": type(self).__name__,
+			"__labels__": json.dumps(self._param_labels()),
+		}
+		_save_state_safetensors(
+			nnx.to_pure_dict(nnx.state(self, nnx.Param)), path, extra_metadata
+		)
 
-	def load_params(self, path: str | Path) -> None:
+	def load_params(self, path: str | Path, strict: bool = True) -> None:
 		"""Load learnable parameters in-place from a ``.safetensors`` file.
 
 		The file must have been written by :meth:`save_params` for a model with
-		the same structure (e.g. the same compiled DSP).
+		the same structure (e.g. the same compiled DSP). Because different DSPs
+		reuse generic zone names (most DSPs have an ``fHslider0``), a file from
+		the wrong DSP could otherwise load without complaint and silently
+		produce wrong values — so by default the parameter names and UI labels
+		recorded in the file are checked against this model first.
 
 		Args:
 			path: Source ``.safetensors`` file path.
+			strict: If True (default), raise :class:`UnknownParameterError`
+				unless the file's parameter set and UI labels exactly match this
+				model's. If False, skip the checks and load only the parameters
+				present in both the file and the model (useful when transferring
+				values between related DSP variants).
+
+		Raises:
+			UnknownParameterError: If ``strict`` is True and the file does not
+				match this model.
 		"""
-		nnx.update(self, _load_state_safetensors(path))
+		tree, metadata = _load_state_safetensors(path)
+		flat_file = _flatten_state(tree)
+		model_keys = set(_flatten_state(nnx.to_pure_dict(nnx.state(self, nnx.Param))))
+
+		if not strict:
+			kept = {k: v for k, v in flat_file.items() if k in model_keys}
+			nnx.update(self, _unflatten_state(kept))
+			return
+
+		saved_class = metadata.get("__dsp_class__", "<unknown>")
+		missing = sorted(model_keys - set(flat_file))
+		unexpected = sorted(set(flat_file) - model_keys)
+		if missing or unexpected:
+			raise UnknownParameterError(
+				f"'{path}' (saved from DSP class '{saved_class}') does not match "
+				f"{type(self).__name__}: parameters missing from the file: {missing}; "
+				f"parameters not in this model: {unexpected}. "
+				f"Pass strict=False to load only the overlapping parameters."
+			)
+
+		if "__labels__" in metadata:
+			file_labels = json.loads(metadata["__labels__"])
+			model_labels = self._param_labels()
+			if file_labels != model_labels:
+				differing = {
+					zone: (file_labels.get(zone), model_labels.get(zone))
+					for zone in sorted(set(file_labels) | set(model_labels))
+					if file_labels.get(zone) != model_labels.get(zone)
+				}
+				details = ", ".join(
+					f"{zone}: file={file_label!r} vs model={model_label!r}"
+					for zone, (file_label, model_label) in differing.items()
+				)
+				raise UnknownParameterError(
+					f"'{path}' (saved from DSP class '{saved_class}') has the same "
+					f"parameter names as {type(self).__name__} but different UI "
+					f"labels, so it comes from a different DSP: {details}. "
+					f"Pass strict=False to load anyway."
+				)
+
+		nnx.update(self, tree)
 
 	def _get_bargraph_zones(self) -> list:
 		"""Return list of bargraph zone names (output-only parameters)."""
@@ -1465,7 +1561,8 @@ def test(args: argparse.Namespace) -> None:
 			args.input, mono=False, sr=args.sample_rate, duration=args.duration
 		)
 		if input_audio.ndim == 1:
-			input_audio = input_audio.unsqueeze(0)
+			# librosa returns a 1-dim array for mono files; add the channel axis.
+			input_audio = np.expand_dims(input_audio, 0)
 
 		N_SAMPLES = input_audio.shape[1]
 		N_CHANNELS = input_audio.shape[0]

@@ -99,3 +99,48 @@ def test_linen_safetensors_roundtrip(tmp_path):
 
 	# apply() with the loaded variables reproduces the output.
 	assert jnp.array_equal(model.apply(loaded, x), y_before)
+
+
+def test_nnx_strict_load_rejects_different_dsp(tmp_path):
+	"""Strict load refuses a file saved from a different DSP.
+
+	learnable_gain.dsp and learnable_filter.dsp both compile to a single
+	``fHslider0`` parameter, so the tensor names alone cannot tell them apart;
+	the UI labels recorded in the file metadata ("gain" vs "cutoff") can.
+	"""
+	gain_module = _compile("nnx", _ARCH_NNX, "learnable_gain.dsp")
+	filter_module = _compile("nnx", _ARCH_NNX, "learnable_filter.dsp")
+
+	gain = gain_module.mydsp(sample_rate=44100, rngs=nnx.Rngs(0, params=0, rng_stream=0))
+	ckpt = tmp_path / "gain.safetensors"
+	gain.save_params(ckpt)
+
+	filt = filter_module.mydsp(sample_rate=44100, rngs=nnx.Rngs(0, params=0, rng_stream=0))
+	with pytest.raises(filter_module.UnknownParameterError):
+		filt.load_params(ckpt)
+
+	# strict=False is the explicit opt-out: overlapping parameters are loaded.
+	filt.load_params(ckpt, strict=False)
+	assert jnp.array_equal(filt.fHslider0[...], gain.fHslider0[...])
+
+
+def test_linen_load_params_expected_validation(tmp_path):
+	"""Linen load_params(expected=...) accepts a matching file, rejects a mismatch."""
+	module = _compile("linen", _ARCH_LINEN, "learnable_gain.dsp")
+	mydsp = module.mydsp
+	model = mydsp(sample_rate=44100, faust_float=jnp.float32)
+
+	x = jnp.ones((model.num_inputs, 64), dtype=jnp.float32)
+	variables = model.init(jax.random.key(0), x)
+
+	ckpt = tmp_path / "gain_linen.safetensors"
+	module.save_params(variables, ckpt)
+
+	# Matching structure loads fine.
+	loaded = module.load_params(ckpt, expected=variables)
+	assert jnp.array_equal(model.apply(loaded, x), model.apply(variables, x))
+
+	# A structure with an extra parameter must be rejected.
+	wrong = {"params": {**variables["params"], "fHslider1": jnp.zeros(())}}
+	with pytest.raises(module.UnknownParameterError):
+		module.load_params(ckpt, expected=wrong)

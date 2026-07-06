@@ -990,7 +990,7 @@ bool global::hasForeignFunction(const string& name, const string& inc_file)
          startWith(gOutputLang, "cmajor") || startWith(gOutputLang, "codebox") ||
          (gOutputLang == "dlang") || (gOutputLang == "csharp") || (gOutputLang == "rust") ||
          (gOutputLang == "julia") || startWith(gOutputLang, "jsfx") || (gOutputLang == "nnx") ||
-         (gOutputLang == "asc") || (gOutputLang == "linen"));
+         (gOutputLang == "linen") || (gOutputLang == "asc"));
 
     return (internal_math_ff &&
             (gMathForeignFunctions.find(name) != gMathForeignFunctions.end())) ||

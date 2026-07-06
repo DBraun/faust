@@ -132,6 +132,13 @@ faust -lang nnx -mcd 64 mydsp.dsp -a architecture/jax/minimal.py
 
 Both strategies produce identical numerical results -- the choice is purely about performance. The default of 16 is a good balance for most DSPs.
 
+#### Implementation Files
+
+The delay-line strategy selection and code generation live in:
+
+- `compiler/generator/instructions_compiler_nnx.cpp/hh` — compiler logic choosing between the strategies
+- `compiler/generator/nnx/nnx_instructions.hh` — visitor converting array accesses to the chosen form
+
 #### Verifying Correctness
 
 The impulse test suite (`tests/impulse-tests/Make.nnx`) validates that JAX output matches the C++ reference implementation for 82 DSP files. To test a specific DSP:

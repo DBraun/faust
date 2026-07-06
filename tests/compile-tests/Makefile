@@ -92,6 +92,7 @@ all:
 	$(MAKE) -f Make.lang outdir=jsfx lang=jsfx ext=jsfx FAUSTOPTIONS=""
 	$(MAKE) -f Make.lang outdir=interp lang=interp ext=fbc FAUSTOPTIONS=""
 	$(MAKE) -f Make.lang outdir=nnx lang=nnx ext=nnx FAUSTOPTIONS=""
+	$(MAKE) -f Make.lang outdir=linen lang=linen ext=linen FAUSTOPTIONS=""
 	$(MAKE) -f Make.lang outdir=llvm lang=llvm ext=bc  FAUSTOPTIONS=""
 	$(MAKE) -f Make.lang outdir=rust lang=rust ext=rs FAUSTOPTIONS=""
 	$(MAKE) -f Make.lang outdir=wasm lang=wasm ext=wasm FAUSTOPTIONS=""

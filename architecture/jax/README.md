@@ -7,6 +7,7 @@
   - [Basic Example](#basic-example)
   - [Real-time Processing](#real-time-processing)
 - [NNX vs Linen](#nnx-vs-linen)
+  - [Generated-Module API Stability](#generated-module-api-stability)
 - [Features](#features)
   - [Random Number Generation](#random-number-generation)
 - [Performance Optimizations](#performance-optimizations)
@@ -15,6 +16,7 @@
 - [Testing](#testing)
 - [Polyphony Support](#polyphony-support)
 - [Saving and Loading Parameters](#saving-and-loading-parameters)
+  - [Scope: parameters only, not training checkpoints](#scope-parameters-only-not-training-checkpoints)
   - [Functional training with outer `jax.jit`](#functional-training-with-outer-jaxjit)
 - [Troubleshooting](#troubleshooting)
 - [Available Architecture Files](#available-architecture-files)
@@ -234,6 +236,23 @@ Both backends produce the same numerical output and share the same architecture 
 **Key difference**: NNX separates UI parameters into a `params` dict and state variables into a `state` dict. Linen puts everything in a single `state` dict (params are merged into the carry before the scan loop).
 
 **When to use Linen**: If your existing codebase uses Flax Linen (`nn.Module`) and you want to integrate Faust DSPs without migrating to NNX.
+
+### Generated-Module API Stability
+
+Downstream projects write wrappers and base classes that mirror the generated
+module's interface so that hand-written JAX processors and Faust-compiled ones
+are interchangeable. The following surface should therefore be treated as a
+contract and changed only deliberately:
+
+- Constructor: `MyDSP(sample_rate=..., rngs=...)` plus the `faust_float`,
+  `soundfile_dirs`, `use_magic_clamp`, and `return_bargraphs` keywords
+- Processing: `__call__(inputs, params=..., normalized_params=..., ...)` and
+  `initialize_carry()` / `process_block(carry, inputs, ...)`
+- Introspection and addressing: `num_inputs`, `num_outputs`,
+  `get_parameter_metadata()`, `label_to_zone()`, `params_from_labels()`,
+  `with_defaults()`, `unnormalize()` / `unnormalize_params()`
+- Zone naming (`fHslider0`, `fEntry0`, ...) and the normalized `[0, 1]`
+  parameter convention
 
 ## Features
 
@@ -564,6 +583,19 @@ fresh = mydsp(sample_rate=44100, rngs=nnx.Rngs(0))
 fresh.load_params("synth.safetensors")    # in-place; same compiled DSP structure
 ```
 
+`save_params` also records the DSP class name and the zone-to-label map (e.g.
+`fHslider0` → `"Synth/Oscillator/Frequency"`) in the file's metadata header.
+By default `load_params` verifies that the file's parameter names *and* UI
+labels exactly match the model, and raises `UnknownParameterError` otherwise.
+This matters because zone names are generic — almost every DSP has an
+`fHslider0` — so without the check, a file saved from a different DSP would
+load without complaint and silently produce wrong parameter values. To
+deliberately transfer parameters between related DSP variants, opt out with:
+
+```python
+model.load_params("other_dsp.safetensors", strict=False)  # loads only overlapping params
+```
+
 **Linen** (`minimal_linen.py`) — module-level functions (params are external):
 
 ```python
@@ -572,9 +604,22 @@ from my_compiled_dsp import save_params, load_params
 variables = model.init(jax.random.key(0), x)
 save_params(variables, "synth.safetensors")
 
-variables = load_params("synth.safetensors")  # pass to model.apply / model.bind
+# Recommended: pass a reference pytree so a file from the wrong DSP is rejected
+variables = load_params("synth.safetensors", expected=model.init(jax.random.key(0), x))
 y = model.apply(variables, x)
 ```
+
+### Scope: parameters only, not training checkpoints
+
+The safetensors helpers are a *distribution* format: they persist the learnable
+parameters and nothing else, so a file is small, portable, and readable from any
+framework. They are deliberately **not** a training-checkpoint system — they do
+not save optimizer state, learning-rate schedules, RNG streams, or data-iterator
+positions, and the Faust repository does not provide a training loop. For
+resumable training, manage full checkpoints in your own code with a dedicated
+library such as [Orbax](https://orbax.readthedocs.io/) (save
+`nnx.state((model, optimizer))`), and export to safetensors with `save_params`
+when you want to publish or share the trained result.
 
 ### Functional training with outer `jax.jit`
 
