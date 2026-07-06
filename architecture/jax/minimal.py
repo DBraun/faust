@@ -20,7 +20,7 @@ import dataclasses
 from functools import partial
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any, Callable, Union
+from typing import Dict, List, Tuple, Optional, Any, Callable
 import warnings
 import numpy as np
 import jax
@@ -215,7 +215,7 @@ def _unflatten_state(flat: Dict[str, np.ndarray]) -> Dict[str, Any]:
 	Returns:
 		Nested dict reconstructed from the dotted paths.
 	"""
-	def _key(part: str) -> Union[str, int]:
+	def _key(part: str) -> str | int:
 		return int(part) if part.isdigit() else part
 
 	out: Dict[Any, Any] = {}
@@ -228,7 +228,7 @@ def _unflatten_state(flat: Dict[str, np.ndarray]) -> Dict[str, Any]:
 	return out
 
 
-def _save_state_safetensors(pure_tree: Mapping, path: Union[str, Path]) -> None:
+def _save_state_safetensors(pure_tree: Mapping, path: str | Path) -> None:
 	"""Write a nested parameter mapping to a ``.safetensors`` file.
 
 	Args:
@@ -250,7 +250,7 @@ def _save_state_safetensors(pure_tree: Mapping, path: Union[str, Path]) -> None:
 	save_file(out, str(path), metadata={"__zero_dim__": json.dumps(zero_dim)})
 
 
-def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
+def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
 	"""Read a ``.safetensors`` file written by ``_save_state_safetensors``.
 
 	Args:
@@ -799,7 +799,7 @@ def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
 		return random.beta(rng, a=a, b=b, shape=(), dtype=self.faust_float)
 
 	def _extract_rng_key(
-		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]]
+		self, rngs: Optional[rnglib.Rngs | rnglib.RngStream | Array]
 	) -> Array:
 		"""
 		Extract a JAX random key from various RNG sources.
@@ -830,7 +830,7 @@ def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
 			)
 
 	def _extract_gumbel_key(
-		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]]
+		self, rngs: Optional[rnglib.Rngs | rnglib.RngStream] = None
 	) -> Optional[Array]:
 		"""
 		Extract a Gumbel PRNG key for nentry Gumbel-softmax sampling.
@@ -1192,7 +1192,7 @@ def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
 
 		return state
 
-	def save_params(self, path: Union[str, Path]) -> None:
+	def save_params(self, path: str | Path) -> None:
 		"""Save the model's learnable parameters to a ``.safetensors`` file.
 
 		Serializes every ``nnx.Param`` leaf (UI parameters, nentry logits,
@@ -1205,7 +1205,7 @@ def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
 		"""
 		_save_state_safetensors(nnx.to_pure_dict(nnx.state(self, nnx.Param)), path)
 
-	def load_params(self, path: Union[str, Path]) -> None:
+	def load_params(self, path: str | Path) -> None:
 		"""Load learnable parameters in-place from a ``.safetensors`` file.
 
 		The file must have been written by :meth:`save_params` for a model with
@@ -1230,7 +1230,7 @@ def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
 		params: Optional[Dict[str, ArrayLike]] = None,
 		normalized_params: Optional[Dict[str, ArrayLike]] = None,
 		unroll: int = 1,
-		rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]] = None,
+		rngs: Optional[rnglib.Rngs | rnglib.RngStream | Array] = None,
 	) -> Tuple[Array, Dict[str, Array]]:
 		"""
 		Process one block of audio and return updated state.
@@ -1323,7 +1323,7 @@ def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
 		params: Optional[Dict[str, ArrayLike]] = None,
 		normalized_params: Optional[Dict[str, ArrayLike]] = None,
 		unroll: int = 1,
-		rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]] = None,
+		rngs: Optional[rnglib.Rngs | rnglib.RngStream | Array] = None,
 	) -> Array:
 		"""
 		Process audio through the DSP.

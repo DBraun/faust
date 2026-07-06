@@ -19,7 +19,7 @@ from collections.abc import Mapping
 from functools import partial
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any, Callable, Union
+from typing import Dict, List, Tuple, Optional, Any, Callable
 import warnings
 import numpy as np
 import jax
@@ -216,7 +216,7 @@ def _unflatten_state(flat: Dict[str, np.ndarray]) -> Dict[str, Any]:
 	Returns:
 		Nested dict reconstructed from the dotted paths.
 	"""
-	def _key(part: str) -> Union[str, int]:
+	def _key(part: str) -> str | int:
 		return int(part) if part.isdigit() else part
 
 	out: Dict[Any, Any] = {}
@@ -229,7 +229,7 @@ def _unflatten_state(flat: Dict[str, np.ndarray]) -> Dict[str, Any]:
 	return out
 
 
-def _save_state_safetensors(pure_tree: Mapping, path: Union[str, Path]) -> None:
+def _save_state_safetensors(pure_tree: Mapping, path: str | Path) -> None:
 	"""Write a nested parameter mapping to a ``.safetensors`` file.
 
 	Args:
@@ -251,7 +251,7 @@ def _save_state_safetensors(pure_tree: Mapping, path: Union[str, Path]) -> None:
 	save_file(out, str(path), metadata={"__zero_dim__": json.dumps(zero_dim)})
 
 
-def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
+def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
 	"""Read a ``.safetensors`` file written by ``_save_state_safetensors``.
 
 	Args:
@@ -273,7 +273,7 @@ def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
 	return _unflatten_state(flat)
 
 
-def save_params(variables: Mapping, path: Union[str, Path]) -> None:
+def save_params(variables: Mapping, path: str | Path) -> None:
 	"""Save Linen ``variables`` to a portable ``.safetensors`` file.
 
 	Args:
@@ -284,7 +284,7 @@ def save_params(variables: Mapping, path: Union[str, Path]) -> None:
 	_save_state_safetensors(variables, path)
 
 
-def load_params(path: Union[str, Path]) -> Dict[str, Any]:
+def load_params(path: str | Path) -> Dict[str, Any]:
 	"""Load Linen ``variables`` from a ``.safetensors`` file.
 
 	Args:
@@ -828,7 +828,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		return random.beta(rng, a=a, b=b, shape=(), dtype=self.faust_float)
 
 	def _extract_rng_key(
-		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]] = None
+		self, rngs: Optional[rnglib.Rngs | rnglib.RngStream | Array] = None
 	) -> Array:
 		"""
 		Extract a JAX random key from various RNG sources.
@@ -860,7 +860,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 			)
 
 	def _extract_gumbel_key(
-		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]] = None
+		self, rngs: Optional[rnglib.Rngs | rnglib.RngStream] = None
 	) -> Optional[Array]:
 		"""
 		Extract a Gumbel PRNG key for nentry Gumbel-softmax sampling.
@@ -877,6 +877,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		"""
 		if self.deterministic:
 			return None
+		rngs = first_from(rngs, self.rngs, error_msg=None)
 		if rngs is None:
 			return None
 		if isinstance(rngs, rnglib.Rngs) and "nentry" in rngs:
@@ -1233,7 +1234,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		params: Optional[Dict[str, ArrayLike]] = None,
 		normalized_params: Optional[Dict[str, ArrayLike]] = None,
 		unroll: int = 1,
-		rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]] = None,
+		rngs: Optional[rnglib.Rngs | rnglib.RngStream | Array] = None,
 	) -> Tuple[Array, Dict[str, Array]]:
 		"""
 		Process one block of audio and return updated state.
@@ -1311,7 +1312,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		params: Optional[Dict[str, ArrayLike]] = None,
 		normalized_params: Optional[Dict[str, ArrayLike]] = None,
 		unroll: int = 1,
-		rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]] = None,
+		rngs: Optional[rnglib.Rngs | rnglib.RngStream | Array] = None,
 	) -> Array:
 		"""
 		Process audio through the DSP.
