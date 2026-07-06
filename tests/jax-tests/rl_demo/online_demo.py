@@ -7,21 +7,29 @@ This demonstrates:
 3. Policy adapting over time based on recent audio
 4. Streaming use case (like VST plugin or real-time effects)
 
-Key difference from rl_policy_demo.py:
+Key difference from reinforce_demo.py:
 - Uses process_block() instead of __call__()
 - Maintains carry state across blocks
 - Parameters can change between blocks
 - Models real-time/streaming scenarios
 
 Run: python3 online_demo.py
+
+By default the policy is randomly initialized (it demonstrates the streaming
+API, not learned behaviour). To stream with a policy trained by
+reinforce_demo.py, pass its checkpoint:
+
+    python3 online_demo.py --restore-checkpoint checkpoints_stage2/best.safetensors
 """
+
+import argparse
 
 import jax
 from jax import numpy as jnp, random
 from flax import nnx
 from pathlib import Path
 import matplotlib.pyplot as plt
-from utils import compile_synth, spectral_distance
+from utils import compile_synth, extract_features as extract_window_features, load_nnx_params
 from librosax.feature import rms, spectral_centroid, zero_crossing_rate, spectral_rolloff
 
 
@@ -117,7 +125,7 @@ def extract_features(audio_block: jnp.ndarray, sample_rate: int = 44100) -> jnp.
     return jnp.array([rms_val, spec_centroid, zcr, rolloff])
 
 
-def online_demo():
+def online_demo(args):
     """Demonstrate online/streaming processing with adaptive parameters."""
     print("\n" + "="*70)
     print("Online Demo: Streaming Processing with Adaptive Parameters")
@@ -153,12 +161,35 @@ def online_demo():
     print(f"  Total blocks: {num_blocks}")
     print(f"  Duration: {num_blocks * block_size / sample_rate:.2f} seconds")
 
-    # Initialize policy
-    feature_dim = 4  # Simple features: mean, std, max, min
-    policy = OnlinePolicy(feature_dim, continuous_names, categorical_info, rngs=nnx.Rngs(42))
+    # Initialize policy.
+    # Trained mode: reuse the actor trained by reinforce_demo.py. It expects the
+    # same 20-dim normalized features it saw in training, computed over a rolling
+    # window matching the training clip length (0.3 s).
+    use_trained = args.restore_checkpoint is not None
+    if use_trained:
+        from reinforce_demo import PolicyWithBaseline
+
+        feature_dim = 20
+        policy = PolicyWithBaseline(feature_dim, continuous_names, categorical_info,
+                                    rngs=nnx.Rngs(42))
+        ckpt = Path(args.restore_checkpoint).resolve()
+        load_nnx_params(policy, ckpt)
+        policy.eval()  # deterministic: Beta mode / argmax
+        window_samples = int(0.3 * sample_rate)
+        audio_window = jnp.zeros((1, synth.num_outputs, window_samples))
+        print(f"\nLoaded trained policy from: {ckpt}")
+    else:
+        feature_dim = 4  # RMS, spectral centroid, ZCR, rolloff
+        policy = OnlinePolicy(feature_dim, continuous_names, categorical_info, rngs=nnx.Rngs(42))
+        print("\nNo --restore-checkpoint given: using a randomly initialized policy.")
+        print("(This demonstrates the streaming API; train one with reinforce_demo.py.)")
 
     print(f"\nOnline Policy:")
-    print(f"  Input: Audio features [{feature_dim}] (RMS, spectral centroid, ZCR, rolloff)")
+    if use_trained:
+        print(f"  Input: Audio features [{feature_dim}] over a rolling 0.3 s window "
+              f"(same features as reinforce_demo.py training)")
+    else:
+        print(f"  Input: Audio features [{feature_dim}] (RMS, spectral centroid, ZCR, rolloff)")
     print(f"  Output: Adapted parameters for next block")
     print(f"  Updates: Every block (real-time adaptation)")
 
@@ -179,8 +210,13 @@ def online_demo():
         """Process one block with policy-predicted parameters."""
         policy_model = nnx.merge(policy_graphdef, policy_state)
 
-        # Policy predicts parameters based on features
-        params_normalized_batch = policy_model(features[None, :])
+        # Policy predicts parameters based on features. The trained actor
+        # (PolicyWithBaseline, in eval mode) returns (actions, log_prob, entropy);
+        # the simple OnlinePolicy returns the params dict directly.
+        if use_trained:
+            params_normalized_batch, _, _ = policy_model(features[None, :], None)
+        else:
+            params_normalized_batch = policy_model(features[None, :])
 
         # Extract scalars for process_block
         params_normalized = {name: value[0] for name, value in params_normalized_batch.items()}
@@ -211,7 +247,15 @@ def online_demo():
         input_block = freq_block.reshape(synth.num_inputs, -1)
 
         # Extract features from previous output (or zeros for first block)
-        if block_idx == 0:
+        if use_trained:
+            # Rolling 0.3 s window of recent output, analyzed with the same
+            # 20-dim normalized features the policy was trained on.
+            if block_idx > 0:
+                audio_window = jnp.concatenate(
+                    [audio_window[..., block_size:], all_audio_blocks[-1][None]], axis=-1)
+            features = extract_window_features(
+                audio_window, sample_rate=sample_rate, use_stats_normalization=True)[0]
+        elif block_idx == 0:
             features = jnp.zeros(feature_dim)
         else:
             features = extract_features(all_audio_blocks[-1], sample_rate)
@@ -281,4 +325,11 @@ def online_demo():
 
 
 if __name__ == "__main__":
-    online_demo()
+    parser = argparse.ArgumentParser(
+        description="Streaming demo: process_block with per-block parameter updates")
+    parser.add_argument(
+        "--restore-checkpoint", type=str, default=None,
+        help="Load a trained policy (.safetensors from reinforce_demo.py, e.g. "
+             "checkpoints_stage2/best.safetensors). Without it, a randomly "
+             "initialized policy demonstrates the streaming API.")
+    online_demo(parser.parse_args())

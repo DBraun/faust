@@ -62,6 +62,19 @@ python reinforce_demo.py \
   --checkpoint-dir checkpoints_stage2
 ```
 
+**Stage 3** (cross-domain, RL only): targets are rendered by a *different*
+synth (`synth2.dsp`, an FM voice), so no ground-truth parameters exist in the
+policy's parameter space — training runs on the audio reward alone, as in
+SynthRL's out-of-domain stage. Best-checkpoint selection and early stopping
+switch to spectral distance; parameter metrics are reported as NaN.
+```bash
+python reinforce_demo.py \
+  --num-updates 1000 \
+  --cross-domain-dsp synth2.dsp \
+  --restore-checkpoint checkpoints_stage2/best.safetensors \
+  --checkpoint-dir checkpoints_stage3
+```
+
 ### Key Arguments
 
 **Training**:
@@ -73,6 +86,7 @@ python reinforce_demo.py \
 - `--curriculum-stage {1,2,3}`: 1=supervised, 2=transition, 3=RL only
 - `--stage2-transition-start/end`: When to blend supervised→RL in Stage 2
 - `--param-loss-coeff`: Supervised loss weight (1.0 for Stage 1, 0.3 for Stage 2)
+- `--cross-domain-dsp FILE`: Render targets with a different synth (forces RL-only Stage 3)
 
 **Schedules**:
 - `--entropy-decay`: Decay exploration over training
@@ -93,8 +107,10 @@ Metrics logged: policy/value loss, reward, MAE, categorical accuracy, gradient n
 
 ## Files
 
-- **`synth.dsp`** - Example synth (2 continuous + 1 categorical param)
+- **`synth.dsp`** - Example synth the policy drives (2 continuous + 1 categorical param)
+- **`synth2.dsp`** - Out-of-domain FM synth used as the target in cross-domain Stage 3
 - **`reinforce_demo.py`** - Main REINFORCE implementation
+- **`online_demo.py`** - Streaming demo (process_block + per-block parameter updates); pass `--restore-checkpoint` to stream with a trained policy
 - **`utils.py`** - Compilation, feature extraction, SynthRL reward
 - **`compute_feature_stats.py`** - Generate normalization statistics
 - **`feature_stats.json`** - Normalization statistics (mean/std/min/max for 20 features)
@@ -120,7 +136,20 @@ reward = 1 / clamp(0.7*SC + 0.27*log_mae + 0.03*mfcc_mae, 0.1, 5.0)
 Optax schedules blend supervised and RL losses:
 - **Stage 1**: `loss = param_loss` (foundation)
 - **Stage 2**: `loss = α*rl_loss + (1-α)*param_loss` where α transitions 0→1
-- **Stage 3**: `loss = rl_loss` (cross-domain generalization)
+- **Stage 3**: `loss = rl_loss`; with `--cross-domain-dsp synth2.dsp` the targets
+  come from a different synth (cross-domain generalization, no ground-truth params)
+
+### Differences from the SynthRL paper
+This demo keeps the paper's reward and curriculum but deliberately simplifies:
+- **Continuous parameters are stochastic here** (Beta distributions with policy
+  gradient); SynthRL leaves them deterministic and trains them only with the
+  supervised loss.
+- **Variance reduction** uses a learned value baseline instead of SynthRL's
+  reward-based prioritized experience replay (PER). PER assumes a fixed target
+  dataset with per-target replay; this demo samples fresh random targets every
+  update, so PER is not implemented.
+- Observations are 20 hand-crafted normalized features + an MLP, not a
+  mel-spectrogram + CNN/Transformer.
 
 ### Feature Extraction
 Extracts 20 features from audio (via `librosax`):

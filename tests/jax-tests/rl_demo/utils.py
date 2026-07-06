@@ -27,17 +27,20 @@ from librosax.feature import (
 )
 
 
-def compile_synth():
+def compile_synth(dsp_name: str = "synth.dsp"):
     """
-    Compile synth.dsp to Python module.
+    Compile a DSP file from this directory to a Python module.
+
+    Args:
+        dsp_name: Filename of the DSP to compile (default: "synth.dsp").
 
     Returns:
         The compiled mydsp class, or None if compilation failed
     """
-    print("Compiling synth.dsp...")
+    print(f"Compiling {dsp_name}...")
 
-    dsp_file = Path(__file__).parent / "synth.dsp"
-    output_file = Path(__file__).parent / "synth.py"
+    dsp_file = Path(__file__).parent / dsp_name
+    output_file = dsp_file.with_suffix(".py")
 
     # Try to use Faust from source tree first, fallback to installed version
     faust_bin = Path(__file__).parent.parent.parent.parent / "build" / "bin" / "faust"
@@ -68,7 +71,7 @@ def compile_synth():
         return None
 
     print("✓ Compilation successful")
-    return load_module(output_file, "synth").mydsp
+    return load_module(output_file, dsp_file.stem).mydsp
 
 
 def spectral_distance(audio1: jnp.ndarray, audio2: jnp.ndarray, sample_rate: int, n_fft: int = 2048) -> jnp.ndarray:
@@ -344,25 +347,6 @@ def extract_features(audio: jnp.ndarray, sample_rate: int = 44100, n_fft: int = 
         ], axis=1)  # Stack along feature dimension -> [batch, 20]
 
     return features
-
-
-def multi_scale_spectral_loss(predicted: jnp.ndarray, target: jnp.ndarray, sample_rate: int = 44100) -> jnp.ndarray:
-    """
-    Multi-scale spectral loss using mel-spectrograms.
-
-    Computes loss at multiple FFT sizes for better perceptual similarity.
-
-    Args:
-        predicted: Predicted audio [batch, channels, samples]
-        target: Target audio [batch, channels, samples]
-        sample_rate: Sample rate in Hz
-
-    Returns:
-        Combined spectral loss
-    """
-    fft_sizes = [2048, 1024, 512]
-    losses = [spectral_distance(predicted, target, sample_rate, fft_size) for fft_size in fft_sizes]
-    return jnp.mean(jnp.array(losses))
 
 
 def _flatten_params(tree, prefix=""):

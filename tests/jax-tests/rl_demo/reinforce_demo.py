@@ -29,7 +29,6 @@ import optax
 import distrax
 from functools import partial
 from pathlib import Path
-import matplotlib.pyplot as plt
 import datetime
 import argparse
 from clu import metric_writers, periodic_actions
@@ -37,7 +36,7 @@ from clu.metrics import Collection, Average, LastValue
 from flax.training.early_stopping import EarlyStopping
 from einops import rearrange
 from utils import (
-    compile_synth, spectral_distance, batched_spectral_distance,
+    compile_synth, batched_spectral_distance,
     extract_features, compute_synthrl_reward,
     save_nnx_params, load_nnx_params,
 )
@@ -129,6 +128,7 @@ class TrainMetrics(Collection):
     entropy: Average.from_output("entropy")
     entropy_coeff: LastValue.from_output("entropy_coeff")
     concentration_scale: LastValue.from_output("concentration_scale")
+    rl_weight: LastValue.from_output("rl_weight")
     mean_value: Average.from_output("mean_value")
     mean_advantage: Average.from_output("mean_advantage")
     learning_rate: LastValue.from_output("learning_rate")
@@ -376,6 +376,32 @@ def reinforce_demo(args):
     if categorical_info:
         print(f"Categorical parameters: {list(categorical_info.keys())}")
 
+    # Cross-domain mode (SynthRL Stage 3): black-box targets come from a
+    # DIFFERENT synth, so no ground-truth parameters exist in the policy's
+    # parameter space and training runs on the audio reward alone.
+    cross_domain = args.cross_domain_dsp is not None
+    if cross_domain:
+        target_class = compile_synth(args.cross_domain_dsp)
+        if target_class is None:
+            return
+        target_rngs = nnx.Rngs(1, params=1, rng_stream=1, nentry=43)
+        target_synth = target_class(sample_rate=sample_rate, faust_float=jnp.float32, rngs=target_rngs)
+        target_synth.eval()
+        assert target_synth.num_inputs == synth.num_inputs, \
+            "target synth must take the same inputs (frequency) as synth.dsp"
+        print(f"\nCross-domain mode: targets rendered by {args.cross_domain_dsp}; "
+              f"the policy still drives synth.dsp")
+    else:
+        target_synth = synth
+
+    # Parameter spaces used to RANDOMIZE the black-box targets (the target
+    # synth's own spaces; identical to the policy's in the in-domain case).
+    target_continuous_names = list(target_synth.get_continuous_params().keys())
+    target_categorical_info = {
+        name: len(info['logits'])
+        for name, info in target_synth.get_categorical_params().items()
+    }
+
     # C3 note
     num_samples = int(sample_rate * duration)
     c3_freq = 130.81
@@ -383,27 +409,30 @@ def reinforce_demo(args):
 
     print(f"\nInput: C3 note ({c3_freq} Hz) for {duration}s")
 
-    def generate_black_box_batch(rng):
-        """Generate batch of black-box audio with random parameters."""
-        keys = random.split(rng, batch_size)
+    def generate_black_box_batch(rng, n=batch_size):
+        """Generate a batch of n black-box audio targets with random parameters."""
+        keys = random.split(rng, n)
 
         def generate_one(key):
             random_continuous = {}
             key_cont, key_cat = random.split(key, 2)
-            keys_params = random.split(key_cont, len(continuous_names))
+            keys_params = random.split(key_cont, len(target_continuous_names))
 
-            for name, k in zip(continuous_names, keys_params):
+            for name, k in zip(target_continuous_names, keys_params):
                 random_continuous[name] = random.uniform(k)
 
             random_categorical = {}
-            if categorical_info:
-                for name, num_opts in categorical_info.items():
-                    random_categorical[name] = random.randint(key_cat, (), 0, num_opts).astype(jnp.float32)
+            if target_categorical_info:
+                # One independent key per categorical parameter (a shared key
+                # would make multiple categorical params perfectly correlated).
+                cat_keys = random.split(key_cat, len(target_categorical_info))
+                for (name, num_opts), k in zip(target_categorical_info.items(), cat_keys):
+                    random_categorical[name] = random.randint(k, (), 0, num_opts).astype(jnp.float32)
 
             black_box_params = {**random_continuous, **random_categorical}
             # Render audio on CPU for faster synthesis
             with jax.default_device(jax.devices('cpu')[0]):
-                audio = synth(c3_input, normalized_params=black_box_params, rngs=key)
+                audio = target_synth(c3_input, normalized_params=black_box_params, rngs=key)
 
             return audio, black_box_params
 
@@ -436,6 +465,16 @@ def reinforce_demo(args):
     value_loss_coeff = 0.5
     param_loss_coeff = args.param_loss_coeff
     waveform_bonus_coeff = args.waveform_bonus_coeff
+
+    if cross_domain:
+        # No ground-truth parameters exist in the policy's parameter space, so
+        # supervision and the categorical bonus are meaningless. Force pure RL
+        # (SynthRL Stage 3), whatever the flags say.
+        if param_loss_coeff > 0 or waveform_bonus_coeff > 0 or args.curriculum_stage != 3:
+            print("\nCross-domain mode forces Stage-3 (RL-only) training: "
+                  "disabling param loss and waveform bonus.")
+        param_loss_coeff = 0.0
+        waveform_bonus_coeff = 0.0
 
     # Schedules - use warmup + cosine decay for LR
     warmup_steps = min(100, num_updates // 5)  # Adaptive warmup
@@ -498,6 +537,9 @@ def reinforce_demo(args):
         # Stage 3: pure RL
         rl_weight_schedule = optax.constant_schedule(1.0)
 
+    if cross_domain:
+        rl_weight_schedule = optax.constant_schedule(1.0)
+
     optimizer = nnx.Optimizer(
         policy,
         optax.chain(optax.clip_by_global_norm(1.0), optax.adam(lr_schedule)),
@@ -553,7 +595,9 @@ def reinforce_demo(args):
     print(f"  Updates: {num_updates}")
 
     # Curriculum stage description
-    if args.curriculum_stage == 1:
+    if cross_domain:
+        stage_desc = f"Stage 3 (cross-domain): RL only, targets from {args.cross_domain_dsp}"
+    elif args.curriculum_stage == 1:
         stage_desc = "Stage 1: Supervised only (param_loss)"
     elif args.curriculum_stage == 2:
         stage_desc = f"Stage 2: Transition (steps {args.stage2_transition_start}→{args.stage2_transition_end})"
@@ -564,7 +608,6 @@ def reinforce_demo(args):
     print(f"\nAdvanced features:")
     print(f"  Supervised param loss coeff: {param_loss_coeff}")
     print(f"  Waveform bonus: {waveform_bonus_coeff}")
-    print(f"  Multi-scale spectral loss: {args.use_multiscale_loss}")
     print(f"  Feature count: {obs_dim} (expanded MFCCs + spectral contrast)")
 
     # JIT-compiled update step.
@@ -743,33 +786,39 @@ def reinforce_demo(args):
         mean_spectral_dist = jnp.mean(distances)
 
         # Compute parameter metrics IN NORMALIZED SPACE (0-1 range)
-        # This makes MAE meaningful across different parameter scales
-
-        # Continuous MAE (in normalized space)
-        if continuous_names:
-            maes = []
-            for name in continuous_names:
-                pred = predicted_params[name]  # Already normalized
-                act = target_params[name]      # Already normalized
-                mae = jnp.mean(jnp.abs(pred - act))
-                maes.append(mae)
-            continuous_mae = jnp.mean(jnp.array(maes))
+        # This makes MAE meaningful across different parameter scales.
+        # Cross-domain: target params live in the TARGET synth's parameter
+        # space, so parameter metrics are undefined - report NaN so logs and
+        # plots show the gap explicitly rather than a misleading number.
+        if cross_domain:
+            continuous_mae = jnp.array(jnp.nan)
+            categorical_accuracy = jnp.array(jnp.nan)
         else:
-            continuous_mae = jnp.array(0.0)
+            # Continuous MAE (in normalized space)
+            if continuous_names:
+                maes = []
+                for name in continuous_names:
+                    pred = predicted_params[name]  # Already normalized
+                    act = target_params[name]      # Already normalized
+                    mae = jnp.mean(jnp.abs(pred - act))
+                    maes.append(mae)
+                continuous_mae = jnp.mean(jnp.array(maes))
+            else:
+                continuous_mae = jnp.array(0.0)
 
-        # Categorical accuracy (no unnormalization needed - already indices)
-        if categorical_info:
-            accuracies = []
-            for name in categorical_info.keys():
-                # Predicted params in eval mode are already argmax indices (0, 1, 2, 3 as floats)
-                # Target params are also generated as indices
-                pred = predicted_params[name].astype(jnp.int32)
-                act = target_params[name].astype(jnp.int32)
-                acc = jnp.mean(pred == act)
-                accuracies.append(acc)
-            categorical_accuracy = jnp.mean(jnp.array(accuracies))
-        else:
-            categorical_accuracy = jnp.array(1.0)
+            # Categorical accuracy (no unnormalization needed - already indices)
+            if categorical_info:
+                accuracies = []
+                for name in categorical_info.keys():
+                    # Predicted params in eval mode are already argmax indices (0, 1, 2, 3 as floats)
+                    # Target params are also generated as indices
+                    pred = predicted_params[name].astype(jnp.int32)
+                    act = target_params[name].astype(jnp.int32)
+                    acc = jnp.mean(pred == act)
+                    accuracies.append(acc)
+                categorical_accuracy = jnp.mean(jnp.array(accuracies))
+            else:
+                categorical_accuracy = jnp.array(1.0)
 
         # Concentration statistics (sharpness of distributions)
         concentration_mean = jnp.mean(concentration)
@@ -797,9 +846,6 @@ def reinforce_demo(args):
 
     # Training loop with metrics tracking
     print(f"\nTraining...")
-    loss_history = []
-    reward_history = []
-    entropy_history = []
 
     # Initial mode
     test_obs = random.normal(random.key(8888), (1, obs_dim))
@@ -808,8 +854,10 @@ def reinforce_demo(args):
 
     train_metrics_all = []
 
-    # Early stopping setup
-    best_mae = float('inf')
+    # Early stopping / checkpoint selection metric: parameter MAE in-domain,
+    # spectral distance in cross-domain mode (no ground-truth params exist).
+    selection_metric_name = 'spectral_distance' if cross_domain else 'continuous_mae'
+    best_metric = float('inf')
     if args.early_stopping_patience > 0:
         early_stop = EarlyStopping(min_delta=args.early_stopping_min_delta, patience=args.early_stopping_patience)
         print(f"\nEarly stopping enabled: patience={args.early_stopping_patience}, min_delta={args.early_stopping_min_delta}")
@@ -847,21 +895,28 @@ def reinforce_demo(args):
             with report_progress.timed("hooks"):
                 report_progress(update)
 
+            # Periodic checkpoint (independent of the evaluation cadence)
+            if args.checkpoint_every > 0 and update > 0 and update % args.checkpoint_every == 0:
+                nnx.update((policy, optimizer), state)
+                periodic_ckpt_path = ckpt_dir / f'checkpoint_{update:06d}.safetensors'
+                save_nnx_params(policy, periodic_ckpt_path)
+                print(f"  ✓ Saved periodic checkpoint to: {periodic_ckpt_path}")
+
             # Periodic evaluation
             if eval_every_steps > 0 and (update % eval_every_steps == 0 or update == num_updates - 1):
                 with report_progress.timed("eval"):
-                    # Generate eval batch
-                    eval_audio, eval_features, eval_params = generate_black_box_batch(random.key(10000 + update))
+                    # Generate eval batch (only as many targets as we evaluate)
                     num_eval = 20
+                    eval_audio, eval_features, eval_params = generate_black_box_batch(
+                        random.key(10000 + update), n=num_eval)
 
                     # Run eval step (eval mode is set inside on the merged copy)
-                    eval_params_slice = {k: v[:num_eval] for k, v in eval_params.items()}
                     eval_metrics_dict = eval_step(
                         graphdef,
                         state,
-                        eval_features[:num_eval],
-                        eval_params_slice,
-                        eval_audio[:num_eval],
+                        eval_features,
+                        eval_params,
+                        eval_audio,
                         random.key(20000 + update),
                     )
 
@@ -887,29 +942,24 @@ def reinforce_demo(args):
                     )
 
                     # Checkpoint management and early stopping
-                    current_mae = float(eval_computed['continuous_mae'])
+                    current_metric = float(eval_computed[selection_metric_name])
 
                     # Save best checkpoint (sync live policy from threaded state first)
-                    if current_mae < best_mae:
-                        best_mae = current_mae
+                    if current_metric < best_metric:
+                        best_metric = current_metric
                         nnx.update((policy, optimizer), state)
                         best_ckpt_path = ckpt_dir / 'best.safetensors'
                         save_nnx_params(policy, best_ckpt_path)
-                        print(f"  ✓ Saved best checkpoint (MAE={best_mae:.4f}) to: {best_ckpt_path}")
-
-                    # Save periodic checkpoint
-                    if args.checkpoint_every > 0 and update % args.checkpoint_every == 0:
-                        nnx.update((policy, optimizer), state)
-                        periodic_ckpt_path = ckpt_dir / f'checkpoint_{update:06d}.safetensors'
-                        save_nnx_params(policy, periodic_ckpt_path)
-                        print(f"  ✓ Saved periodic checkpoint to: {periodic_ckpt_path}")
+                        print(f"  ✓ Saved best checkpoint ({selection_metric_name}={best_metric:.4f}) "
+                              f"to: {best_ckpt_path}")
 
                     # Early stopping check
                     if early_stop is not None:
-                        early_stop = early_stop.update(current_mae)
+                        early_stop = early_stop.update(current_metric)
                         if early_stop.should_stop:
                             print(f"\n⚠️  Early stopping triggered at update {update}")
-                            print(f"    Best MAE: {early_stop.best_metric:.4f}, Current MAE: {current_mae:.4f}")
+                            print(f"    Best {selection_metric_name}: {early_stop.best_metric:.4f}, "
+                                  f"current: {current_metric:.4f}")
                             print(f"    No improvement for {args.early_stopping_patience} evaluation checks")
                             break
 
@@ -923,51 +973,24 @@ def reinforce_demo(args):
     mode_final, _, _ = policy.get_distribution_params(test_obs)
     print(f"\nFinal mode: {mode_final[0]}")
 
-    # Checkpoint summary
-    if best_mae < float('inf'):
-        print(f"\n📦 Best checkpoint saved with MAE: {best_mae:.4f}")
+    # Checkpoint summary (training curves live in TensorBoard, see logs/)
+    if best_metric < float('inf'):
+        print(f"\n📦 Best checkpoint saved with {selection_metric_name}: {best_metric:.4f}")
         print(f"   Location: {ckpt_dir / 'best.safetensors'}")
         print(f"   Restore with: --restore-checkpoint {ckpt_dir / 'best.safetensors'}")
-
-    # Plot training curves
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-
-    axes[0].plot(reward_history, linewidth=1.5)
-    axes[0].set_xlabel('Update')
-    axes[0].set_ylabel('Mean Reward')
-    axes[0].set_title('Reward Progress')
-    axes[0].grid(True, alpha=0.3)
-
-    axes[1].plot(loss_history, linewidth=1.5)
-    axes[1].set_xlabel('Update')
-    axes[1].set_ylabel('Negative Reward')
-    axes[1].set_title('Loss (Spectral Distance)')
-    axes[1].grid(True, alpha=0.3)
-
-    axes[2].plot(entropy_history, linewidth=1.5)
-    axes[2].set_xlabel('Update')
-    axes[2].set_ylabel('Entropy')
-    axes[2].set_title('Policy Entropy')
-    axes[2].grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plot_path = Path(__file__).parent / "reinforce_loss.png"
-    plt.savefig(plot_path, dpi=150)
-    print(f"\nSaved plot to: {plot_path}")
 
     # Test on unseen examples
     with report_progress.timed("test"):
         num_test = 20
-        test_audio, test_features, test_params = generate_black_box_batch(random.key(9999))
+        test_audio, test_features, test_params = generate_black_box_batch(random.key(9999), n=num_test)
 
         # Run eval step (eval mode is set inside on the merged copy)
-        test_params_slice = {k: v[:num_test] for k, v in test_params.items()}
         eval_metrics_dict = eval_step(
             graphdef,
             state,
-            test_features[:num_test],
-            test_params_slice,
-            test_audio[:num_test],
+            test_features,
+            test_params,
+            test_audio,
             random.key(12345),
         )
 
@@ -981,37 +1004,43 @@ def reinforce_demo(args):
         # Print summary metrics
         eval_computed = eval_metrics.compute()
         print(f"\nTest on {num_test} unseen examples:")
-        print(f"  Continuous MAE (normalized): {float(eval_computed['continuous_mae']):.4f}")
-        print(f"  Categorical Accuracy: {float(eval_computed['categorical_accuracy']) * 100:.1f}%")
+        if cross_domain:
+            print("  (cross-domain: parameter metrics are undefined; "
+                  "spectral distance is the figure of merit)")
+        else:
+            print(f"  Continuous MAE (normalized): {float(eval_computed['continuous_mae']):.4f}")
+            print(f"  Categorical Accuracy: {float(eval_computed['categorical_accuracy']) * 100:.1f}%")
         print(f"  Spectral Distance: {float(eval_computed['spectral_distance']):.4f}")
 
-        # Detailed per-parameter breakdown (need to re-predict for this)
-        predicted_params, _, _ = policy(test_features[:num_test])
-        predicted_physical = synth.unnormalize_params(predicted_params)
-        actual_physical = synth.unnormalize_params(test_params_slice)
+        # Detailed per-parameter breakdown (in-domain only; needs targets in the
+        # policy's parameter space)
+        if not cross_domain:
+            predicted_params, _, _ = policy(test_features)
+            predicted_physical = synth.unnormalize_params(predicted_params)
+            actual_physical = synth.unnormalize_params(test_params)
 
-        print(f"\nPer-parameter breakdown:")
-        for name in continuous_names:
-            predicted = predicted_physical[name]
-            actual = actual_physical[name]
-            mae = float(jnp.mean(jnp.abs(predicted - actual)))
-            param_range = float(jnp.max(actual) - jnp.min(actual))
-            range_error = mae / (param_range + 1e-6) * 100
+            print(f"\nPer-parameter breakdown:")
+            for name in continuous_names:
+                predicted = predicted_physical[name]
+                actual = actual_physical[name]
+                mae = float(jnp.mean(jnp.abs(predicted - actual)))
+                param_range = float(jnp.max(actual) - jnp.min(actual))
+                range_error = mae / (param_range + 1e-6) * 100
 
-            meta = synth.get_parameter_metadata()[name]
-            scale = meta.get('scale_mode', 'linear')
-            print(f"  {name} ({scale}):")
-            print(f"    MAE: {mae:.1f}, Range-normalized error: {range_error:.1f}%")
-            print(f"    Predicted: [{float(jnp.min(predicted)):.1f}, {float(jnp.max(predicted)):.1f}]")
-            print(f"    Actual:    [{float(jnp.min(actual)):.1f}, {float(jnp.max(actual)):.1f}]")
+                meta = synth.get_parameter_metadata()[name]
+                scale = meta.get('scale_mode', 'linear')
+                print(f"  {name} ({scale}):")
+                print(f"    MAE: {mae:.1f}, Range-normalized error: {range_error:.1f}%")
+                print(f"    Predicted: [{float(jnp.min(predicted)):.1f}, {float(jnp.max(predicted)):.1f}]")
+                print(f"    Actual:    [{float(jnp.min(actual)):.1f}, {float(jnp.max(actual)):.1f}]")
 
-        if categorical_info:
-            for name in categorical_info.keys():
-                # Categorical params are already indices, don't unnormalize
-                predicted = predicted_params[name].astype(jnp.int32)
-                actual = test_params_slice[name].astype(jnp.int32)
-                accuracy = float(jnp.mean(predicted == actual)) * 100
-                print(f"  {name}: Accuracy={accuracy:.0f}%")
+            if categorical_info:
+                for name in categorical_info.keys():
+                    # Categorical params are already indices, don't unnormalize
+                    predicted = predicted_params[name].astype(jnp.int32)
+                    actual = test_params[name].astype(jnp.int32)
+                    accuracy = float(jnp.mean(predicted == actual)) * 100
+                    print(f"  {name}: Accuracy={accuracy:.0f}%")
 
     print("\n" + "=" * 70)
     print("REINFORCE DEMO COMPLETE!")
@@ -1042,8 +1071,11 @@ if __name__ == "__main__":
                         help="Coefficient for direct parameter supervision loss (default: 0.1)")
     parser.add_argument("--waveform-bonus-coeff", type=float, default=0.0,
                         help="Bonus reward for correct waveform category (default: 0.0, disabled for black-box)")
-    parser.add_argument("--use-multiscale-loss", action="store_true",
-                        help="Use multi-scale spectral loss instead of single-scale")
+    parser.add_argument("--cross-domain-dsp", type=str, default=None,
+                        help="Render black-box targets with this DSP file (e.g. synth2.dsp) instead of "
+                             "synth.dsp. The policy still drives synth.dsp, so no ground-truth parameters "
+                             "exist: forces RL-only (Stage 3) training on the audio reward alone, as in "
+                             "SynthRL's out-of-domain stage.")
     parser.add_argument("--entropy-decay", action="store_true",
                         help="Decay entropy coefficient from high to low over training")
     parser.add_argument("--concentration-schedule", action="store_true",
