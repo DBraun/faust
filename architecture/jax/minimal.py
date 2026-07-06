@@ -852,6 +852,7 @@ def _load_state_safetensors(path: Union[str, Path]) -> Dict[str, Any]:
 			return None
 		if isinstance(rngs, rnglib.Rngs) and "nentry" in rngs:
 			return rngs.nentry()
+		# note: don't check if rngs is Array because we require the user to instantiate nnx.Rngs with an `nentry` kwarg.
 		return None
 
 	def unnormalize(self, gumbel_key: Optional[Array] = None) -> Dict[str, ArrayLike]:
