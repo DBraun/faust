@@ -79,7 +79,7 @@ class UnknownParameterError(FaustError):
 
 
 # Utility functions for metadata parsing
-def extract_metadata(fulllabel: str) -> Tuple[str, Dict[str, str]]:
+def extract_metadata(full_label: str) -> Tuple[str, Dict[str, str]]:
 	"""
 	Extract metadata from a Faust UI label.
 
@@ -88,7 +88,7 @@ def extract_metadata(fulllabel: str) -> Tuple[str, Dict[str, str]]:
 	- Metadata dict: {"key1": "value1", "key2": "value2"}
 
 	Args:
-		fulllabel: Full label string with embedded metadata
+		full_label: Full label string with embedded metadata
 
 	Returns:
 		Tuple of (clean_label, metadata_dict)
@@ -108,13 +108,13 @@ def extract_metadata(fulllabel: str) -> Tuple[str, Dict[str, str]]:
 	# Find all [key:value] patterns
 	# Pattern matches [key:value] where value can contain anything except ]
 	pattern = r'\[([^:\]]+):([^\]]+)\]'
-	matches = re.findall(pattern, fulllabel)
+	matches = re.findall(pattern, full_label)
 
 	# Extract metadata dict
 	metadata = {key.strip(): value.strip() for key, value in matches}
 
 	# Remove all metadata brackets from label to get clean label
-	clean_label = re.sub(pattern, '', fulllabel).strip()
+	clean_label = re.sub(pattern, '', full_label).strip()
 
 	# Remove UI ordering prefix like [0], [3], etc. (no colon, so not caught above)
 	clean_label = re.sub(r'^\[\d+\]\s*', '', clean_label)
