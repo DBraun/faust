@@ -19,20 +19,6 @@ dependencies = [
     "pytest",
 ]
 
-[project.optional-dependencies]
-# Extras used only by the reinforcement-learning demo under rl_demo/.
-# Not installed by the CI `uv sync` (default group only); declared so the demo is
-# reproducible via `uv sync --extra rl-demo`.
-rl-demo = [
-    "librosax",
-    "einops",
-    "distrax",
-    "matplotlib",
-    "clu",
-    "tensorflow",   # required by clu.metric_writers, imported by reinforce_demo.py
-    "tensorboard",  # clu.metric_writers.summary_writer imports tensorboard's hparams api
-]
-
 [tool.uv]
 # This project is a dependency aggregator for the test suites, not an installable
 # package, so don't try to build/install it during `uv sync`.

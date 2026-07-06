@@ -1185,10 +1185,12 @@ When using `normalized_params`, missing parameters are automatically filled with
 
 ### Practical Examples
 
-See `tests/jax-tests/rl_demo/` for complete demonstrations:
-- `reinforce_demo.py` - Inverse synthesis with policy-gradient RL (Beta distributions for continuous parameters, Categorical for discrete)
-- `online_demo.py` - Online variant of the same task
-- `synth.dsp` - Example synthesizer with both parameter types
+A complete worked example — SynthRL-style inverse synthesis with
+policy-gradient RL (Beta distributions for continuous parameters, Categorical
+for discrete) plus a streaming `process_block` demo — lives in the
+[Terrapin](https://github.com/DBraun/Terrapin) project under
+`src/terrapin/projects/synthrl_faust/`. It drives Faust-compiled NNX synths
+through the `normalized_params` API described above.
 
 ## Limitations and Todos
 
