@@ -214,6 +214,11 @@ except ImportError:
 		"""
 		Unnormalize all UI parameters from [0, 1] to their original ranges.
 
+		Args:
+			i: Sample offset of the current block's first frame. Controls are
+				held constant within a block, mirroring the C++ reference
+				harness where controls only change between compute() calls.
+
 		Returns:
 			Dictionary mapping zones to unnormalized parameter values
 		"""
@@ -224,7 +229,10 @@ except ImportError:
 			if hasattr(self, zone):
 				if zone.startswith("fButton"):
 					normalized_value = getattr(self, zone)
-					# Press buttons for exactly 64 samples, which is desired for the impulse-tests.
+					# Buttons are pressed for exactly the first 64 samples,
+					# matching the C++ reference harness (kFrames = 64 in
+					# archs/controlTools.h: buttons on for the first compute()
+					# block, off afterwards).
 					params[zone] = jnp.where(i > 63, jnp.zeros_like(normalized_value), jnp.ones_like(normalized_value))
 				else:
 					normalized_value = getattr(self, zone)
@@ -271,7 +279,9 @@ except ImportError:
 		Process one block of audio and return updated state.
 
 		Args:
-			i: sample index (special for impulsejax.py versus minimal.py)
+			i: sample offset of the block's first frame (special for the
+				impulse archs versus minimal_linen.py; controls are held
+				constant within a block)
 			carry: State dictionary from previous block
 			inputs: Input audio block of shape (num_inputs, block_size)
 			length (int): block size of generated output
@@ -341,7 +351,7 @@ except ImportError:
 		return outputs
 
 
-def main(args, N_SAMPLES, OFFSET, print_header=True):
+def main(args, N_SAMPLES, OFFSET, print_header=True, block_size=1):
 
 	from scipy.io import wavfile
 
@@ -349,7 +359,7 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 
 	model = mydsp(sample_rate=args.sample_rate, faust_float=faust_float)
 
-	BLOCK_SIZE = 1
+	BLOCK_SIZE = block_size
 
 	N_CHANNELS = model.num_inputs
 
@@ -379,7 +389,9 @@ def main(args, N_SAMPLES, OFFSET, print_header=True):
 			did_silence_audio = True
 			input_audio = jnp.zeros_like(input_audio)
 
-		out_block, carry = process_block_jit(i, carry, input_audio)
+		# Pass the sample offset of the block's first frame, so button timing
+		# (on for the first 64 samples) is block-size independent.
+		out_block, carry = process_block_jit(i * BLOCK_SIZE, carry, input_audio)
 		out_blocks.append(np.array(out_block))
 
 	y = np.concatenate(out_blocks, axis=-1)
@@ -422,5 +434,17 @@ if __name__ == '__main__':
 
 	duration = args.duration
 
+	# Reference files (see archs/impulsearch.cpp) contain FOUR sub-runs of
+	# `duration` frames each: mono, mono with randomized compute() splits,
+	# polyphonic with 4 voices, and polyphonic with 1 voice. The header must
+	# claim the full 4*duration count because filesCompare requires equal
+	# header counts; it then stops gracefully at EOF, comparing only the
+	# sub-runs emitted here (the Julia, Rust, and D harnesses follow the same
+	# convention). This harness emits the first two sub-runs — the poly runs
+	# exercise the C++ mydsp_poly wrapper, which has no JAX equivalent
+	# (polyphony is done with jax.vmap instead, see architecture/jax/README.md).
+	# The second sub-run uses 64-sample blocks so that, like the C++
+	# randomized-split run, it verifies output is independent of how the
+	# stream is cut into process_block calls (carry state round-trips exactly).
 	main(args, duration, 0)
-	main(args, duration, duration, print_header=False)
+	main(args, duration, duration, print_header=False, block_size=64)

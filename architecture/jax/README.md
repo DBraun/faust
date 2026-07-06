@@ -79,17 +79,17 @@ Generate JAX code from a Faust DSP file:
 
 ```bash
 # NNX (default, modern)
-./build/bin/faust -lang nnx -I libraries my_example.dsp -cn MyExample -o my_example.py
+./build/bin/faust -lang nnx -a architecture/jax/minimal.py -I libraries my_example.dsp -cn MyExample -o my_example.py
 
 # Linen (legacy framework compatibility)
-./build/bin/faust -lang linen -I libraries my_example.dsp -cn MyExample -o my_example.py
+./build/bin/faust -lang linen -a architecture/jax/minimal_linen.py -I libraries my_example.dsp -cn MyExample -o my_example.py
 ```
 
 Options:
 - `-lang nnx`: Use the JAX/NNX backend
 - `-lang linen`: Use the JAX/Linen backend
 - `-I libraries`: Include path for Faust libraries (you can omit this entirely if `faust` has been fully installed)
-- `-a architecture/jax/minimal.py`: NNX architecture file (use `-a jax/minimal.py` if `faust` has been fully installed)
+- `-a architecture/jax/minimal.py`: NNX architecture file (use `-a jax/minimal.py` if `faust` has been fully installed). Without `-a`, only the bare module class is emitted — the UI helpers, `process_block`, and the command-line test harness all come from the architecture file.
 - `-a architecture/jax/minimal_linen.py`: Linen architecture file
 - `-cn MyExample`: Sets the class name (default is `mydsp`)
 - `-o my_example.py`: Specifies the output file
@@ -108,6 +108,7 @@ python3 my_example.py --help
 ```python
 import jax
 from jax import numpy as jnp, random
+from flax import nnx
 from my_example import MyExample
 
 # Pick some seed values
@@ -128,8 +129,9 @@ input_audio = input_audio.at[:, 0].set(1.0)  # impulse on all channels
 output_audio = model(input_audio)
 assert output_audio.shape == (model.num_outputs, n_samples)
 
-# For generators, pass zero channels but with a valid length
-assert input_audio.shape[0] == 0
+# Generators (0-input DSPs) still take an input array: zero channels, but the
+# second dimension sets how many samples to generate
+input_audio = jnp.zeros((0, n_samples))  # only if model.num_inputs == 0
 output_audio = model(input_audio)
 
 # If the DSP contains bargraphs (hbargraph/vbargraph), opt in with return_bargraphs=True:
@@ -151,14 +153,14 @@ level = new_carry["fHbargraph0"]  # scalar: value from the last sample
 
 **How it works:**
 
-**`__call__(x: jnp.ndarray, unroll: int)`**: Basic offline audio processing without receiving and returning a carry state
-- `x`: Input audio tensor of shape `(num_inputs, num_samples)` or `None` for generators
+**`__call__(inputs: jnp.ndarray, unroll: int)`**: Basic offline audio processing without receiving and returning a carry state
+- `inputs`: Input audio tensor of shape `(num_inputs, num_samples)`; for generators, shape `(0, num_samples)`
 - `unroll`: Unroll size for `jax.lax.scan`
 
 **Available properties:**
 
 - `num_inputs` and `num_outputs` are constant properties about the number of input and output channels for the DSP.
-- `json_metadata` method returning DSP metadata
+- `json_metadata` property returning DSP metadata as a dict
 
 ### Real-time Processing
 
@@ -168,8 +170,11 @@ This API enables low-latency processing similar to Flax's `RNNBase` pattern.
 **Using the Real-time API:**
 
 ```python
+from functools import partial
+
 import jax
 from jax import numpy as jnp, random
+from flax import nnx
 from my_example import MyExample
 
 # Pick some seed values
@@ -184,25 +189,29 @@ UNROLL = 1
 # Initialize carry state
 carry = model.initialize_carry()
 
-# JIT compile the process method
+# JIT compile the process method. Pass the RNG key explicitly: drawing from the
+# module's own nnx.Rngs would mutate its counter inside the jax.jit trace.
 @partial(jax.jit, donate_argnums=(0,))
-def process_block_jit(carry, inputs: jnp.ndarray):
+def process_block_jit(carry, inputs: jnp.ndarray, rng_key: jax.Array):
    outputs, new_carry = model.process_block(
       carry,
       inputs,
       unroll=UNROLL,
+      rngs=rng_key,
    )
    return outputs, new_carry
 
 # Process audio block by block
+rng_key = random.key(0)
 for block_idx in range(num_blocks):
     # Get input block (e.g., from audio interface)
     input_block = get_audio_input()  # shape: (num_inputs, BLOCK_SIZE)
-    
+
     # Process block and get updated state
-    output_block, carry = process_block_jit(carry, input_block)
+    subkey, rng_key = random.split(rng_key)
+    output_block, carry = process_block_jit(carry, input_block, subkey)
     # output_block is (num_outputs, BLOCK_SIZE)
-    
+
     # Send output to audio interface. In reality, audio interfaces use a callback strategy.
     send_audio_output(output_block)
 ```
@@ -212,10 +221,11 @@ for block_idx in range(num_blocks):
 1. **`initialize_carry(self)`**: Creates initial state for real-time processing
    - Returns: Dictionary containing all stateful components (delays, filter states, etc.)
 
-1. **`process_block(carry, inputs: jnp.ndarray, unroll: int = 1)`**: Processes one block of audio
+2. **`process_block(carry, inputs: jnp.ndarray, unroll: int = 1, rngs=None)`**: Processes one block of audio
    - `carry`: State dictionary from previous block
    - `inputs`: Input block of shape `(num_inputs, block_size)`
    - `unroll`: Unroll size for `jax.lax.scan`
+   - `rngs`: RNG source; pass an explicit `jax.Array` key when calling under `jax.jit` or `jax.vmap`
    - Returns: `(outputs, new_carry)` by default, or `(outputs, new_carry, bargraph_data)` when `return_bargraphs=True`
 
 ## NNX vs Linen
@@ -318,19 +328,19 @@ The JAX backend implements intelligent delay line optimization to minimize expen
 The `-mcd` flag determines when to use circular buffers vs roll operations:
 
 ```bash
-# Default: delays ≤16 use roll, delays >16 use circular buffers
-./build/bin/faust -lang nnx mydsp.dsp -o mydsp.py
+# Default (-mcd 16): delays < 16 use direct copies or roll, delays >= 16 use circular buffers
+./build/bin/faust -lang nnx -a architecture/jax/minimal.py mydsp.dsp -o mydsp.py
 
 # Force more delays to use roll operations (may reduce performance)
-./build/bin/faust -lang nnx -mcd 64 mydsp.dsp -o mydsp.py
+./build/bin/faust -lang nnx -a architecture/jax/minimal.py -mcd 64 mydsp.dsp -o mydsp.py
 
 # Force more delays to use circular buffers (may improve performance)
-./build/bin/faust -lang nnx -mcd 8 mydsp.dsp -o mydsp.py
+./build/bin/faust -lang nnx -a architecture/jax/minimal.py -mcd 8 mydsp.dsp -o mydsp.py
 ```
 
 #### Implementation Strategies
 
-**Roll Operations** (for delays ≤ `-mcd`):
+**Roll Operations** (for delays < `-mcd`):
 ```python
 # Initialization
 state["fVec0"] = np.zeros((delay+1,), dtype=np.float64)
@@ -341,7 +351,7 @@ _result0 = state["fVec0"][delay]                      # Read from fixed position
 state["fVec0"] = jnp.roll(state["fVec0"], 1)          # O(n) shift operation
 ```
 
-**Circular Buffers** (for delays > `-mcd`):
+**Circular Buffers** (for delays >= `-mcd`):
 ```python
 # Initialization
 state["fVec0"] = np.zeros((next_pow2,), dtype=np.float64)  # Size = next power of 2
@@ -426,16 +436,15 @@ make linen
 
 ### Impulse Test Architecture
 
-The `tests/impulse-tests/archs/impulsennx.py` (NNX) and `tests/impulse-tests/archs/impulsejax_linen.py` (Linen) files are specialized architectures for impulse response testing. They have specific requirements:
+The `tests/impulse-tests/archs/impulsennx.py` (NNX) and `tests/impulse-tests/archs/impulsejax_linen.py` (Linen) files are specialized architectures for impulse response testing. How they relate to the C++ reference harness:
 
-1. **Output Formatting**: Must match the reference format exactly with proper spacing:
-   ```
-   number_of_inputs  :   1    # 3 spaces after colon
-   number_of_outputs :   1    # 3 spaces after colon  
-   number_of_frames  :   60000 # 3 spaces after colon
-   ```
+1. **Header and tolerance**: `filesCompare` parses tokens (spacing is irrelevant) but requires the `number_of_frames` header to equal the reference's count, and compares samples with a `2e-06` tolerance.
 
-2. **Soundfile Workaround**: Like `minimal.py`, it includes the soundfile state workaround (see [Soundfile Handling Note](#soundfile-handling-note)).
+2. **Sub-run convention**: Reference files (generated by `archs/impulsearch.cpp`) contain four sub-runs of 15000 frames each: mono, mono with randomized `compute()` splits, polyphonic with 4 voices, and polyphonic with 1 voice. The Python architectures emit the first two sub-runs — the second using 64-sample blocks to verify block-size independence — and declare the full frame count in the header; `filesCompare` stops at EOF, comparing only the emitted prefix. The Julia, Rust, and D impulse harnesses follow the same convention (the poly sub-runs exercise the C++ `mydsp_poly` wrapper, which has no JAX equivalent — see [Polyphony Support](#polyphony-support)).
+
+3. **Buttons**: pressed for exactly the first 64 samples, matching the C++ harness (`kFrames` in `archs/controlTools.h`).
+
+4. **Soundfile Workaround**: Like `minimal.py`, they include the soundfile state workaround (see [Soundfile Handling Note](#soundfile-handling-note)).
 
 ## Polyphony Support
 
@@ -474,12 +483,14 @@ Instantiate the module and run a single voice:
 import jax
 import jax.numpy as jnp
 from jax import random
+from flax import nnx
 from poly_synth import SynthVoice
 
 sample_rate = 44100
 num_frames = 1024
 
-model = SynthVoice(sample_rate=sample_rate)
+# Construct with rngs so process_block can draw RNG keys from the module
+model = SynthVoice(sample_rate=sample_rate, rngs=nnx.Rngs(0))
 state = model.initialize_carry()
 
 # inputs: (num_inputs, num_frames) — [freq, gain, gate]
@@ -877,7 +888,7 @@ The following features are planned for better DDSP support:
    fixed_param = hslider("Fixed[param:0]", 0.5, 0, 1, 0.01);
    ```
 
-3. **Metadata-driven gradient config**: Use UI metadata to specify gradient behavior per-parameter
+2. **Metadata-driven gradient config**: Use UI metadata to specify gradient behavior per-parameter
    ```faust
    // Example syntax (not yet implemented - requires compiler support)
    cutoff = hslider("Cutoff[gradient:conditional_ste]", 1000, 20, 20000, 1);
@@ -1175,8 +1186,8 @@ When using `normalized_params`, missing parameters are automatically filled with
 ### Practical Examples
 
 See `tests/jax-tests/rl_demo/` for complete demonstrations:
-- `rl_policy_demo.py` - RL training with Beta distribution policies
-- `categorical_demo.py` - Handling discrete parameters with `ba.selectn`
+- `reinforce_demo.py` - Inverse synthesis with policy-gradient RL (Beta distributions for continuous parameters, Categorical for discrete)
+- `online_demo.py` - Online variant of the same task
 - `synth.dsp` - Example synthesizer with both parameter types
 
 ## Limitations and Todos
@@ -1184,6 +1195,5 @@ See `tests/jax-tests/rl_demo/` for complete demonstrations:
 * `nnx.tabulate` currently has compatibility issues with scan-based models (see [Flax issue #5067](https://github.com/google/flax/issues/5067)). The `--tabulate` flag may not work until this is resolved.
 * The `waveform` primitive in Faust doesn't become a Flax parameter in the generated Module. It would be useful to have a way to turn it into a learnable parameter instead of just a constant array.
 * The `[param:0]`/`[param:1]` metadata is implemented for soundfiles but not yet for sliders, buttons, or nentry. It would be useful to support `hslider("foo[param:0]", 0.5, 0, 1, .01)` to freeze individual parameters.
-* We could try to generate more efficient code in the `tick` function, but it's possible that XLA is already equivalently optimizing the code for us when we use JIT. We could look at the HLO or other to investigate.
-* * Avoid unnecessary casts from `bool` to `jnp.int32`
+* We could try to generate more efficient code in the `tick` function, but it's possible that XLA is already equivalently optimizing the code for us when we use JIT. We could look at the HLO or other to investigate. One known candidate: avoiding unnecessary casts from `bool` to `jnp.int32`.
 * NNX bargraph support uses a closure-based scan pattern that returns per-sample values as extra outputs, controlled by the `return_bargraphs` constructor flag (default `False`). When `True`, the return tuple always includes a bargraph dict (empty `{}` if the DSP has no bargraphs), giving a consistent return shape. Compatible with `jax.vmap`. An alternative `sow`-based approach would be cleaner but is blocked by Flax NNX `Rngs` trace-level conflicts inside `vmap` (see https://github.com/google/flax/discussions/4799). Linen bargraphs only expose the last sample's value via the carry dict; per-sample history could be added with `sow` + `variable_axes={'intermediates': 0}` (see https://github.com/google/flax/discussions/3727).
