@@ -799,7 +799,7 @@ def _load_state_safetensors(path: str | Path) -> Dict[str, Any]:
 		return random.beta(rng, a=a, b=b, shape=(), dtype=self.faust_float)
 
 	def _extract_rng_key(
-		self, rngs: Optional[rnglib.Rngs | rnglib.RngStream | Array]
+		self, rngs: Optional[rnglib.Rngs | rnglib.RngStream | Array] = None
 	) -> Array:
 		"""
 		Extract a JAX random key from various RNG sources.
