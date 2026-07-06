@@ -1706,7 +1706,7 @@ if __name__ == "__main__":
 	parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Set the logger level (default: INFO)")
 	parser.add_argument("--jit", default=False, action=argparse.BooleanOptionalAction, help="Whether to use JIT.")
 	parser.add_argument("--benchmark", type=int, default=0, help="Number of loops for a speed benchmark with tqdm (default: 0).")
-	parser.add_argument("--platform", default="cpu", choices=["cpu", "gpu", "metal", "tpu"])
+	parser.add_argument("--platform", default="cpu", choices=["cpu", "gpu", "metal", "tpu"], help="Which platform to use (default: cpu)")
 	parser.add_argument("--double", default=False, action=argparse.BooleanOptionalAction, help="Whether to enable double type (jnp.float64)")
 	parser.add_argument("--verbose", default=False, action=argparse.BooleanOptionalAction, help="Whether to print the variables of the DSP")
 	parser.add_argument("--realtime", default=False, action=argparse.BooleanOptionalAction, help="Run the DSP with silent input and send the output to an audio device in real-time.")
