@@ -23,7 +23,8 @@ from typing import Dict, List, Tuple, Optional, Any, Callable, Union
 import warnings
 import numpy as np
 import jax
-from jax import numpy as jnp, random
+from jax import numpy as jnp, random, Array
+from jax.typing import ArrayLike
 from flax import linen as nn, nnx
 from flax.nnx import rnglib
 import librosa
@@ -557,7 +558,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 			"metadata": metadata,
 		}
 
-	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> jnp.ndarray:
+	def normalize_value(self, value: float, a_min: float, a_max: float, scale_mode: str) -> Array:
 		"""
 		Normalize a value from [a_min, a_max] to [0, 1] based on scale mode.
 
@@ -602,7 +603,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 				f"Supported modes are: 'linear', 'exp', 'log'"
 			)
 
-	def create_unnormalize_func(self, a_min: float, a_max: float, scale_mode: str) -> Callable[[jnp.ndarray], jnp.ndarray]:
+	def create_unnormalize_func(self, a_min: float, a_max: float, scale_mode: str) -> Callable[[Array], Array]:
 		"""
 		Create an unnormalization function for the given scale mode.
 
@@ -753,7 +754,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		self.add_bargraph(zone, ui_path, label, a_min, a_max, unnorm_funcs)
 		self._parameter_metadata[zone]["type"] = "vbargraph"
 
-	def random_uniform(self, rng: jax.Array) -> jnp.ndarray:
+	def random_uniform(self, rng: Array) -> Array:
 		"""
 		Generate a random uniform value in the range [0, 1] using JAX's PRNG.
 
@@ -765,7 +766,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		"""
 		return random.uniform(rng, shape=(), minval=0.0, maxval=1.0, dtype=self.faust_float)
 
-	def random_normal(self, rng: jax.Array) -> jnp.ndarray:
+	def random_normal(self, rng: Array) -> Array:
 		"""
 		Generate a random normal (Gaussian) value with mean=0, std=1 using JAX's PRNG.
 
@@ -777,7 +778,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		"""
 		return random.normal(rng, shape=(), dtype=self.faust_float)
 
-	def random_exponential(self, rng: jax.Array, rate: float = 1.0) -> jnp.ndarray:
+	def random_exponential(self, rng: Array, rate: float = 1.0) -> Array:
 		"""
 		Generate a random exponential value using JAX's PRNG.
 
@@ -794,7 +795,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		# JAX's exponential uses scale parameter (1/rate)
 		return random.exponential(rng, shape=(), dtype=self.faust_float) / rate
 
-	def random_bernoulli(self, rng: jax.Array, p: float = 0.5) -> jnp.ndarray:
+	def random_bernoulli(self, rng: Array, p: float = 0.5) -> Array:
 		"""
 		Generate a random binary value (0 or 1) using JAX's PRNG.
 
@@ -809,7 +810,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		"""
 		return self.faust_float(random.bernoulli(rng, p=p, shape=()))
 
-	def random_beta(self, rng: jax.Array, a: float = 2.0, b: float = 2.0) -> jnp.ndarray:
+	def random_beta(self, rng: Array, a: float = 2.0, b: float = 2.0) -> Array:
 		"""
 		Generate a random beta value using JAX's PRNG.
 
@@ -827,8 +828,8 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		return random.beta(rng, a=a, b=b, shape=(), dtype=self.faust_float)
 
 	def _extract_rng_key(
-		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, jax.Array]] = None
-	) -> jax.Array:
+		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]] = None
+	) -> Array:
 		"""
 		Extract a JAX random key from various RNG sources.
 
@@ -847,7 +848,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		if rngs is None:
 			return random.key(DEFAULT_RNG_SEED)
 
-		if isinstance(rngs, jax.Array):
+		if isinstance(rngs, Array):
 			return rngs
 		elif isinstance(rngs, rnglib.Rngs):
 			return rngs[self.rng_collection]()
@@ -859,8 +860,8 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 			)
 
 	def _extract_gumbel_key(
-		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, jax.Array]] = None
-	) -> Optional[jax.Array]:
+		self, rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]] = None
+	) -> Optional[Array]:
 		"""
 		Extract a Gumbel PRNG key for nentry Gumbel-softmax sampling.
 
@@ -882,7 +883,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 			return rngs.nentry()
 		return None
 
-	def unnormalize(self, gumbel_key: Optional[jax.Array] = None) -> Dict[str, jnp.ndarray]:
+	def unnormalize(self, gumbel_key: Optional[Array] = None) -> Dict[str, Array]:
 		"""
 		Unnormalize all UI parameters from [0, 1] to their original ranges.
 
@@ -926,7 +927,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 
 		return params
 
-	def unnormalize_params(self, normalized_params: Dict[str, jnp.ndarray]) -> Dict[str, jnp.ndarray]:
+	def unnormalize_params(self, normalized_params: Dict[str, ArrayLike]) -> Dict[str, Array]:
 		"""
 		Unnormalize parameters to their physical ranges.
 
@@ -992,7 +993,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		"""
 		return self._parameter_metadata.copy()
 
-	def get_continuous_params(self, batch_size: Optional[int] = None, normalized: bool = True) -> Dict[str, jnp.ndarray]:
+	def get_continuous_params(self, batch_size: Optional[int] = None, normalized: bool = True) -> Dict[str, Array]:
 		"""
 		Get continuous parameters (sliders, buttons), optionally batched.
 
@@ -1048,7 +1049,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 			continuous
 		)
 
-	def get_categorical_params(self, batch_size: Optional[int] = None) -> Dict[str, Dict[str, jnp.ndarray]]:
+	def get_categorical_params(self, batch_size: Optional[int] = None) -> Dict[str, Dict[str, Array]]:
 		"""
 		Get categorical parameters (nentrys), optionally batched.
 
@@ -1152,7 +1153,7 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 			zone_params[zone] = value
 		return zone_params
 
-	def with_defaults(self, partial_params: Dict[str, Any]) -> Dict[str, jnp.ndarray]:
+	def with_defaults(self, partial_params: Dict[str, Any]) -> Dict[str, Array]:
 		"""
 		Merge partial parameters with defaults, returning a complete parameter dict.
 
@@ -1192,11 +1193,11 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 		# Merge: start with defaults, override with provided values
 		result = dict(defaults)
 		for zone, value in partial_params.items():
-			result[zone] = jnp.array(value) if not isinstance(value, jnp.ndarray) else value
+			result[zone] = jnp.array(value) if not isinstance(value, ArrayLike) else value
 
 		return result
 
-	def initialize_carry(self) -> Dict[str, jnp.ndarray]:
+	def initialize_carry(self) -> Dict[str, Array]:
 		"""
 		Initialize the carry state for real-time processing.
 
@@ -1226,13 +1227,13 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 
 	def process_block(
 		self,
-		carry: Dict[str, jnp.ndarray],
-		inputs: Optional[jnp.ndarray] = None,
-		params: Optional[Dict[str, jnp.ndarray]] = None,
-		normalized_params: Optional[Dict[str, jnp.ndarray]] = None,
+		carry: Dict[str, ArrayLike],
+		inputs: Optional[ArrayLike] = None,
+		params: Optional[Dict[str, ArrayLike]] = None,
+		normalized_params: Optional[Dict[str, ArrayLike]] = None,
 		unroll: int = 1,
-		rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, jax.Array]] = None,
-	) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+		rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]] = None,
+	) -> Tuple[Array, Dict[str, Array]]:
 		"""
 		Process one block of audio and return updated state.
 
@@ -1305,12 +1306,12 @@ def load_params(path: Union[str, Path]) -> Dict[str, Any]:
 
 	def __call__(
 		self,
-		inputs: jnp.ndarray,
-		params: Optional[Dict[str, jnp.ndarray]] = None,
-		normalized_params: Optional[Dict[str, jnp.ndarray]] = None,
+		inputs: ArrayLike,
+		params: Optional[Dict[str, ArrayLike]] = None,
+		normalized_params: Optional[Dict[str, ArrayLike]] = None,
 		unroll: int = 1,
-		rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, jax.Array]] = None,
-	) -> jnp.ndarray:
+		rngs: Optional[Union[rnglib.Rngs, rnglib.RngStream, Array]] = None,
+	) -> Array:
 		"""
 		Process audio through the DSP.
 
@@ -1483,10 +1484,10 @@ def test(args: argparse.Namespace) -> None:
 		# __call__ (apply() reserves its own `rngs=` kwarg for make_rng), so we
 		# never mutate an RNG counter inside the jit trace.
 		@jax.jit
-		def forward(x: jnp.ndarray):
+		def forward(x: ArrayLike):
 			return _model.apply(variables, x, None, None, args.unroll, key)
 	else:
-		def forward(x: jnp.ndarray):
+		def forward(x: ArrayLike):
 			y = model(x, unroll=args.unroll, rngs=key)
 			return y
 
@@ -1595,7 +1596,7 @@ def realtime_audio_example(
 	# JIT compile the process method (apply() runs process_block under the bound
 	# variables; the RNG key is passed positionally to avoid apply()'s `rngs=` kwarg).
 	@partial(jax.jit, donate_argnums=(0,))
-	def process_block_jit(carry, inputs: jnp.ndarray, rng_key: jax.Array):
+	def process_block_jit(carry, inputs: ArrayLike, rng_key: Array):
 		outputs, new_carry = _model.apply(
 			variables, carry, inputs, None, None, unroll, rng_key,
 			method=mydsp.process_block,
